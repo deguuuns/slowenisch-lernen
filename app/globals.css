@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html { background: #f7f8f4; }
+body { margin: 0; background: #f7f8f4; color: #182018; }
+button, input { font: inherit; }
+::selection { background: #d9f99d; }
+@layer components {
+  .btn-primary { @apply inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40; }
+  .btn-secondary { @apply inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200; }
+  .card { @apply rounded-3xl bg-white p-5 shadow-soft; }
+}
