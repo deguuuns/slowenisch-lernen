@@ -28,7 +28,7 @@ export default function Page() {
 
   function finishLesson(id:number) {
     const ids = vocabulary.filter(v=>v.lesson===id).map(v=>v.id)
-    setProgress(p => ({...p, completedLessons:[...new Set([...p.completedLessons,id])], wordsLearned:[...new Set([...p.wordsLearned,...ids])] }))
+setProgress(p => ({...p, completedLessons: Array.from(new Set([...p.completedLessons, id])), wordsLearned: Array.from(new Set([...p.wordsLearned, ...ids])) }))
     setTab('progress')
   }
 
