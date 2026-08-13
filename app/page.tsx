@@ -28,7 +28,8 @@ export default function Page() {
 
   function finishLesson(id:number) {
     const ids = vocabulary.filter(v=>v.lesson===id).map(v=>v.id)
-setProgress(p => ({...p, completedLessons: Array.from(new Set([...p.completedLessons, id])), wordsLearned: Array.from(new Set([...p.wordsLearned, ...ids])) }))
+setProgress(p => ({ ...p, completedLessons: Array.from(new Set([...p.completedLessons, id])), wordsLearned: Array.from(new Set([...p.wordsLearned, ...ids]))
+}))
     setTab('progress')
   }
 
@@ -109,7 +110,46 @@ function ExerciseDeck({exercises:onDeck,onResult}:{exercises:Exercise[];onResult
   const ex=onDeck[i % onDeck.length]
   if (!ex) return <div className="card">Für diese Lektion sind noch keine Übungen vorhanden.</div>
   const correct=isEquivalent(value,ex.answer)
-  return <div className="card"><div className="text-sm font-bold text-lime-700">Übung {i+1} / {onDeck.length}</div><h3 className="mt-2 text-xl font-black">{ex.prompt}</h3>{ex.hint&&<p className="mt-2 text-sm text-slate-500">Hinweis: {ex.hint}</p>}<input value={value} onChange={e=>{setValue(e.target.value);setChecked(false)}} onKeyDown={e=>{if(e.key==='Enter'&&value.trim()){setChecked(true);onResult(ex,isEquivalent(value,ex.answer))}}} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500" placeholder="Deine Antwort auf Slowenisch …"/><button onClick={()=>{setChecked(true);onResult(ex,correct)}} disabled={!value.trim()} className="btn-primary mt-3 w-full justify-center">Prüfen</button>{checked&&<div className={`mt-4 rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`}>{correct?<><b>Pravilno!</b> Genau richtig.</>:<><b>Noch nicht.</b><div className="mt-1">Richtig: <span className="font-bold">{ex.answer}</span></div>{ex.explanation&&<div className="mt-2 text-sm">Warum? {ex.explanation}</div>}</>}<button onClick={()=>{setI((i+1)%onDeck.length);setValue('');setChecked(false)}} className="mt-3 font-bold underline">Nächste Aufgabe</button></div>}</div>
+
+  function insertSpecialChar(ch:string) {
+    setValue(v=>v+ch)
+    setChecked(false)
+  }
+
+  return <div className="card">
+    <div className="text-sm font-bold text-lime-700">Übung {i+1} / {onDeck.length}</div>
+    <h3 className="mt-2 text-xl font-black">{ex.prompt}</h3>
+    {ex.hint&&<p className="mt-2 text-sm text-slate-500">Hinweis: {ex.hint}</p>}
+
+    <input
+      value={value}
+      onChange={e=>{setValue(e.target.value);setChecked(false)}}
+      onKeyDown={e=>{if(e.key==='Enter'&&value.trim()){setChecked(true);onResult(ex,isEquivalent(value,ex.answer))}}}
+      className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500"
+      placeholder="Deine Antwort auf Slowenisch …"
+    />
+
+    <div className="mt-2 flex gap-2">
+      {['č','š','ž'].map(ch=><button
+        key={ch}
+        type="button"
+        onClick={()=>insertSpecialChar(ch)}
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-black hover:bg-slate-50"
+        aria-label={`${ch.toUpperCase()} einfügen`}
+      >{ch.toUpperCase()}</button>)}
+    </div>
+
+    <button
+      onClick={()=>{setChecked(true);onResult(ex,correct)}}
+      disabled={!value.trim()}
+      className="btn-primary mt-3 w-full justify-center"
+    >Prüfen</button>
+
+    {checked&&<div className={`mt-4 rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`}>
+      {correct?<><b>Pravilno!</b> Genau richtig.</>:<><b>Noch nicht.</b><div className="mt-1">Richtig: <span className="font-bold">{ex.answer}</span></div>{ex.explanation&&<div className="mt-2 text-sm">Warum? {ex.explanation}</div>}</>}
+      <button onClick={()=>{setI((i+1)%onDeck.length);setValue('');setChecked(false)}} className="mt-3 font-bold underline">Nächste Aufgabe</button>
+    </div>}
+  </div>
 }
 
 function ConversationCard({lesson}:{lesson:number}) {
