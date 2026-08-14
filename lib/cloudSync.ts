@@ -129,7 +129,7 @@ export async function syncProfile(profile: LearnerProfile, localState?: UserProg
   const local = localState ?? loadProgress(profile.id)
   const cloud = stateRows[0]?.state ?? defaultProgress
   const merged = mergeProgress(local, cloud)
-  saveProgress(merged, profile.id)
+  saveProgress(merged, profile.id, { silent: true })
 
   await supabaseRest('learner_states?on_conflict=user_id,profile_id', {
     method: 'POST',
@@ -160,7 +160,7 @@ export async function syncAllProfiles() {
     replaceProfiles(imported)
     for (const row of cloudProfiles) {
       const states = await supabaseRest<CloudState[]>(`learner_states?profile_id=eq.${row.id}&select=state,revision,updated_at&limit=1`)
-      if (states[0]?.state) saveProgress(states[0].state, row.client_profile_id)
+      if (states[0]?.state) saveProgress(states[0].state, row.client_profile_id, { silent: true })
     }
     return { profiles: imported, imported: imported.length }
   }
@@ -176,7 +176,7 @@ export async function syncAllProfiles() {
     const profile = toLocalProfile(row)
     upsertLocalProfile(profile)
     const states = await supabaseRest<CloudState[]>(`learner_states?profile_id=eq.${row.id}&select=state,revision,updated_at&limit=1`)
-    if (states[0]?.state) saveProgress(states[0].state, profile.id)
+    if (states[0]?.state) saveProgress(states[0].state, profile.id, { silent: true })
     importedCount += 1
   }
 
