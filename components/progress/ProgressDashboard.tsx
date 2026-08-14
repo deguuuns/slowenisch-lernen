@@ -1,5 +1,5 @@
 import { Brain, Clock3, Headphones, Mic2, RotateCcw, Trophy } from 'lucide-react'
-import { exercises } from '@/data/seed'
+import { exercises } from '@/data/learningContent'
 import type { LearningSkill, UserProgress } from '@/types'
 
 const skills: { id: LearningSkill; label: string }[] = [
