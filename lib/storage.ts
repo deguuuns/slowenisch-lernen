@@ -3,9 +3,9 @@
 import { Mistake, ReviewItem, UserProgress } from '@/types'
 import { scheduleReview as scheduleAdaptiveReview } from './spacedRepetition'
 
-const CURRENT_KEY = 'slovensko-progress-v2'
-const LEGACY_KEYS = ['slovensko-progress-v1']
-const SCHEMA_VERSION = 2
+const CURRENT_KEY = 'slovensko-progress-v3'
+const LEGACY_KEYS = ['slovensko-progress-v2', 'slovensko-progress-v1']
+const SCHEMA_VERSION = 3
 
 export const defaultProgress: UserProgress = {
   schemaVersion: SCHEMA_VERSION,
@@ -20,6 +20,8 @@ export const defaultProgress: UserProgress = {
   totalLearningMinutes: 0,
   dailyActivity: [],
   skillXp: {},
+  learningItems: {},
+  recentSessionHistory: [],
 }
 
 function migrateProgress(input: Partial<UserProgress> | null | undefined): UserProgress {
@@ -34,6 +36,8 @@ function migrateProgress(input: Partial<UserProgress> | null | undefined): UserP
     reviews: Array.isArray(input?.reviews) ? input.reviews : [],
     dailyActivity: Array.isArray(input?.dailyActivity) ? input.dailyActivity : [],
     skillXp: input?.skillXp ?? {},
+    learningItems: input?.learningItems ?? {},
+    recentSessionHistory: Array.isArray(input?.recentSessionHistory) ? input.recentSessionHistory.slice(-60) : [],
   }
 
   progress.reviews = progress.reviews.map(item => ({
