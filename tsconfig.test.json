@@ -14,6 +14,7 @@
     "tests/**/*.ts",
     "lib/answerMatching.ts",
     "lib/learningEngine.ts",
+    "lib/slovenianTts.ts",
     "types/index.ts"
   ],
   "exclude": ["node_modules", ".next"]
