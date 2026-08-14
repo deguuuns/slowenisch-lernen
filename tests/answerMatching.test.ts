@@ -48,6 +48,13 @@ test('accepted answers are explicit and grammatical', () => {
   assert.equal(compare('Živim v Nemčijo.', 'Živim v Nemčiji.', ['V Nemčiji živim.']), false)
 })
 
+test('Kam greš can accept multiple explicitly valid destinations', () => {
+  const alternatives = ['Grem domov.', 'Grem v Ljubljano.', 'Grem v trgovino.', 'Grem v službo.']
+  assert.equal(compare('Grem domov.', 'Grem v Slovenijo.', alternatives), true)
+  assert.equal(compare('Grem v Ljubljano.', 'Grem v Slovenijo.', alternatives), true)
+  assert.equal(compare('Sem doma.', 'Grem v Slovenijo.', alternatives), false)
+})
+
 test('speech digit artifacts are context aware', () => {
   assert.equal(compareAnswer({ input: 'Imam 2 brata', expected: 'Imam dva brata.', inputMode: 'speech' }).correct, true)
   assert.equal(compareAnswer({ input: 'Grem spat ob 10', expected: 'Grem spat ob desetih.', inputMode: 'speech' }).correct, true)
