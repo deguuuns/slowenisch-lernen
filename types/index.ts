@@ -58,6 +58,8 @@ export type Exercise = {
   difficulty?: 1 | 2 | 3 | 4 | 5
   audioPrompt?: string
   grammarTag?: string
+  prerequisites?: string[]
+  learningTargets?: string[]
 }
 
 export type GrammarPoint = {
@@ -131,6 +133,37 @@ export type ReviewItem = {
   confidence?: 1 | 2 | 3 | 4 | 5
 }
 
+export type LearningItemKind = 'exercise' | 'vocabulary' | 'grammar' | 'phrase' | 'pattern' | 'listening' | 'speaking' | 'lesson'
+
+export type LearningItemState = {
+  key: string
+  kind: LearningItemKind
+  level?: CEFRLevel
+  skills?: LearningSkill[]
+  grammarTag?: string
+  attempts: number
+  correctCount: number
+  incorrectCount: number
+  correctStreak: number
+  incorrectStreak: number
+  mastery: number
+  difficulty: number
+  lastSeenAt?: number
+  nextDueAt?: number
+  averageResponseMs?: number
+  lastMistakeCategory?: MistakeCategory
+}
+
+export type SessionHistoryItem = {
+  exerciseId: string
+  learningTargets: string[]
+  skills: LearningSkill[]
+  correct: boolean
+  timestamp: number
+  mistakeCategory?: MistakeCategory
+  reason?: string
+}
+
 export type DailyActivity = {
   date: string
   minutes: number
@@ -152,4 +185,6 @@ export type UserProgress = {
   dailyActivity?: DailyActivity[]
   lastSessionAt?: number
   skillXp?: Partial<Record<LearningSkill, number>>
+  learningItems?: Record<string, LearningItemState>
+  recentSessionHistory?: SessionHistoryItem[]
 }
