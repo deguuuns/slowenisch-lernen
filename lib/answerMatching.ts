@@ -103,6 +103,10 @@ export function compareAnswer({
     return { correct: true, normalizedInput, normalizedExpected, matchedAnswer: accepted }
   }
 
+  if (!/\d/.test(normalizedInput)) {
+    return { correct: false, normalizedInput, normalizedExpected }
+  }
+
   const candidates = [expected, ...acceptedAnswers]
   for (const candidate of candidates) {
     if (matchSpeechNumberVariant(input, candidate)) {
