@@ -6,6 +6,7 @@ import {
   selectNextExercise,
   shouldIntroduceNewContent,
   updateLearnerState,
+  type SessionState,
 } from '../lib/learningEngine'
 import type { Exercise, UserProgress } from '../types'
 
@@ -103,11 +104,20 @@ test('same concrete task is not immediately repeated', () => {
 })
 
 test('same failed learning target can return through a different transfer exercise', () => {
-  const original = exercise('original')
   const transfer = exercise('transfer', { prompt:'Vidim dva prijatelja.', answer:'Vidim dva prijatelja.' })
-  const session = {
-    ...createSessionState(), answered: 3, correct: 2, recentExerciseIds: ['original'],
-    history: [{ exerciseId:'original', learningTargets:['lesson:2','grammar:dual','skill:schreiben','skill:grammatika'], skills:['schreiben'], correct:false, timestamp:Date.now(), mistakeCategory:'dual' as const }],
+  const session: SessionState = {
+    ...createSessionState(),
+    answered: 3,
+    correct: 2,
+    recentExerciseIds: ['original'],
+    history: [{
+      exerciseId:'original',
+      learningTargets:['lesson:2','grammar:dual','skill:schreiben'],
+      skills:['schreiben'],
+      correct:false,
+      timestamp:Date.now(),
+      mistakeCategory:'dual',
+    }],
   }
   const score = scoreExerciseCandidate(transfer, baseProgress, session)
   assert.ok(score.reasons.includes('Transferübung zu einem aktuellen Fehler'))
