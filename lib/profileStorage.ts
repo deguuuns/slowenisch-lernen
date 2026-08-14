@@ -23,6 +23,16 @@ export function listProfiles() {
   return readProfiles()
 }
 
+export function replaceProfiles(profiles: LearnerProfile[]) {
+  writeProfiles(profiles)
+  const active = getActiveProfile()
+  if (!active && profiles[0]) setActiveProfile(profiles[0].id)
+}
+
+export function upsertLocalProfile(profile: LearnerProfile) {
+  writeProfiles([...readProfiles().filter(item => item.id !== profile.id), profile].sort((a,b) => a.createdAt - b.createdAt))
+}
+
 export function getActiveProfile(): LearnerProfile | null {
   if (typeof window === 'undefined') return null
   const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY)
