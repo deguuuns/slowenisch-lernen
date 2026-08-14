@@ -70,7 +70,6 @@ function readStoredProgress(profileId = activeProfileId()) {
   const current = localStorage.getItem(profileKey(profileId))
   if (current) return current
 
-  // Preserve the pre-profile learner state by assigning it once to the first/default profile.
   if (profileId === 'default') {
     for (const key of LEGACY_KEYS) {
       const legacy = localStorage.getItem(key)
@@ -96,7 +95,10 @@ export function loadProgress(profileId?: string): UserProgress {
 
 export function saveProgress(progress: UserProgress, profileId?: string) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(profileKey(profileId ?? activeProfileId()), JSON.stringify(migrateProgress(progress)))
+    const id = profileId ?? activeProfileId()
+    const migrated = migrateProgress(progress)
+    localStorage.setItem(profileKey(id), JSON.stringify(migrated))
+    window.dispatchEvent(new CustomEvent('slovensko-progress-saved', { detail: { profileId: id, progress: migrated } }))
   }
 }
 
