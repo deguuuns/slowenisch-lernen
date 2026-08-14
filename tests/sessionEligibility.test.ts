@@ -11,8 +11,8 @@ const profile: LearnerProfile = {
 function progress(overrides: Partial<UserProgress> = {}): UserProgress {
   return {
     schemaVersion: 4, completedLessons: [], streak: 1, wordsLearned: [], secureWords: [], mistakes: [], reviews: [],
-    speakingMinutes: 0, listeningMinutes: 0, introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','kje','kam','grem'],
-    introducedGrammar: ['biti-1s','kje-kam','location-direction'], skillXp: {}, learningItems: {}, recentSessionHistory: [], ...overrides,
+    speakingMinutes: 0, listeningMinutes: 0, introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','kje','kam','grem','danes'],
+    introducedGrammar: ['biti-1s','biti-basic','kje-kam','location-direction'], skillXp: {}, learningItems: {}, recentSessionHistory: [], ...overrides,
   }
 }
 
@@ -38,7 +38,7 @@ test('correct concrete exercise is blocked for the rest of the session', () => {
 })
 
 test('productive exercise is blocked until required grammar was introduced', () => {
-  const p = progress({ introducedGrammar: ['biti-1s'] })
+  const p = progress({ introducedGrammar: ['biti-1s','biti-basic'] })
   assert.equal(isEligibleForAdaptiveSession(exercise(), p, createSessionState(), profile), false)
 })
 
@@ -55,6 +55,15 @@ test('secure concrete task is not actively tested again before due date', () => 
   assert.equal(isEligibleForAdaptiveSession(exercise(), p, createSessionState(), profile, now), false)
 })
 
+test('mastered vocabulary may still be used naturally in a different new sentence', () => {
+  const now = Date.now()
+  const p = progress({ learningItems: {
+    'vocab:danes': { key:'vocab:danes', kind:'vocabulary', attempts:5, correctCount:5, incorrectCount:0, correctStreak:5, incorrectStreak:0, mastery:0.95, difficulty:1, nextDueAt:now + 7*86_400_000 },
+  } })
+  const newSentence = exercise({ id:'new-sentence', prompt:'Heute gehe ich nach Hause.', answer:'Danes grem domov.', requiredVocabulary:['danes','grem'], contentKey:'today-go-home' })
+  assert.equal(isEligibleForAdaptiveSession(newSentence, p, createSessionState(), profile, now), true)
+})
+
 test('same target can return after an error with different content', () => {
   const session = { ...createSessionState(), history: [hist({ exerciseId:'bad-one', correct:false, contentKey:'old-content' })] }
   const transfer = exercise({ id:'transfer', prompt:'Ich gehe nach Hause.', answer:'Grem domov.', contentKey:'go-home', contextTag:'alltag' })
@@ -66,4 +75,9 @@ test('one target cannot dominate indefinitely without a recent error', () => {
     hist({ exerciseId:'a', contentKey:'a' }), hist({ exerciseId:'b', contentKey:'b' }), hist({ exerciseId:'c', contentKey:'c' }),
   ] }
   assert.equal(isEligibleForAdaptiveSession(exercise({ id:'d', contentKey:'d' }), progress(), session, profile), false)
+})
+
+test('zero beginners do not receive unannotated legacy exercises in adaptive mode', () => {
+  const legacy = exercise({ id:'legacy', contentKey:undefined })
+  assert.equal(isEligibleForAdaptiveSession(legacy, progress(), createSessionState(), profile), false)
 })
