@@ -12,11 +12,11 @@ import { guidedHint } from '@/lib/guidedFeedback'
 import { getActiveProfile } from '@/lib/profileStorage'
 import { registerIntroductions } from '@/lib/prerequisites'
 import { eligibleAdaptiveContent } from '@/lib/sessionEligibility'
+import { updateLearnerStateWithHelp } from '@/lib/masteryWithHelp'
 import {
   createSessionState,
   registerSessionOutcome,
   selectNextExercise,
-  updateLearnerState,
   type SessionState,
 } from '@/lib/learningEngine'
 import { recordLearningTime, registerMistake, scheduleReview } from '@/lib/storage'
@@ -99,11 +99,12 @@ export default function AdaptiveLearningSession({
     const correct = isFree ? false : activeComparison.correct
     const responseMs = Math.max(250, Date.now() - startedAt)
     const category = activeComparison.category as MistakeCategory | undefined
+    const hintsUsed = wrongAttempts + (showSolution ? 2 : 0)
 
     setProgress(current => {
       let next = registerIntroductions(current, activeExercise)
       if (!isFree) {
-        next = updateLearnerState(next, activeExercise, { correct, responseMs, mistakeCategory: category })
+        next = updateLearnerStateWithHelp(next, activeExercise, { correct, responseMs, mistakeCategory: category, hintsUsed })
         const modality = activeExercise.modality ?? (isListening ? 'listening' : isSpeaking ? 'speaking' : isChoice ? 'choice' : 'text')
         next = {
           ...next,
@@ -125,6 +126,7 @@ export default function AdaptiveLearningSession({
             grammarTag: activeExercise.grammarTag,
             contentKey: activeExercise.contentKey ?? activeExercise.answer,
             contextTag: activeExercise.contextTag,
+            hintsUsed,
           }].slice(-80),
         }
         if (!correct && activeExercise.grammarTag) next.mistakes = registerMistake(next.mistakes, `grammar:${activeExercise.grammarTag}`, category)
@@ -146,7 +148,7 @@ export default function AdaptiveLearningSession({
       {isListening && <div className="mt-4 rounded-3xl bg-slate-950 p-5 text-white"><div className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Nur hören – Text bleibt verborgen</div><div className="mt-3"><AudioButton text={activeExercise.audioPrompt ?? activeExercise.answer}/></div></div>}
       {!isSpeaking && <h2 className="mt-4 text-2xl font-black">{activeExercise.prompt}</h2>}
       {activeExercise.hint && !checked && !isListening && <p className="mt-2 text-sm text-slate-500">Hinweis: {activeExercise.hint}</p>}
-      {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={isListening ? 'Deine Antwort …' : 'Deine Antwort …'} autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
+      {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder="Deine Antwort …" autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
       {checked && !isSpeaking && <GuidedFeedback correct={activeComparison.correct} isFree={isFree} value={value} exercise={activeExercise} category={activeComparison.category as MistakeCategory | undefined} wrongAttempts={wrongAttempts} showSolution={showSolution} onRetry={retry} onShowSolution={() => setShowSolution(true)}/>} 
       {checked && canContinue && <button onClick={continueSession} className="btn-primary mt-4 w-full justify-center">Nächste passende Aufgabe <ChevronRight size={18}/></button>}
     </div>
