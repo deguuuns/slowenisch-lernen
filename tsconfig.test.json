@@ -13,6 +13,7 @@
   "include": [
     "tests/**/*.ts",
     "lib/answerMatching.ts",
+    "lib/learningEngine.ts",
     "types/index.ts"
   ],
   "exclude": ["node_modules", ".next"]
