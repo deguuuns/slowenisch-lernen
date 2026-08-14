@@ -11,7 +11,7 @@ const transferExercises: Exercise[] = [
   {
     id: 't-dual-1', lesson: 2, type: 'fill', level: 'A1', difficulty: 2,
     prompt: 'Imam ___ brata. (zwei)', answer: 'dva', skills: ['grammatik','schreiben'],
-    grammarTag: 'dual', learningTargets: ['grammar:dual'], prerequisites: ['grammar:dual-basics'],
+    grammarTag: 'dual', learningTargets: ['grammar:dual'],
     explanation: 'Bei männlichen Personen heißt „zwei“ im Dual hier „dva“.'
   },
   {
