@@ -49,13 +49,13 @@ export function normalizeSurfaceForm(value: string) {
 }
 
 function replaceOneExpectedNumberWithDigit(input: string, expected: string, digit: string, forms: string[]) {
-  if (!new RegExp(`\\b${escapeRegex(digit)}\\b`, 'u').test(input)) return null
+  if (!new RegExp(`\\b${escapeRegex(digit)}\\b`).test(input)) return null
 
   for (const form of forms) {
-    const formRegex = new RegExp(`\\b${escapeRegex(form)}\\b`, 'u')
+    const formRegex = new RegExp(`\\b${escapeRegex(form)}\\b`)
     if (!formRegex.test(expected)) continue
 
-    const candidate = input.replace(new RegExp(`\\b${escapeRegex(digit)}\\b`, 'u'), form)
+    const candidate = input.replace(new RegExp(`\\b${escapeRegex(digit)}\\b`), form)
     if (normalizeSurfaceForm(candidate) === normalizeSurfaceForm(expected)) return expected
   }
 
@@ -128,16 +128,16 @@ export function explainMismatch(input: string, expected: string) {
   const target = normalizeSurfaceForm(expected)
 
   const rules: Array<{ pattern: RegExp; targetPattern: RegExp; explanation: string }> = [
-    { pattern: /\bdve brata\b/u, targetPattern: /\bdva brata\b/u, explanation: '„brat“ ist männlich. Im Dual heißt es hier „dva brata“.' },
-    { pattern: /\bdva sestri\b/u, targetPattern: /\bdve sestri\b/u, explanation: '„sestra“ ist weiblich. Im Dual heißt es hier „dve sestri“.' },
-    { pattern: /\bv slovenijo\b/u, targetPattern: /\bv sloveniji\b/u, explanation: 'Du beschreibst einen Ort (KJE?). Deshalb steht hier der Lokativ: „v Sloveniji“.' },
-    { pattern: /\bv sloveniji\b/u, targetPattern: /\bv slovenijo\b/u, explanation: 'Du beschreibst eine Richtung (KAM?). Deshalb steht hier der Akkusativ: „v Slovenijo“.' },
-    { pattern: /\bv nemčijo\b/u, targetPattern: /\bv nemčiji\b/u, explanation: 'Du beschreibst einen Ort (KJE?). Deshalb heißt es „v Nemčiji“.' },
-    { pattern: /\bv nemčiji\b/u, targetPattern: /\bv nemčijo\b/u, explanation: 'Du beschreibst eine Richtung (KAM?). Deshalb heißt es „v Nemčijo“.' },
-    { pattern: /\bsem domov\b/u, targetPattern: /\bsem doma\b/u, explanation: '„doma“ beschreibt den Ort „zu Hause“. „domov“ beschreibt die Richtung nach Hause.' },
-    { pattern: /\bgrem doma\b/u, targetPattern: /\bgrem domov\b/u, explanation: 'Bei einer Bewegung nach Hause verwendest du „domov“.' },
-    { pattern: /\bjem pica\b/u, targetPattern: /\bjem pico\b/u, explanation: '„pica“ ist hier direktes Objekt und steht im Akkusativ: „pico“.' },
-    { pattern: /\bob deset\b/u, targetPattern: /\bob desetih\b/u, explanation: 'Nach „ob“ bei der Uhrzeit brauchst du hier die Form „desetih“, nicht „deset“.' }
+    { pattern: /\bdve brata\b/, targetPattern: /\bdva brata\b/, explanation: '„brat“ ist männlich. Im Dual heißt es hier „dva brata“.' },
+    { pattern: /\bdva sestri\b/, targetPattern: /\bdve sestri\b/, explanation: '„sestra“ ist weiblich. Im Dual heißt es hier „dve sestri“.' },
+    { pattern: /\bv slovenijo\b/, targetPattern: /\bv sloveniji\b/, explanation: 'Du beschreibst einen Ort (KJE?). Deshalb steht hier der Lokativ: „v Sloveniji“.' },
+    { pattern: /\bv sloveniji\b/, targetPattern: /\bv slovenijo\b/, explanation: 'Du beschreibst eine Richtung (KAM?). Deshalb steht hier der Akkusativ: „v Slovenijo“.' },
+    { pattern: /\bv nemčijo\b/, targetPattern: /\bv nemčiji\b/, explanation: 'Du beschreibst einen Ort (KJE?). Deshalb heißt es „v Nemčiji“.' },
+    { pattern: /\bv nemčiji\b/, targetPattern: /\bv nemčijo\b/, explanation: 'Du beschreibst eine Richtung (KAM?). Deshalb heißt es „v Nemčijo“.' },
+    { pattern: /\bsem domov\b/, targetPattern: /\bsem doma\b/, explanation: '„doma“ beschreibt den Ort „zu Hause“. „domov“ beschreibt die Richtung nach Hause.' },
+    { pattern: /\bgrem doma\b/, targetPattern: /\bgrem domov\b/, explanation: 'Bei einer Bewegung nach Hause verwendest du „domov“.' },
+    { pattern: /\bjem pica\b/, targetPattern: /\bjem pico\b/, explanation: '„pica“ ist hier direktes Objekt und steht im Akkusativ: „pico“.' },
+    { pattern: /\bob deset\b/, targetPattern: /\bob desetih\b/, explanation: 'Nach „ob“ bei der Uhrzeit brauchst du hier die Form „desetih“, nicht „deset“.' }
   ]
 
   const hit = rules.find(rule => rule.pattern.test(actual) && rule.targetPattern.test(target))
