@@ -20,7 +20,17 @@ export type CandidateScore = {
   exercise: Exercise
   score: number
   reasons: string[]
+  penalties: string[]
   learningTargets: string[]
+  breakdown: {
+    urgency: number
+    mistakes: number
+    mastery: number
+    skillBalance: number
+    diversity: number
+    difficulty: number
+    cooldown: number
+  }
 }
 
 export type ExerciseOutcome = {
@@ -30,7 +40,10 @@ export type ExerciseOutcome = {
 }
 
 const ALL_SKILLS: LearningSkill[] = ['lesen', 'hören', 'schreiben', 'sprechen', 'grammatik', 'wortschatz']
-const IMMEDIATE_COOLDOWN = 3
+const IMMEDIATE_COOLDOWN = 4
+const CONTENT_COOLDOWN = 7
+const TYPE_COOLDOWN = 2
+const GRAMMAR_PRESENTATION_COOLDOWN = 2
 const TARGET_REVISIT_GAP = 2
 
 export function getLearningTargets(exercise: Exercise): string[] {
@@ -100,9 +113,88 @@ function targetWasRecentlySeen(target: string, session: SessionState, gap = TARG
   return session.history.slice(-gap).some(item => item.learningTargets.includes(target))
 }
 
-function skillDeficitBonus(exercise: Exercise, progress: UserProgress) {
-  const weakest = getWeakestSkills(progress).slice(0, 2)
-  return (exercise.skills ?? []).reduce((sum, skill) => sum + (weakest.includes(skill) ? 9 : 0), 0)
+function sessionSkillCounts(session: SessionState) {
+  const counts = Object.fromEntries(ALL_SKILLS.map(skill => [skill, 0])) as Record<LearningSkill, number>
+  for (const item of session.history.slice(-10)) {
+    for (const skill of item.skills) counts[skill] += 1
+  }
+  return counts
+}
+
+function skillBalanceBonus(exercise: Exercise, progress: UserProgress, session: SessionState) {
+  const weakestLongTerm = getWeakestSkills(progress).slice(0, 2)
+  const counts = sessionSkillCounts(session)
+  const minCount = Math.min(...ALL_SKILLS.map(skill => counts[skill]))
+  let bonus = 0
+  for (const skill of exercise.skills ?? []) {
+    if (weakestLongTerm.includes(skill)) bonus += 8
+    if (counts[skill] === minCount) bonus += 7
+    if (counts[skill] >= 3) bonus -= 8
+  }
+  return bonus
+}
+
+function diversityAdjustment(exercise: Exercise, session: SessionState) {
+  const recent = session.history
+  let score = 0
+  const reasons: string[] = []
+  const penalties: string[] = []
+
+  const contentKey = exercise.contentKey ?? exercise.answer
+  if (recent.slice(-CONTENT_COOLDOWN).some(item => item.contentKey === contentKey)) {
+    score -= 70
+    penalties.push('gleicher Satz/Inhalt war kürzlich bereits dran')
+  }
+
+  if (recent.slice(-TYPE_COOLDOWN).some(item => item.exerciseType === exercise.type)) {
+    score -= 22
+    penalties.push('gleicher Aufgabentyp war gerade dran')
+  } else if (recent.length && recent[recent.length - 1]?.exerciseType !== exercise.type) {
+    score += 8
+    reasons.push('abwechslungsreicher Aufgabentyp')
+  }
+
+  const modality = exercise.modality ?? (exercise.type.startsWith('listen-') ? 'listening' : exercise.type === 'speak-answer' ? 'speaking' : exercise.type === 'choice' ? 'choice' : 'text')
+  const recentModalities = recent.slice(-4).map(item => item.modality)
+  if (recentModalities.filter(item => item === modality).length >= 2) {
+    score -= 18
+    penalties.push('diese Interaktionsform kam zuletzt häufig vor')
+  } else if (!recentModalities.includes(modality)) {
+    score += 10
+    reasons.push('Interaktionsform ausgleichen')
+  }
+
+  if (exercise.grammarTag && recent.slice(-GRAMMAR_PRESENTATION_COOLDOWN).some(item => item.grammarTag === exercise.grammarTag)) {
+    score -= 8
+    penalties.push('gleiches Grammatikziel kurz entzerren')
+  }
+
+  if (exercise.contextTag && recent.slice(-3).some(item => item.contextTag === exercise.contextTag)) {
+    score -= 10
+    penalties.push('gleichen Alltagskontext nicht direkt wiederholen')
+  }
+
+  return { score, reasons, penalties }
+}
+
+function modalityMasteryFit(exercise: Exercise, mastery: number) {
+  const type = exercise.type
+  const isSupported = ['choice', 'fill', 'ending'].includes(type)
+  const isProductive = ['translate-de-sl', 'transform', 'speak-answer', 'listen-answer', 'listen-type'].includes(type)
+  let score = 0
+  const reasons: string[] = []
+
+  if (mastery < 0.35 && isSupported) {
+    score += 14
+    reasons.push('unterstützte Übungsform für unsicheres Lernziel')
+  }
+  if (mastery < 0.35 && isProductive && (exercise.difficulty ?? 2) >= 3) score -= 10
+  if (mastery > 0.7 && isProductive) {
+    score += 14
+    reasons.push('anspruchsvollere Produktion bei sicherem Lernziel')
+  }
+  if (mastery > 0.82 && type === 'choice') score -= 16
+  return { score, reasons }
 }
 
 export function scoreExerciseCandidate(
@@ -114,88 +206,100 @@ export function scoreExerciseCandidate(
   const state = getExerciseState(progress, exercise)
   const targets = getLearningTargets(exercise)
   const reasons: string[] = []
+  const penalties: string[] = []
+  const breakdown = { urgency: 0, mistakes: 0, mastery: 0, skillBalance: 0, diversity: 0, difficulty: 0, cooldown: 0 }
   let score = 20
 
   if (!prerequisiteSatisfied(exercise, progress)) {
-    return { exercise, score: -10_000, reasons: ['Voraussetzung noch nicht erreicht'], learningTargets: targets }
+    return { exercise, score: -10_000, reasons: ['Voraussetzung noch nicht erreicht'], penalties: [], learningTargets: targets, breakdown }
   }
 
   const recentIds = session.recentExerciseIds.slice(-IMMEDIATE_COOLDOWN)
   if (recentIds.includes(exercise.id)) {
-    score -= 120
-    reasons.push('Cooldown: konkrete Aufgabe war gerade dran')
+    breakdown.cooldown -= 160
+    penalties.push('Cooldown: konkrete Aufgabe war gerade dran')
   }
 
   if (state.nextDueAt !== undefined) {
     const overdueMs = now - state.nextDueAt
     if (overdueMs >= 0) {
       const days = overdueMs / 86_400_000
-      score += 38 + Math.min(30, days * 5)
+      breakdown.urgency += 38 + Math.min(30, days * 5)
       reasons.push('überfällig')
     } else if (state.nextDueAt - now < 6 * 60 * 60_000) {
-      score += 12
+      breakdown.urgency += 12
       reasons.push('kurz vor dem Vergessen')
     }
   }
 
   const mistakes = repeatedMistakeWeight(progress, exercise)
   if (mistakes > 0) {
-    score += mistakes * 8
+    breakdown.mistakes += mistakes * 8
     reasons.push(mistakes >= 3 ? 'wiederkehrender persönlicher Fehler' : 'persönliche Problemstelle')
   }
 
   if (state.attempts === 0) {
     if (shouldIntroduceNewContent(progress, session)) {
-      score += 18
+      breakdown.mastery += 18
       reasons.push('neuer Stoff passend zum Lernfortschritt')
     } else {
-      score -= 24
-      reasons.push('neuer Stoff wird noch dosiert')
+      breakdown.mastery -= 24
+      penalties.push('neuer Stoff wird noch dosiert')
     }
-  } else {
-    if (state.mastery < 0.45) {
-      score += 28
-      reasons.push('unsicheres Lernziel')
-    } else if (state.mastery >= 0.82 && (!state.nextDueAt || state.nextDueAt > now)) {
-      score -= 28
-      reasons.push('bereits sicher und noch nicht fällig')
-    }
+  } else if (state.mastery < 0.45) {
+    breakdown.mastery += 28
+    reasons.push('unsicheres Lernziel')
+  } else if (state.mastery >= 0.82 && (!state.nextDueAt || state.nextDueAt > now)) {
+    breakdown.mastery -= 28
+    penalties.push('bereits sicher und noch nicht fällig')
   }
 
   if (state.incorrectStreak >= 2) {
-    score += 22
+    breakdown.mistakes += 22
     reasons.push('mehrfach hintereinander falsch')
   } else if (state.incorrectStreak === 1) {
-    score += 10
+    breakdown.mistakes += 10
     reasons.push('kürzlich falsch beantwortet')
   }
 
-  score += skillDeficitBonus(exercise, progress)
-  const weakest = getWeakestSkills(progress).slice(0, 2)
-  if ((exercise.skills ?? []).some(skill => weakest.includes(skill))) reasons.push('schwache Kompetenz ausgleichen')
+  breakdown.skillBalance += skillBalanceBonus(exercise, progress, session)
+  if (breakdown.skillBalance > 0) reasons.push('Kompetenz-Balance verbessern')
 
-  const recentFailedTargets = session.history
-    .filter(item => !item.correct)
-    .slice(-6)
-    .flatMap(item => item.learningTargets)
+  const recentFailedTargets = session.history.filter(item => !item.correct).slice(-7).flatMap(item => item.learningTargets)
   const transferTargets = targets.filter(target => recentFailedTargets.includes(target))
   if (transferTargets.length && !recentIds.includes(exercise.id)) {
-    score += 26
+    breakdown.mistakes += 30
     reasons.push('Transferübung zu einem aktuellen Fehler')
   }
 
   if (targets.some(target => targetWasRecentlySeen(target, session))) {
-    score -= 9
-    reasons.push('Lernziel kurz entzerren')
+    breakdown.diversity -= 6
+    penalties.push('Lernziel kurz entzerren')
   }
 
-  const desiredDifficulty = state.mastery > 0.75 ? 3 : state.mastery < 0.35 ? 1.8 : 2.5
-  score -= Math.abs((exercise.difficulty ?? 2) - desiredDifficulty) * 3
+  const diversity = diversityAdjustment(exercise, session)
+  breakdown.diversity += diversity.score
+  reasons.push(...diversity.reasons)
+  penalties.push(...diversity.penalties)
 
-  // Stable tie-breaker: deterministic, not random.
+  const fit = modalityMasteryFit(exercise, state.mastery)
+  breakdown.difficulty += fit.score
+  reasons.push(...fit.reasons)
+
+  const desiredDifficulty = state.mastery > 0.75 ? 3.5 : state.mastery < 0.35 ? 1.8 : 2.5
+  breakdown.difficulty -= Math.abs((exercise.difficulty ?? 2) - desiredDifficulty) * 3
+
+  score += Object.values(breakdown).reduce((sum, value) => sum + value, 0)
   score += exercise.id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 7 / 10
 
-  return { exercise, score, reasons: Array.from(new Set(reasons)), learningTargets: targets }
+  return {
+    exercise,
+    score,
+    reasons: Array.from(new Set(reasons)),
+    penalties: Array.from(new Set(penalties)),
+    learningTargets: targets,
+    breakdown,
+  }
 }
 
 export function selectNextExercise(
@@ -206,11 +310,28 @@ export function selectNextExercise(
 ): CandidateScore | null {
   if (!availableContent.length) return null
   const ranked = availableContent
-    .filter(exercise => exercise.evaluationMode !== 'free' || session.answered >= 3)
+    .filter(exercise => exercise.evaluationMode !== 'free' || session.answered >= 4)
     .map(exercise => scoreExerciseCandidate(exercise, progress, session, now))
     .sort((a, b) => b.score - a.score)
 
   return ranked.find(candidate => candidate.score > -1_000) ?? ranked[0] ?? null
+}
+
+export function analyzeContentCoverage(exercises: Exercise[]) {
+  const byTarget = new Map<string, Exercise[]>()
+  for (const exercise of exercises) {
+    for (const target of getLearningTargets(exercise).filter(target => target.startsWith('grammar:') || target.startsWith('lesson:'))) {
+      byTarget.set(target, [...(byTarget.get(target) ?? []), exercise])
+    }
+  }
+  return [...byTarget.entries()].map(([target, items]) => ({
+    target,
+    exerciseCount: items.length,
+    typeCount: new Set(items.map(item => item.type)).size,
+    modalityCount: new Set(items.map(item => item.modality ?? 'text')).size,
+    contextCount: new Set(items.map(item => item.contextTag).filter(Boolean)).size,
+    needsMoreVariation: items.length < 4 || new Set(items.map(item => item.type)).size < 2,
+  }))
 }
 
 function computeNextDueAt(correct: boolean, mastery: number, now: number) {
@@ -295,21 +416,28 @@ export function registerSessionOutcome(
   outcome: ExerciseOutcome,
 ): SessionState {
   const wasNew = candidate.reasons.includes('neuer Stoff passend zum Lernfortschritt')
+  const exercise = candidate.exercise
+  const modality = exercise.modality ?? (exercise.type.startsWith('listen-') ? 'listening' : exercise.type === 'speak-answer' ? 'speaking' : exercise.type === 'choice' ? 'choice' : 'text')
   const historyItem: SessionHistoryItem = {
-    exerciseId: candidate.exercise.id,
+    exerciseId: exercise.id,
     learningTargets: candidate.learningTargets,
-    skills: candidate.exercise.skills ?? ['schreiben'],
+    skills: exercise.skills ?? ['schreiben'],
     correct: outcome.correct,
     timestamp: Date.now(),
     mistakeCategory: outcome.mistakeCategory,
     reason: candidate.reasons[0],
+    exerciseType: exercise.type,
+    modality,
+    grammarTag: exercise.grammarTag,
+    contentKey: exercise.contentKey ?? exercise.answer,
+    contextTag: exercise.contextTag,
   }
   return {
     ...session,
     answered: session.answered + 1,
     correct: session.correct + (outcome.correct ? 1 : 0),
     introducedNew: session.introducedNew + (wasNew ? 1 : 0),
-    recentExerciseIds: [...session.recentExerciseIds, candidate.exercise.id].slice(-8),
-    history: [...session.history, historyItem].slice(-30),
+    recentExerciseIds: [...session.recentExerciseIds, exercise.id].slice(-10),
+    history: [...session.history, historyItem].slice(-40),
   }
 }
