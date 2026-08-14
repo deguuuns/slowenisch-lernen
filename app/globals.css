@@ -3,12 +3,32 @@
 @tailwind utilities;
 
 :root { color-scheme: light; }
-html { background: #f7f8f4; }
-body { margin: 0; background: #f7f8f4; color: #182018; }
-button, input { font: inherit; }
+html { background: #f7f8f4; -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: #f7f8f4;
+  color: #182018;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select, textarea { font: inherit; }
+button { touch-action: manipulation; }
+input, select, textarea { font-size: 16px; }
 ::selection { background: #d9f99d; }
+
+.safe-bottom { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.mobile-page-bottom { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+.touch-target { min-height: 44px; min-width: 44px; }
+
+@media (display-mode: standalone) {
+  body { overscroll-behavior-y: none; }
+}
+
 @layer components {
-  .btn-primary { @apply inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40; }
-  .btn-secondary { @apply inline-flex items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200; }
+  .btn-primary { @apply inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40; }
+  .btn-secondary { @apply inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200; }
   .card { @apply rounded-3xl bg-white p-5 shadow-soft; }
 }
