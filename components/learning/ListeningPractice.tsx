@@ -4,7 +4,15 @@ import { useMemo, useState } from 'react'
 import AudioButton from '@/components/AudioButton'
 import { compareAnswer } from '@/lib/answerMatching'
 
-const LISTENING_ITEMS = [
+type ListeningItem = {
+  id: string
+  audio: string
+  prompt: string
+  answer: string
+  acceptedAnswers?: string[]
+}
+
+const LISTENING_ITEMS: ListeningItem[] = [
   { id: 'l1', audio: 'Sem v Sloveniji.', prompt: 'Tippe den gehörten Satz.', answer: 'Sem v Sloveniji.' },
   { id: 'l2', audio: 'Grem v Slovenijo.', prompt: 'Tippe den gehörten Satz.', answer: 'Grem v Slovenijo.' },
   { id: 'l3', audio: 'Imam dva brata.', prompt: 'Tippe den gehörten Satz.', answer: 'Imam dva brata.', acceptedAnswers: ['Imam 2 brata.'] },
