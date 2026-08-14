@@ -78,6 +78,11 @@ export function isEligibleForAdaptiveSession(
 ) {
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
 
+  // Raw legacy exercises often do not declare all vocabulary they require. A learner who chose
+  // "start from zero" only receives curated content (identified by a contentKey) in adaptive mode.
+  // Legacy material remains available in the manual lesson library.
+  if (profile?.startMode === 'zero' && !exercise.contentKey) return false
+
   // A concrete question that was solved correctly has done its job for this session.
   if (wasCorrectInThisSession(exercise, session)) return false
 
