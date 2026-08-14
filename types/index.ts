@@ -27,6 +27,7 @@ export type Exercise = {
   type: ExerciseType
   prompt: string
   answer: string
+  acceptedAnswers?: string[]
   alternatives?: string[]
   hint?: string
   explanation?: string
