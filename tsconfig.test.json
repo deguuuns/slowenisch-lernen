@@ -15,6 +15,11 @@
     "lib/answerMatching.ts",
     "lib/learningEngine.ts",
     "lib/slovenianTts.ts",
+    "lib/cloudSync.ts",
+    "lib/supabaseHttp.ts",
+    "lib/storage.ts",
+    "lib/profileStorage.ts",
+    "lib/spacedRepetition.ts",
     "types/index.ts"
   ],
   "exclude": ["node_modules", ".next"]
