@@ -6,17 +6,18 @@ import AudioButton from '@/components/AudioButton'
 import SpeechPractice from '@/components/SpeechPractice'
 import TutorChat from '@/components/TutorChat'
 import ExerciseDeck, { ExerciseResultMeta } from '@/components/exercises/ExerciseDeck'
+import AdaptiveLearningSession from '@/components/learning/AdaptiveLearningSession'
 import ListeningPractice from '@/components/learning/ListeningPractice'
 import GrammarLibrary from '@/components/learning/GrammarLibrary'
 import CurriculumRoadmap from '@/components/learning/CurriculumRoadmap'
 import ProgressDashboard from '@/components/progress/ProgressDashboard'
-import { conversations, exercises, lessons, vocabulary } from '@/data/seed'
-import { buildDailySession, dailySessionMinutes } from '@/lib/dailySession'
+import { conversations, exercises, lessons, vocabulary } from '@/data/learningContent'
 import { selectReviewQueue } from '@/lib/spacedRepetition'
+import { updateLearnerState } from '@/lib/learningEngine'
 import { defaultProgress, loadProgress, recordLearningTime, registerMistake, saveProgress, scheduleReview } from '@/lib/storage'
 import type { Exercise, LearningSkill, UserProgress } from '@/types'
 
-type Tab = 'home' | 'path' | 'lesson' | 'review' | 'listen' | 'speak' | 'vocab' | 'grammar' | 'progress'
+type Tab = 'home' | 'learn' | 'path' | 'lesson' | 'review' | 'listen' | 'speak' | 'vocab' | 'grammar' | 'progress'
 
 const desktopNav: { id: Tab; label: string; icon: any }[] = [
   { id: 'home', label: 'Heute', icon: Home },
@@ -58,13 +59,25 @@ export default function Page() {
     setTab('progress')
   }
 
+  if (tab === 'learn') {
+    return <main className="min-h-screen bg-[#f7f8f4]">
+      <div className="mx-auto max-w-3xl px-4 py-5 md:px-8 md:py-8">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div><div className="text-xs font-bold uppercase tracking-[0.24em] text-lime-700">Slovensko</div><div className="text-lg font-black">Persönliches Training</div></div>
+          <div className="rounded-full bg-white px-3 py-2 text-sm font-semibold shadow-soft">adaptiv</div>
+        </div>
+        <AdaptiveLearningSession progress={progress} exercises={exercises} setProgress={setProgress} onFinish={() => setTab('home')}/>
+      </div>
+    </main>
+  }
+
   return <main className="mobile-page-bottom min-h-screen md:pb-8">
     <div className="mx-auto max-w-6xl px-4 py-5 md:px-8 md:py-8">
       <Header streak={progress.streak}/>
       <div className="mt-6 grid gap-6 md:grid-cols-[220px_1fr]">
         <aside className="hidden md:block"><DesktopNav tab={tab} setTab={setTab}/></aside>
         <section>
-          {tab === 'home' && <HomeView progress={progress} activeLesson={activeLesson} onOpenLesson={openLesson} onGo={setTab}/>} 
+          {tab === 'home' && <HomeView progress={progress} activeLesson={activeLesson} onStart={() => setTab('learn')} onGo={setTab}/>} 
           {tab === 'path' && <CurriculumRoadmap progress={progress} onOpenLesson={openLesson}/>} 
           {tab === 'lesson' && <LessonsView selected={lessonId} setSelected={setLessonId} finish={finishLesson} progress={progress} onExerciseResult={(exercise, correct, meta) => handleExercise(exercise, correct, meta, setProgress)}/>} 
           {tab === 'review' && <ReviewView progress={progress} setProgress={setProgress}/>} 
@@ -95,35 +108,54 @@ function MobileNav({ tab, setTab }: { tab: Tab; setTab: (tab: Tab) => void }) {
   return <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-50 grid grid-cols-5 border-t border-slate-200 bg-white/95 px-1 pt-2 backdrop-blur md:hidden">{mobileNav.map(item => <button key={item.id} onClick={() => setTab(item.id)} className={`touch-target flex flex-col items-center justify-center gap-1 px-1 text-[10px] font-semibold ${tab === item.id ? 'text-lime-700' : 'text-slate-500'}`}><item.icon size={20}/>{item.label}</button>)}</nav>
 }
 
-function HomeView({ progress, activeLesson, onOpenLesson, onGo }: { progress: UserProgress; activeLesson: number; onOpenLesson: (id: number) => void; onGo: (tab: Tab) => void }) {
-  const due = progress.reviews.filter(item => item.dueAt <= Date.now()).length
+function HomeView({ progress, activeLesson, onStart, onGo }: { progress: UserProgress; activeLesson: number; onStart: () => void; onGo: (tab: Tab) => void }) {
+  const dueReviews = progress.reviews.filter(item => item.dueAt <= Date.now()).length
+  const dueAdaptive = Object.values(progress.learningItems ?? {}).filter(item => item.nextDueAt !== undefined && item.nextDueAt <= Date.now()).length
+  const due = Math.max(dueReviews, dueAdaptive)
   const today = new Date().toISOString().slice(0, 10)
   const todayMinutes = progress.dailyActivity?.find(item => item.date === today)?.minutes ?? 0
-  const session = buildDailySession(progress, exercises, activeLesson)
+  const weakest = getWeakestSkillLabels(progress).slice(0, 2)
 
   return <div className="space-y-6">
     <div className="overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-soft md:p-8">
-      <div className="max-w-2xl"><div className="mb-2 text-sm font-semibold text-lime-300">Dobrodošel!</div><h2 className="text-3xl font-black md:text-5xl">Heute lernen. <span className="text-lime-300">Heute sprechen.</span></h2><p className="mt-4 max-w-xl text-slate-300">Eine kurze Session aus Wiederholung, neuem Stoff, Grammatik, Hören und Sprechen.</p><button onClick={() => onOpenLesson(activeLesson)} className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Heute starten <ChevronRight/></button></div>
+      <div className="max-w-2xl">
+        <div className="mb-2 text-sm font-semibold text-lime-300">Dein persönlicher Lerntrainer</div>
+        <h2 className="text-3xl font-black md:text-5xl">Du musst nicht auswählen. <span className="text-lime-300">Du musst nur anfangen.</span></h2>
+        <p className="mt-4 max-w-xl text-slate-300">Die nächste Aufgabe wird nach jeder Antwort neu gewählt – anhand deiner Fehler, fälligen Wiederholungen, Sicherheit, Antwortzeit und Kompetenz-Balance.</p>
+        <button onClick={onStart} className="mt-6 inline-flex min-h-14 items-center gap-2 rounded-2xl bg-lime-300 px-6 py-4 text-lg font-black text-slate-950">Lernen starten <ChevronRight/></button>
+        <div className="mt-3 text-sm text-slate-400">Heute für dich: ca. 10–20 Min. · {due} fällige Lernziele · nächste Stufe Lektion {activeLesson}</div>
+      </div>
     </div>
 
     <div className="grid gap-3 sm:grid-cols-3">
       <Metric value={`${todayMinutes.toFixed(1)} min`} label="Heute gelernt"/>
-      <Metric value={String(due)} label="Fällige Wiederholungen"/>
-      <Metric value={`${progress.completedLessons.length} / ${lessons.length}`} label="Verfügbare Lektionen geschafft"/>
+      <Metric value={String(due)} label="Fällige Lernziele"/>
+      <Metric value={weakest.length ? weakest.join(' + ') : 'Startklar'} label="Wird besonders beobachtet"/>
     </div>
 
     <div className="card">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-sm font-bold text-lime-700">Heute lernen</div><h3 className="text-xl font-black">Deine Session · ca. {dailySessionMinutes(session)} Min.</h3></div><Sparkles size={22}/></div>
-      <div className="mt-4 grid gap-2">{session.map((step, index) => <div key={step.id} className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-black text-white">{index + 1}</div><div className="min-w-0 flex-1"><div className="font-semibold">{step.title}</div><div className="text-xs text-slate-500">{step.minutes} Min. · {step.kind}</div></div></div>)}</div>
+      <div className="flex items-center gap-2"><Sparkles size={20}/><h3 className="text-xl font-black">So entscheidet die App</h3></div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {['Überfälliges zuerst', 'Wiederkehrende Fehler gezielt', 'Neue Inhalte nur dosiert', 'Keine direkte Aufgaben-Wiederholung', 'Schwache Kompetenzen ausgleichen', 'Nach jeder Antwort neu entscheiden'].map(item => <div key={item} className="rounded-2xl bg-slate-50 p-3 text-sm font-semibold">✓ {item}</div>)}
+      </div>
     </div>
 
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Quick icon={Headphones} label="Hören" onClick={() => onGo('listen')}/>
-      <Quick icon={BookMarked} label="Grammatik" onClick={() => onGo('grammar')}/>
-      <Quick icon={Brain} label="Vokabeln" onClick={() => onGo('vocab')}/>
-      <Quick icon={Map} label="Lernpfad" onClick={() => onGo('path')}/>
+    <div>
+      <div className="mb-3 text-sm font-black uppercase tracking-wide text-slate-500">Gezielt üben</div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Quick icon={Headphones} label="Hören" onClick={() => onGo('listen')}/>
+        <Quick icon={BookMarked} label="Grammatik" onClick={() => onGo('grammar')}/>
+        <Quick icon={Brain} label="Vokabeln" onClick={() => onGo('vocab')}/>
+        <Quick icon={Map} label="Lernpfad" onClick={() => onGo('path')}/>
+      </div>
     </div>
   </div>
+}
+
+function getWeakestSkillLabels(progress: UserProgress) {
+  const labels: Record<LearningSkill, string> = { lesen:'Lesen', hören:'Hören', schreiben:'Schreiben', sprechen:'Sprechen', grammatik:'Grammatik', wortschatz:'Wortschatz' }
+  const skills = Object.keys(labels) as LearningSkill[]
+  return skills.sort((a,b) => (progress.skillXp?.[a] ?? 0) - (progress.skillXp?.[b] ?? 0)).map(skill => labels[skill])
 }
 
 function Metric({ value, label }: { value: string; label: string }) {
@@ -200,14 +232,12 @@ function addXp(current: UserProgress['skillXp'], skills: LearningSkill[], amount
 
 function handleExercise(exercise: Exercise, correct: boolean, meta: ExerciseResultMeta, setProgress: (value: any) => void) {
   setProgress((current: UserProgress) => {
-    const reviews = scheduleReview(current.reviews, exercise.id, correct, meta.responseMs)
-    const mistakes = correct ? current.mistakes : registerMistake(current.mistakes, exercise.id, meta.category)
-    const skills = exercise.skills ?? (exercise.type === 'free' ? ['schreiben'] : ['grammatik', 'schreiben'])
-    const updated = {
-      ...current,
-      reviews,
-      mistakes,
-      skillXp: addXp(current.skillXp, skills, correct ? 2 : 1),
+    let updated = updateLearnerState(current, exercise, { correct, responseMs: meta.responseMs, mistakeCategory: meta.category })
+    updated = {
+      ...updated,
+      reviews: scheduleReview(updated.reviews, exercise.id, correct, meta.responseMs),
+      mistakes: correct ? updated.mistakes : registerMistake(updated.mistakes, exercise.id, meta.category),
+      skillXp: addXp(updated.skillXp, exercise.skills ?? (exercise.type === 'free' ? ['schreiben'] : ['grammatik', 'schreiben']), correct ? 2 : 1),
     }
     return recordLearningTime(updated, 0.2, correct)
   })
