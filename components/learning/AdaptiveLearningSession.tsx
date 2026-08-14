@@ -51,7 +51,10 @@ export default function AdaptiveLearningSession({
     return <div className="card"><h2 className="text-2xl font-black">Keine passende Aufgabe gefunden.</h2><button onClick={onFinish} className="btn-primary mt-4">Zurück</button></div>
   }
 
-  const isFree = exercise.evaluationMode === 'free'
+  const activeCandidate = candidate
+  const activeExercise = exercise
+  const activeComparison = comparison
+  const isFree = activeExercise.evaluationMode === 'free'
   const done = session.answered >= SESSION_TARGET
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
 
@@ -79,32 +82,30 @@ export default function AdaptiveLearningSession({
   }
 
   function continueSession() {
-    const correct = isFree ? false : comparison.correct
+    const correct = isFree ? false : activeComparison.correct
     const responseMs = Math.max(250, Date.now() - startedAt)
-    const category = comparison.category as MistakeCategory | undefined
+    const category = activeComparison.category as MistakeCategory | undefined
 
     if (!isFree) {
       setProgress(current => {
-        let next = updateLearnerState(current, exercise, { correct, responseMs, mistakeCategory: category })
+        let next = updateLearnerState(current, activeExercise, { correct, responseMs, mistakeCategory: category })
         next = {
           ...next,
-          reviews: scheduleReview(next.reviews, exercise.id, correct, responseMs),
-          mistakes: correct ? next.mistakes : [
-            ...registerMistake(next.mistakes, exercise.id, category),
-          ],
-          skillXp: addSkillXp(next.skillXp ?? {}, exercise.skills ?? ['schreiben'], correct),
+          reviews: scheduleReview(next.reviews, activeExercise.id, correct, responseMs),
+          mistakes: correct ? next.mistakes : registerMistake(next.mistakes, activeExercise.id, category),
+          skillXp: addSkillXp(next.skillXp ?? {}, activeExercise.skills ?? ['schreiben'], correct),
           recentSessionHistory: [...(next.recentSessionHistory ?? []), {
-            exerciseId: exercise.id,
-            learningTargets: candidate.learningTargets,
-            skills: exercise.skills ?? ['schreiben'],
+            exerciseId: activeExercise.id,
+            learningTargets: activeCandidate.learningTargets,
+            skills: activeExercise.skills ?? ['schreiben'],
             correct,
             timestamp: Date.now(),
             mistakeCategory: category,
-            reason: candidate.reasons[0],
+            reason: activeCandidate.reasons[0],
           }].slice(-60),
         }
-        if (!correct && exercise.grammarTag) {
-          next.mistakes = registerMistake(next.mistakes, `grammar:${exercise.grammarTag}`, category)
+        if (!correct && activeExercise.grammarTag) {
+          next.mistakes = registerMistake(next.mistakes, `grammar:${activeExercise.grammarTag}`, category)
         }
         return recordLearningTime(next, Math.max(0.1, responseMs / 60_000), correct)
       })
@@ -112,7 +113,7 @@ export default function AdaptiveLearningSession({
       setProgress(current => recordLearningTime(current, Math.max(0.1, responseMs / 60_000)))
     }
 
-    setSession(current => registerSessionOutcome(current, candidate, {
+    setSession(current => registerSessionOutcome(current, activeCandidate, {
       correct,
       responseMs,
       mistakeCategory: category,
@@ -133,15 +134,15 @@ export default function AdaptiveLearningSession({
 
     <div className="card">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5">{(exercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-lime-50 px-2.5 py-1 text-xs font-bold text-lime-800">{skill}</span>)}</div>
+        <div className="flex flex-wrap gap-1.5">{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-lime-50 px-2.5 py-1 text-xs font-bold text-lime-800">{skill}</span>)}</div>
         <button onClick={() => setShowReason(value => !value)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button>
       </div>
 
-      {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Auswahl der Lern-Engine</div>{candidate.reasons.slice(0, 4).map(reason => <div key={reason} className="mt-1">• {reason}</div>)}</div>}
+      {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Auswahl der Lern-Engine</div>{activeCandidate.reasons.slice(0, 4).map(reason => <div key={reason} className="mt-1">• {reason}</div>)}</div>}
 
-      <h2 className="mt-4 text-2xl font-black">{exercise.prompt}</h2>
-      {exercise.audioPrompt && <div className="mt-4"><AudioButton text={exercise.audioPrompt}/></div>}
-      {exercise.hint && !checked && <p className="mt-2 text-sm text-slate-500">Hinweis: {exercise.hint}</p>}
+      <h2 className="mt-4 text-2xl font-black">{activeExercise.prompt}</h2>
+      {activeExercise.audioPrompt && <div className="mt-4"><AudioButton text={activeExercise.audioPrompt}/></div>}
+      {activeExercise.hint && !checked && <p className="mt-2 text-sm text-slate-500">Hinweis: {activeExercise.hint}</p>}
 
       <input
         value={value}
@@ -157,19 +158,19 @@ export default function AdaptiveLearningSession({
 
       {!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}
 
-      {checked && <div className={`mt-4 rounded-2xl p-4 ${comparison.correct ? 'bg-lime-50' : isFree ? 'bg-sky-50' : 'bg-amber-50'}`}>
-        {comparison.correct ? <>
+      {checked && <div className={`mt-4 rounded-2xl p-4 ${activeComparison.correct ? 'bg-lime-50' : isFree ? 'bg-sky-50' : 'bg-amber-50'}`}>
+        {activeComparison.correct ? <>
           <div className="flex items-center gap-2 font-black"><CheckCircle2 size={20}/> Richtig.</div>
           <p className="mt-2 text-sm">Die Engine erhöht die Sicherheit dieses Lernziels und plant es später wieder ein.</p>
         </> : isFree ? <>
           <div className="flex items-center gap-2 font-black"><Lightbulb size={20}/> Freie Produktion</div>
-          <p className="mt-2 text-sm">Eine mögliche Antwort ist:</p><div className="mt-1 font-bold">{exercise.answer}</div>
+          <p className="mt-2 text-sm">Eine mögliche Antwort ist:</p><div className="mt-1 font-bold">{activeExercise.answer}</div>
           <p className="mt-2 text-xs text-slate-500">Freie Antworten werden ohne eindeutige Regel nicht als Fehler gespeichert.</p>
         </> : <>
           <div className="flex items-center gap-2 font-black"><AlertCircle size={20}/> Noch nicht.</div>
           <div className="mt-3 text-sm text-slate-500">Deine Antwort</div><div className="font-semibold">{value}</div>
-          <div className="mt-2 text-sm text-slate-500">Richtig</div><div className="font-black">{exercise.answer}</div>
-          {(comparison.explanation || exercise.explanation) && <div className="mt-3 text-sm"><strong>Warum?</strong> {comparison.explanation ?? exercise.explanation}</div>}
+          <div className="mt-2 text-sm text-slate-500">Richtig</div><div className="font-black">{activeExercise.answer}</div>
+          {(activeComparison.explanation || activeExercise.explanation) && <div className="mt-3 text-sm"><strong>Warum?</strong> {activeComparison.explanation ?? activeExercise.explanation}</div>}
           <div className="mt-3 rounded-xl bg-white/70 p-3 text-sm"><strong>Was jetzt passiert:</strong> Das Lernziel wird höher priorisiert, aber nicht sofort mit derselben Aufgabe wiederholt.</div>
         </>}
         <button onClick={continueSession} className="btn-primary mt-4 w-full justify-center">Weiter <ChevronRight size={18}/></button>
