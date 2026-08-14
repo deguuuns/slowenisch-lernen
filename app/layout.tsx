@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import AccountGate from '@/components/AccountGate'
 import OnboardingGate from '@/components/OnboardingGate'
 import './globals.css'
 
@@ -35,5 +36,5 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="de"><body><OnboardingGate>{children}</OnboardingGate></body></html>
+  return <html lang="de"><body><AccountGate><OnboardingGate>{children}</OnboardingGate></AccountGate></body></html>
 }
