@@ -11,6 +11,10 @@ const GERMAN_MARKERS = new Set([
   'ich','du','er','sie','wir','ihr','bin','bist','ist','sind','habe','hast','gehe','wohne','kann','hier','alles','was','will','deutschland','österreich','slowenien',
 ])
 
+function foldDiacritics(value: string) {
+  return normalizeSurfaceForm(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
 function words(value: string) {
   return normalizeSurfaceForm(value).split(/\s+/).filter(Boolean)
 }
@@ -28,7 +32,7 @@ export function validateFreeProduction(exercise: Exercise, input: string): FreeP
   if (!normalized || normalized.length < 2) return result(false, 'empty', 'Schreibe zuerst eine kurze slowenische Antwort.')
   if (containsObviousGerman(input)) return result(false, 'german-text', 'Die Antwort soll auf Slowenisch sein. Nutze die bereits gelernten Bausteine.')
 
-  const prompt = normalizeSurfaceForm(exercise.prompt)
+  const prompt = foldDiacritics(exercise.prompt)
 
   if (prompt.includes('kje si zdaj')) {
     const ok = /^(zdaj\s+)?sem\s+/.test(normalized) && normalized.split(/\s+/).length <= 8
@@ -45,7 +49,7 @@ export function validateFreeProduction(exercise: Exercise, input: string): FreeP
   }
 
   if (prompt.includes('kdaj zacnes delati')) {
-    const ok = normalized.includes('ob ') || normalized.includes('zacnem') || normalized.includes('delati')
+    const ok = normalized.includes('ob ') || normalized.includes('začnem') || normalized.includes('delati')
     return ok
       ? result(true, 'time-answer', 'Die Antwort passt zur Frage nach dem Zeitpunkt.')
       : result(false, 'time-shape', 'Antworte mit einer bekannten Zeitangabe, zum Beispiel mit „ob …“.')
