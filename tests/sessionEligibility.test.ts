@@ -1,0 +1,69 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { createSessionState } from '../lib/learningEngine'
+import { isEligibleForAdaptiveSession } from '../lib/sessionEligibility'
+import type { Exercise, LearnerProfile, SessionHistoryItem, UserProgress } from '../types'
+
+const profile: LearnerProfile = {
+  id: 'p1', name: 'Test', startMode: 'zero', approximateLevel: 'A1', onboardingCompleted: true, placementCompleted: true, createdAt: 1, updatedAt: 1,
+}
+
+function progress(overrides: Partial<UserProgress> = {}): UserProgress {
+  return {
+    schemaVersion: 4, completedLessons: [], streak: 1, wordsLearned: [], secureWords: [], mistakes: [], reviews: [],
+    speakingMinutes: 0, listeningMinutes: 0, introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','kje','kam','grem'],
+    introducedGrammar: ['biti-1s','kje-kam','location-direction'], skillXp: {}, learningItems: {}, recentSessionHistory: [], ...overrides,
+  }
+}
+
+function exercise(overrides: Partial<Exercise> = {}): Exercise {
+  return {
+    id: 'x1', lesson: 1, type: 'translate-de-sl', prompt: 'Ich gehe nach Slowenien.', answer: 'Grem v Slovenijo.',
+    level: 'A1', skills: ['schreiben','grammatik'], requiredVocabulary: ['grem'], requiredGrammar: ['location-direction'],
+    learningTargets: ['grammar:location-direction'], contentKey: 'go-slovenia', contextTag: 'reisen', ...overrides,
+  }
+}
+
+function hist(overrides: Partial<SessionHistoryItem> = {}): SessionHistoryItem {
+  return {
+    exerciseId: 'old', learningTargets: ['grammar:location-direction'], skills: ['schreiben'], correct: true, timestamp: Date.now(),
+    exerciseType: 'translate-de-sl', modality: 'text', contentKey: 'old', contextTag: 'reisen', ...overrides,
+  }
+}
+
+test('correct concrete exercise is blocked for the rest of the session', () => {
+  const ex = exercise()
+  const session = { ...createSessionState(), history: [hist({ exerciseId: ex.id, contentKey: ex.contentKey, correct: true })] }
+  assert.equal(isEligibleForAdaptiveSession(ex, progress(), session, profile), false)
+})
+
+test('productive exercise is blocked until required grammar was introduced', () => {
+  const p = progress({ introducedGrammar: ['biti-1s'] })
+  assert.equal(isEligibleForAdaptiveSession(exercise(), p, createSessionState(), profile), false)
+})
+
+test('productive exercise is blocked until required vocabulary was introduced', () => {
+  const p = progress({ introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','kje','kam'] })
+  assert.equal(isEligibleForAdaptiveSession(exercise(), p, createSessionState(), profile), false)
+})
+
+test('secure concrete task is not actively tested again before due date', () => {
+  const now = Date.now()
+  const p = progress({ learningItems: {
+    'exercise:x1': { key:'exercise:x1', kind:'exercise', attempts:5, correctCount:5, incorrectCount:0, correctStreak:5, incorrectStreak:0, mastery:0.94, difficulty:2, nextDueAt:now + 86_400_000 },
+  } })
+  assert.equal(isEligibleForAdaptiveSession(exercise(), p, createSessionState(), profile, now), false)
+})
+
+test('same target can return after an error with different content', () => {
+  const session = { ...createSessionState(), history: [hist({ exerciseId:'bad-one', correct:false, contentKey:'old-content' })] }
+  const transfer = exercise({ id:'transfer', prompt:'Ich gehe nach Hause.', answer:'Grem domov.', contentKey:'go-home', contextTag:'alltag' })
+  assert.equal(isEligibleForAdaptiveSession(transfer, progress(), session, profile), true)
+})
+
+test('one target cannot dominate indefinitely without a recent error', () => {
+  const session = { ...createSessionState(), history: [
+    hist({ exerciseId:'a', contentKey:'a' }), hist({ exerciseId:'b', contentKey:'b' }), hist({ exerciseId:'c', contentKey:'c' }),
+  ] }
+  assert.equal(isEligibleForAdaptiveSession(exercise({ id:'d', contentKey:'d' }), progress(), session, profile), false)
+})
