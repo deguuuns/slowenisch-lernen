@@ -1,4 +1,5 @@
 import type { Exercise } from '@/types'
+import { conjugationExercises } from './conjugationExercises'
 
 export const grammarFoundationExercises: Exercise[] = [
   {
@@ -64,4 +65,5 @@ export const grammarFoundationExercises: Exercise[] = [
     answer:'Jem pico', acceptedAnswers:['Jem pico.'], evaluationMode:'accepted', level:'A1', difficulty:1,
     skills:['grammatik','schreiben'], requiredVocabulary:['pica','kava'], introducesGrammar:['accusative'], learningTargets:['grammar:accusative'], contentKey:'accusative-rule-intro', contextTag:'essen',
   },
+  ...conjugationExercises,
 ]
