@@ -3,9 +3,10 @@
 import { Mistake, ReviewItem, UserProgress } from '@/types'
 import { scheduleReview as scheduleAdaptiveReview } from './spacedRepetition'
 
-const CURRENT_KEY = 'slovensko-progress-v3'
-const LEGACY_KEYS = ['slovensko-progress-v2', 'slovensko-progress-v1']
-const SCHEMA_VERSION = 3
+const ACTIVE_PROFILE_KEY = 'slovensko-active-profile'
+const CURRENT_KEY = 'slovensko-progress-v4'
+const LEGACY_KEYS = ['slovensko-progress-v3', 'slovensko-progress-v2', 'slovensko-progress-v1']
+const SCHEMA_VERSION = 4
 
 export const defaultProgress: UserProgress = {
   schemaVersion: SCHEMA_VERSION,
@@ -13,6 +14,8 @@ export const defaultProgress: UserProgress = {
   streak: 1,
   wordsLearned: [],
   secureWords: [],
+  introducedVocabulary: [],
+  introducedGrammar: [],
   mistakes: [],
   reviews: [],
   speakingMinutes: 0,
@@ -24,6 +27,15 @@ export const defaultProgress: UserProgress = {
   recentSessionHistory: [],
 }
 
+function activeProfileId() {
+  if (typeof window === 'undefined') return 'default'
+  return localStorage.getItem(ACTIVE_PROFILE_KEY) || 'default'
+}
+
+function profileKey(profileId = activeProfileId()) {
+  return `${CURRENT_KEY}:${profileId}`
+}
+
 function migrateProgress(input: Partial<UserProgress> | null | undefined): UserProgress {
   const progress: UserProgress = {
     ...defaultProgress,
@@ -32,12 +44,14 @@ function migrateProgress(input: Partial<UserProgress> | null | undefined): UserP
     completedLessons: Array.isArray(input?.completedLessons) ? input.completedLessons : [],
     wordsLearned: Array.isArray(input?.wordsLearned) ? input.wordsLearned : [],
     secureWords: Array.isArray(input?.secureWords) ? input.secureWords : [],
+    introducedVocabulary: Array.isArray(input?.introducedVocabulary) ? input.introducedVocabulary : [],
+    introducedGrammar: Array.isArray(input?.introducedGrammar) ? input.introducedGrammar : [],
     mistakes: Array.isArray(input?.mistakes) ? input.mistakes : [],
     reviews: Array.isArray(input?.reviews) ? input.reviews : [],
     dailyActivity: Array.isArray(input?.dailyActivity) ? input.dailyActivity : [],
     skillXp: input?.skillXp ?? {},
     learningItems: input?.learningItems ?? {},
-    recentSessionHistory: Array.isArray(input?.recentSessionHistory) ? input.recentSessionHistory.slice(-60) : [],
+    recentSessionHistory: Array.isArray(input?.recentSessionHistory) ? input.recentSessionHistory.slice(-80) : [],
   }
 
   progress.reviews = progress.reviews.map(item => ({
@@ -51,34 +65,43 @@ function migrateProgress(input: Partial<UserProgress> | null | undefined): UserP
   return progress
 }
 
-function readStoredProgress() {
+function readStoredProgress(profileId = activeProfileId()) {
   if (typeof window === 'undefined') return null
-  const current = localStorage.getItem(CURRENT_KEY)
+  const current = localStorage.getItem(profileKey(profileId))
   if (current) return current
-  for (const key of LEGACY_KEYS) {
-    const legacy = localStorage.getItem(key)
-    if (legacy) return legacy
+
+  // Preserve the pre-profile learner state by assigning it once to the first/default profile.
+  if (profileId === 'default') {
+    for (const key of LEGACY_KEYS) {
+      const legacy = localStorage.getItem(key)
+      if (legacy) return legacy
+    }
   }
   return null
 }
 
-export function loadProgress(): UserProgress {
+export function loadProgress(profileId?: string): UserProgress {
   if (typeof window === 'undefined') return defaultProgress
   try {
-    const raw = readStoredProgress()
-    if (!raw) return defaultProgress
+    const id = profileId ?? activeProfileId()
+    const raw = readStoredProgress(id)
+    if (!raw) return { ...defaultProgress }
     const migrated = migrateProgress(JSON.parse(raw))
-    localStorage.setItem(CURRENT_KEY, JSON.stringify(migrated))
+    localStorage.setItem(profileKey(id), JSON.stringify(migrated))
     return migrated
   } catch {
-    return defaultProgress
+    return { ...defaultProgress }
   }
 }
 
-export function saveProgress(progress: UserProgress) {
+export function saveProgress(progress: UserProgress, profileId?: string) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(CURRENT_KEY, JSON.stringify(migrateProgress(progress)))
+    localStorage.setItem(profileKey(profileId ?? activeProfileId()), JSON.stringify(migrateProgress(progress)))
   }
+}
+
+export function resetProgressForProfile(profileId: string) {
+  if (typeof window !== 'undefined') localStorage.setItem(profileKey(profileId), JSON.stringify(defaultProgress))
 }
 
 export function scheduleReview(items: ReviewItem[], key: string, correct: boolean, responseMs?: number): ReviewItem[] {
