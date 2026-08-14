@@ -93,12 +93,14 @@ export function loadProgress(profileId?: string): UserProgress {
   }
 }
 
-export function saveProgress(progress: UserProgress, profileId?: string) {
+export function saveProgress(progress: UserProgress, profileId?: string, options?: { silent?: boolean }) {
   if (typeof window !== 'undefined') {
     const id = profileId ?? activeProfileId()
     const migrated = migrateProgress(progress)
     localStorage.setItem(profileKey(id), JSON.stringify(migrated))
-    window.dispatchEvent(new CustomEvent('slovensko-progress-saved', { detail: { profileId: id, progress: migrated } }))
+    if (!options?.silent) {
+      window.dispatchEvent(new CustomEvent('slovensko-progress-saved', { detail: { profileId: id, progress: migrated } }))
+    }
   }
 }
 
