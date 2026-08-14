@@ -1,4 +1,4 @@
-import type { Exercise, KnowledgeStage, LearningItemState, MistakeCategory, UserProgress } from '@/types'
+import type { Exercise, KnowledgeStage, LearningItemKind, LearningItemState, MistakeCategory, UserProgress } from '@/types'
 import { getLearningTargets, updateLearnerState } from './learningEngine'
 
 export type AssistedOutcome = {
@@ -17,8 +17,21 @@ export function knowledgeStage(state: LearningItemState | undefined, now = Date.
   return 'introduced'
 }
 
-function applyHelpPenalty(previous: LearningItemState | undefined, next: LearningItemState, hintsUsed: number) {
-  if (!hintsUsed) return { ...next, stage: knowledgeStage(next), lastHintsUsed: 0 }
+function kindForTarget(target: string): LearningItemKind {
+  if (target.startsWith('vocab:')) return 'vocabulary'
+  if (target.startsWith('chunk:')) return 'chunk'
+  if (target.startsWith('grammar:')) return 'grammar'
+  if (target.startsWith('verb:')) return 'verb'
+  if (target.startsWith('conjugation:')) return 'conjugation'
+  if (target.startsWith('skill:') || target.startsWith('pattern:')) return 'pattern'
+  return 'lesson'
+}
+
+function applyHelpPenalty(previous: LearningItemState | undefined, next: LearningItemState, hintsUsed: number, kind?: LearningItemKind) {
+  if (!hintsUsed) {
+    const adjusted = { ...next, kind: kind ?? next.kind, lastHintsUsed: 0 }
+    return { ...adjusted, stage: knowledgeStage(adjusted) }
+  }
 
   const previousMastery = previous?.mastery ?? 0
   const rawGain = Math.max(0, next.mastery - previousMastery)
@@ -26,6 +39,7 @@ function applyHelpPenalty(previous: LearningItemState | undefined, next: Learnin
   const mastery = previousMastery + rawGain * gainFactor
   const adjusted = {
     ...next,
+    kind: kind ?? next.kind,
     mastery,
     totalHintsUsed: (previous?.totalHintsUsed ?? 0) + hintsUsed,
     lastHintsUsed: hintsUsed,
@@ -46,11 +60,11 @@ export function updateLearnerStateWithHelp(
 
   const exerciseKey = `exercise:${exercise.id}`
   if (items[exerciseKey]) {
-    items[exerciseKey] = applyHelpPenalty(previousItems[exerciseKey], items[exerciseKey], hintsUsed)
+    items[exerciseKey] = applyHelpPenalty(previousItems[exerciseKey], items[exerciseKey], hintsUsed, 'exercise')
   }
 
   for (const target of getLearningTargets(exercise)) {
-    if (items[target]) items[target] = applyHelpPenalty(previousItems[target], items[target], hintsUsed)
+    if (items[target]) items[target] = applyHelpPenalty(previousItems[target], items[target], hintsUsed, kindForTarget(target))
   }
 
   return { ...next, learningItems: items }
