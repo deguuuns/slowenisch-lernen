@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Mic, MicOff, RotateCcw } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { compareAnswer, InputMode } from '@/lib/answerMatching'
+import type { SupportedTtsLanguage } from '@/lib/slovenianTts'
 
 declare global {
   interface Window {
@@ -24,12 +25,16 @@ export default function SpeechPractice({
   prompt,
   expected,
   acceptedAnswers = [],
-  onResult
+  onResult,
+  audioPrompt,
+  promptLanguage = 'sl-SI',
 }: {
   prompt: string
   expected: string
   acceptedAnswers?: string[]
   onResult?: (correct:boolean, actual:string) => void
+  audioPrompt?: string
+  promptLanguage?: SupportedTtsLanguage
 }) {
   const [listening, setListening] = useState(false)
   const [answer, setAnswer] = useState('')
@@ -70,11 +75,13 @@ export default function SpeechPractice({
     setInputMode('typed')
   }
 
+  const spokenPrompt = audioPrompt ?? prompt
+
   return <div className="space-y-4">
     <div className="rounded-3xl bg-slate-950 p-5 text-white">
       <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Hören und antworten</div>
       <div className="text-2xl font-semibold">{prompt}</div>
-      <div className="mt-4"><AudioButton text={prompt}/></div>
+      <div className="mt-4"><AudioButton text={spokenPrompt} language={promptLanguage}/></div>
     </div>
 
     <div className="rounded-3xl bg-white p-5 shadow-soft">
@@ -120,7 +127,7 @@ export default function SpeechPractice({
 
         <div className="mt-4 rounded-2xl bg-white/70 p-3">
           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Richtige Aussprache anhören</div>
-          <AudioButton text={expected}/>
+          <AudioButton text={expected} language="sl-SI"/>
         </div>
         <button onClick={retry} className="mt-3 inline-flex min-h-11 items-center gap-2 font-bold underline"><RotateCcw size={17}/> Noch einmal</button>
       </div>}
