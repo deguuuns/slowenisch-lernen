@@ -1,4 +1,8 @@
-export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher'
+export type CEFRLevel = 'A1' | 'A2' | 'B1'
+export type LearningSkill = 'lesen' | 'hören' | 'schreiben' | 'sprechen' | 'grammatik' | 'wortschatz'
+export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher' | 'überfällig'
+export type InputMode = 'typed' | 'speech'
+export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
 
 export type Vocabulary = {
   id: string
@@ -9,6 +13,12 @@ export type Vocabulary = {
   example: string
   exampleDe: string
   lesson: number
+  level?: CEFRLevel
+  gender?: 'm' | 'f' | 'n'
+  dual?: string
+  plural?: string
+  forms?: string[]
+  audioText?: string
 }
 
 export type Sentence = {
@@ -17,9 +27,20 @@ export type Sentence = {
   de: string
   lesson: number
   note?: string
+  level?: CEFRLevel
+  skills?: LearningSkill[]
 }
 
-export type ExerciseType = 'translate-de-sl' | 'fill' | 'choice' | 'free' | 'ending'
+export type ExerciseType =
+  | 'translate-de-sl'
+  | 'fill'
+  | 'choice'
+  | 'free'
+  | 'ending'
+  | 'listen-choice'
+  | 'listen-type'
+  | 'listen-answer'
+  | 'dialog-comprehension'
 
 export type Exercise = {
   id: string
@@ -31,6 +52,22 @@ export type Exercise = {
   alternatives?: string[]
   hint?: string
   explanation?: string
+  level?: CEFRLevel
+  skills?: LearningSkill[]
+  evaluationMode?: ExerciseEvaluationMode
+  difficulty?: 1 | 2 | 3 | 4 | 5
+  audioPrompt?: string
+  grammarTag?: string
+}
+
+export type GrammarPoint = {
+  id?: string
+  title: string
+  body: string
+  examples: string[]
+  commonMistakes?: string[]
+  level?: CEFRLevel
+  tags?: string[]
 }
 
 export type Lesson = {
@@ -39,7 +76,10 @@ export type Lesson = {
   subtitle: string
   minutes: number
   focus: string[]
-  grammar: { title: string; body: string; examples: string[] }
+  grammar: GrammarPoint
+  level?: CEFRLevel
+  objectives?: string[]
+  skills?: LearningSkill[]
 }
 
 export type ConversationTurn = {
@@ -53,12 +93,28 @@ export type Conversation = {
   title: string
   lesson: number
   turns: ConversationTurn[]
+  level?: CEFRLevel
 }
+
+export type MistakeCategory =
+  | 'format'
+  | 'word'
+  | 'case'
+  | 'gender'
+  | 'number'
+  | 'dual'
+  | 'verb-person'
+  | 'preposition'
+  | 'location-direction'
+  | 'word-order'
+  | 'number-form'
+  | 'unknown'
 
 export type Mistake = {
   key: string
   count: number
   lastSeen: number
+  category?: MistakeCategory
 }
 
 export type ReviewItem = {
@@ -66,9 +122,24 @@ export type ReviewItem = {
   status: LearningStatus
   dueAt: number
   intervalIndex: number
+  correctCount?: number
+  incorrectCount?: number
+  lastReviewedAt?: number
+  lastResponseMs?: number
+  ease?: number
+  difficulty?: number
+  confidence?: 1 | 2 | 3 | 4 | 5
+}
+
+export type DailyActivity = {
+  date: string
+  minutes: number
+  exercises: number
+  correct: number
 }
 
 export type UserProgress = {
+  schemaVersion?: number
   completedLessons: number[]
   streak: number
   wordsLearned: string[]
@@ -77,4 +148,8 @@ export type UserProgress = {
   reviews: ReviewItem[]
   speakingMinutes: number
   listeningMinutes: number
+  totalLearningMinutes?: number
+  dailyActivity?: DailyActivity[]
+  lastSessionAt?: number
+  skillXp?: Partial<Record<LearningSkill, number>>
 }
