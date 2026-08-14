@@ -2,10 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Pause, Play, Rabbit, RotateCcw, Volume2 } from 'lucide-react'
-import { chooseSlovenianVoice, speakWithSlovenianVoice, waitForSpeechVoices } from '@/lib/slovenianTts'
+import { chooseVoice, speakWithVoice, waitForSpeechVoices, type SupportedTtsLanguage } from '@/lib/slovenianTts'
 
 type Speed = 'verySlow' | 'slow' | 'normal' | 'native'
 const rates: Record<Speed, number> = { verySlow: 0.55, slow: 0.72, normal: 0.9, native: 1.05 }
+
+const languageLabels: Record<SupportedTtsLanguage, string> = {
+  'sl-SI': 'Slowenisch',
+  'de-DE': 'Deutsch',
+}
 
 type VoiceStatus = {
   loading: boolean
@@ -13,35 +18,40 @@ type VoiceStatus = {
   voiceName?: string
   voiceLang?: string
   exactLocale?: boolean
-  allSlovenianVoices: string[]
+  availableVoices: string[]
 }
 
-export async function speakSlovenian(text: string, speed: Speed = 'slow') {
-  return speakWithSlovenianVoice(text, rates[speed])
-}
-
-export default function AudioButton({ text, compact = false }: { text: string; compact?: boolean }) {
+export default function AudioButton({
+  text,
+  compact = false,
+  language = 'sl-SI',
+}: {
+  text: string
+  compact?: boolean
+  language?: SupportedTtsLanguage
+}) {
   const [speed, setSpeed] = useState<Speed>('slow')
   const [wordMode, setWordMode] = useState(false)
   const [activeWord, setActiveWord] = useState<number | null>(null)
-  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({ loading: true, available: false, allSlovenianVoices: [] })
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>({ loading: true, available: false, availableVoices: [] })
   const [message, setMessage] = useState<string | null>(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const words = useMemo(() => text.split(/\s+/), [text])
 
   useEffect(() => {
     let cancelled = false
+    setVoiceStatus({ loading: true, available: false, availableVoices: [] })
     async function load() {
       const voices = await waitForSpeechVoices()
       if (cancelled) return
-      const selected = chooseSlovenianVoice(voices)
+      const selected = chooseVoice(voices, language)
       setVoiceStatus({
         loading: false,
         available: !!selected.voice,
         voiceName: selected.voice?.name,
         voiceLang: selected.voice?.lang,
         exactLocale: selected.exactLocale,
-        allSlovenianVoices: selected.availableSlovenianVoices.map(voice => `${voice.name} (${voice.lang})`),
+        availableVoices: selected.availableVoices.map(voice => `${voice.name} (${voice.lang})`),
       })
     }
     load()
@@ -49,21 +59,21 @@ export default function AudioButton({ text, compact = false }: { text: string; c
       cancelled = true
       window.speechSynthesis?.cancel()
     }
-  }, [])
+  }, [language])
 
   async function play(content = text, chosenSpeed: Speed = speed) {
     setMessage(null)
-    const result = await speakSlovenian(content, chosenSpeed)
+    const result = await speakWithVoice(content, language, rates[chosenSpeed])
     if (!result.ok) {
-      setMessage(result.error === 'no-slovenian-voice'
-        ? 'Auf diesem Gerät stellt Safari aktuell keine slowenische Stimme bereit. Die App spielt bewusst keine falsche Ersatzstimme ab.'
+      setMessage(result.error === 'no-matching-voice'
+        ? `Auf diesem Gerät stellt Safari aktuell keine passende ${languageLabels[language]}-Stimme bereit. Die App verwendet keine Stimme einer anderen Sprache.`
         : 'Sprachausgabe ist in diesem Browser nicht verfügbar.')
     }
   }
 
   async function speakWords() {
     if (!voiceStatus.available) {
-      setMessage('Keine echte slowenische Stimme gefunden. Wort-für-Wort-Audio wurde deshalb nicht gestartet.')
+      setMessage(`Keine passende ${languageLabels[language]}-Stimme gefunden.`)
       return
     }
     window.speechSynthesis.cancel()
@@ -73,7 +83,7 @@ export default function AudioButton({ text, compact = false }: { text: string; c
       if (i >= words.length) { setActiveWord(null); return }
       setActiveWord(i)
       const clean = words[i].replace(/[.!?;,]/g, '')
-      const result = await speakWithSlovenianVoice(clean, rates.verySlow)
+      const result = await speakWithVoice(clean, language, rates.verySlow)
       if (!result.ok) { setActiveWord(null); return }
       window.setTimeout(() => { i += 1; next() }, 900)
     }
@@ -81,14 +91,15 @@ export default function AudioButton({ text, compact = false }: { text: string; c
   }
 
   const disabled = !voiceStatus.loading && !voiceStatus.available
+  const label = languageLabels[language]
 
   if (compact) return (
     <button
-      aria-label={disabled ? 'Keine slowenische Stimme verfügbar' : 'Slowenisch abspielen'}
+      aria-label={disabled ? `Keine ${label}-Stimme verfügbar` : `${label} abspielen`}
       onClick={() => play()}
       disabled={disabled}
       className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-lime-100 text-lime-900 hover:bg-lime-200 disabled:bg-slate-100 disabled:text-slate-400"
-      title={disabled ? 'Keine slowenische Stimme auf diesem Gerät gefunden' : voiceStatus.voiceName}
+      title={disabled ? `Keine ${label}-Stimme auf diesem Gerät gefunden` : `${voiceStatus.voiceName ?? label} · ${voiceStatus.voiceLang ?? language}`}
     >
       {disabled ? <AlertTriangle size={18}/> : <Volume2 size={18}/>} 
     </button>
@@ -102,14 +113,10 @@ export default function AudioButton({ text, compact = false }: { text: string; c
       <button onClick={() => play(text, 'verySlow')} disabled={disabled} className="btn-secondary disabled:opacity-50"><Rabbit size={17}/> Langsamer</button>
     </div>
 
-    {voiceStatus.loading ? <div className="mb-3 text-sm text-slate-500">Slowenische Stimme wird gesucht …</div> : voiceStatus.available ? (
-      <div className="mb-3 rounded-xl bg-lime-50 p-3 text-sm text-lime-950">
-        <strong>Slowenische Stimme:</strong> {voiceStatus.voiceName} · {voiceStatus.voiceLang}{!voiceStatus.exactLocale && ' · slowenischer Fallback'}
-      </div>
+    {voiceStatus.loading ? <div className="mb-3 text-sm text-slate-500">{label}-Stimme wird gesucht …</div> : voiceStatus.available ? (
+      <div className="mb-3 rounded-xl bg-lime-50 p-3 text-sm text-lime-950"><strong>{label}-Stimme:</strong> {voiceStatus.voiceName} · {voiceStatus.voiceLang}{!voiceStatus.exactLocale && ' · Sprach-Fallback'}</div>
     ) : (
-      <div className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
-        <strong>Keine slowenische Stimme gefunden.</strong> Die App verwendet absichtlich keine deutsche oder englische Ersatzstimme.
-      </div>
+      <div className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-950"><strong>Keine passende {label}-Stimme gefunden.</strong> Eine Stimme einer anderen Sprache wird bewusst nicht verwendet.</div>
     )}
 
     {message && <div className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">{message}</div>}
@@ -128,11 +135,12 @@ export default function AudioButton({ text, compact = false }: { text: string; c
 
     <button onClick={() => setShowDiagnostics(value => !value)} className="mt-4 text-xs font-semibold text-slate-500 underline">Audio-Diagnose {showDiagnostics ? 'ausblenden' : 'anzeigen'}</button>
     {showDiagnostics && <div className="mt-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-      <div><strong>Gesuchte Locale:</strong> sl-SI</div>
+      <div><strong>Textsprache:</strong> {label}</div>
+      <div><strong>Gesuchte Locale:</strong> {language}</div>
       <div><strong>Gewählte Stimme:</strong> {voiceStatus.voiceName ?? 'keine'}</div>
       <div><strong>Gemeldete Sprache:</strong> {voiceStatus.voiceLang ?? '—'}</div>
-      <div className="mt-2"><strong>Alle slowenischen Stimmen:</strong></div>
-      {voiceStatus.allSlovenianVoices.length ? voiceStatus.allSlovenianVoices.map(item => <div key={item}>• {item}</div>) : <div>Keine von Safari gemeldet.</div>}
+      <div className="mt-2"><strong>Passende Stimmen:</strong></div>
+      {voiceStatus.availableVoices.length ? voiceStatus.availableVoices.map(item => <div key={item}>• {item}</div>) : <div>Keine von Safari gemeldet.</div>}
     </div>}
   </div>
 }
