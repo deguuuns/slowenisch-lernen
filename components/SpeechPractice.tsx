@@ -21,13 +21,29 @@ declare global {
   }
 }
 
+function derivePromptAudio(prompt: string): { text: string; language: SupportedTtsLanguage } {
+  const colon = prompt.indexOf(':')
+  if (colon >= 0) {
+    const afterColon = prompt.slice(colon + 1).trim()
+    if (/^(kje|kaj|kam|kdaj|kako|kdo|koliko|kateri|katere|ali)\b/i.test(afterColon)) {
+      return { text: afterColon, language: 'sl-SI' }
+    }
+  }
+
+  if (/^(kje|kaj|kam|kdaj|kako|kdo|koliko|kateri|katere|ali|dober|dobro|živim|grem|imam|pijem|jem)\b/i.test(prompt.trim())) {
+    return { text: prompt, language: 'sl-SI' }
+  }
+
+  return { text: prompt, language: 'de-DE' }
+}
+
 export default function SpeechPractice({
   prompt,
   expected,
   acceptedAnswers = [],
   onResult,
   audioPrompt,
-  promptLanguage = 'sl-SI',
+  promptLanguage,
 }: {
   prompt: string
   expected: string
@@ -75,13 +91,15 @@ export default function SpeechPractice({
     setInputMode('typed')
   }
 
-  const spokenPrompt = audioPrompt ?? prompt
+  const derived = derivePromptAudio(prompt)
+  const spokenPrompt = audioPrompt ?? derived.text
+  const spokenLanguage = promptLanguage ?? (audioPrompt ? 'sl-SI' : derived.language)
 
   return <div className="space-y-4">
     <div className="rounded-3xl bg-slate-950 p-5 text-white">
       <div className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Hören und antworten</div>
       <div className="text-2xl font-semibold">{prompt}</div>
-      <div className="mt-4"><AudioButton text={spokenPrompt} language={promptLanguage}/></div>
+      <div className="mt-4"><AudioButton text={spokenPrompt} language={spokenLanguage}/></div>
     </div>
 
     <div className="rounded-3xl bg-white p-5 shadow-soft">
