@@ -28,15 +28,15 @@ export default function ExerciseDeck({
     setStartedAt(Date.now())
   }, [index])
 
-  const comparison = useMemo(() => exercise ? compareAnswer({
+  const comparison = useMemo(() => compareAnswer({
     input: value,
-    expected: exercise.answer,
-    acceptedAnswers: exercise.acceptedAnswers,
+    expected: exercise?.answer ?? '',
+    acceptedAnswers: exercise?.acceptedAnswers,
     inputMode: 'typed',
     allowNumericShorthand: true,
-  }) : null, [exercise, value])
+  }), [exercise, value])
 
-  if (!exercise || !comparison) {
+  if (!exercise) {
     return <div className="card">Für diese Lektion sind noch keine Übungen vorhanden.</div>
   }
 
