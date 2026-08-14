@@ -5,11 +5,13 @@ import { AlertCircle, CheckCircle2, ChevronRight, Eye, Flag, Lightbulb, RotateCc
 import AudioButton from '@/components/AudioButton'
 import SpeechPractice from '@/components/SpeechPractice'
 import { beginnerExercises } from '@/data/beginnerContent'
+import { foundationExercises } from '@/data/foundationCurriculum'
 import { exercises as diverseExercises } from '@/data/diverseContent'
 import { compareAnswer } from '@/lib/answerMatching'
 import { guidedHint } from '@/lib/guidedFeedback'
 import { getActiveProfile } from '@/lib/profileStorage'
-import { isExerciseUnlocked, registerIntroductions } from '@/lib/prerequisites'
+import { registerIntroductions } from '@/lib/prerequisites'
+import { eligibleAdaptiveContent } from '@/lib/sessionEligibility'
 import {
   createSessionState,
   registerSessionOutcome,
@@ -42,9 +44,10 @@ export default function AdaptiveLearningSession({
   const [showReason, setShowReason] = useState(false)
   const profile = useMemo(() => getActiveProfile(), [])
 
+  const allAdaptiveContent = useMemo(() => [...beginnerExercises, ...foundationExercises, ...diverseExercises], [])
   const contentPool = useMemo(
-    () => [...beginnerExercises, ...diverseExercises].filter(item => isExerciseUnlocked(item, progress, profile)),
-    [progress, profile],
+    () => eligibleAdaptiveContent(allAdaptiveContent, progress, session, profile),
+    [allAdaptiveContent, progress, profile, session],
   )
   const candidate = useMemo(() => selectNextExercise(progress, contentPool, session), [progress, contentPool, session])
   const exercise = candidate?.exercise
@@ -57,7 +60,7 @@ export default function AdaptiveLearningSession({
   }) : null, [exercise, value])
 
   if (!candidate || !exercise || !comparison) {
-    return <div className="card"><h2 className="text-2xl font-black">Keine passende Aufgabe gefunden.</h2><p className="mt-2 text-slate-500">Es fehlt wahrscheinlich noch eine Voraussetzung. Kehre kurz zurück und starte die Session erneut.</p><button onClick={onFinish} className="btn-primary mt-4">Zurück</button></div>
+    return <div className="card"><h2 className="text-2xl font-black">Keine passende Aufgabe gefunden.</h2><p className="mt-2 text-slate-500">Im Moment ist kein sinnvoller nächster Schritt freigeschaltet. Das kann bedeuten, dass eine Einführung oder Voraussetzung fehlt.</p><button onClick={onFinish} className="btn-primary mt-4">Zurück</button></div>
   }
 
   const activeCandidate = candidate
@@ -67,6 +70,7 @@ export default function AdaptiveLearningSession({
   const isChoice = activeExercise.modality === 'choice' || activeExercise.type === 'choice' || activeExercise.type === 'listen-choice'
   const isSpeaking = activeExercise.modality === 'speaking' || activeExercise.type === 'speak-answer' || activeExercise.type === 'repeat-after-me'
   const isListening = activeExercise.modality === 'listening' || activeExercise.type.startsWith('listen-')
+  const isIntroduction = activeExercise.type === 'introduce'
   const done = session.answered >= SESSION_TARGET
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
   const canContinue = isFree || activeComparison.correct || showSolution
@@ -136,12 +140,13 @@ export default function AdaptiveLearningSession({
     <div className="flex items-center justify-between gap-3"><div className="text-sm font-bold text-slate-500">Persönliche Session · {session.answered + 1}/{SESSION_TARGET}</div><button onClick={onFinish} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-white"><Flag size={16}/> Beenden</button></div>
     <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${session.answered / SESSION_TARGET * 100}%` }}/></div>
     <div className="card">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-1.5">{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-lime-50 px-2.5 py-1 text-xs font-bold text-lime-800">{skill}</span>)}<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{isSpeaking ? 'Sprechen' : isListening ? 'Hören' : isChoice ? 'Auswahl' : activeExercise.type === 'introduce' ? 'Neu lernen' : 'Produktion'}</span></div><button onClick={() => setShowReason(current => !current)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-1.5">{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-lime-50 px-2.5 py-1 text-xs font-bold text-lime-800">{skill}</span>)}<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{isSpeaking ? 'Sprechen' : isListening ? 'Hören' : isChoice ? 'Auswahl' : isIntroduction ? 'Neu lernen' : 'Produktion'}</span></div><button onClick={() => setShowReason(current => !current)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button></div>
       {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Auswahl der Lern-Engine</div>{activeCandidate.reasons.slice(0, 5).map(reason => <div key={reason} className="mt-1 text-lime-800">+ {reason}</div>)}{activeCandidate.penalties.slice(0, 4).map(reason => <div key={reason} className="mt-1 text-amber-700">− {reason}</div>)}</div>}
+      {isIntroduction && <div className="mt-4 rounded-3xl border border-lime-200 bg-lime-50 p-4"><div className="text-xs font-black uppercase tracking-[0.18em] text-lime-800">Erst verstehen, dann üben</div><p className="mt-2 text-sm text-slate-700">Diese Karte führt einen neuen Baustein ein. Spätere Aufgaben dürfen ihn erst danach aktiv verlangen.</p></div>}
       {isListening && <div className="mt-4 rounded-3xl bg-slate-950 p-5 text-white"><div className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Nur hören – Text bleibt verborgen</div><div className="mt-3"><AudioButton text={activeExercise.audioPrompt ?? activeExercise.answer}/></div></div>}
       {!isSpeaking && <h2 className="mt-4 text-2xl font-black">{activeExercise.prompt}</h2>}
       {activeExercise.hint && !checked && !isListening && <p className="mt-2 text-sm text-slate-500">Hinweis: {activeExercise.hint}</p>}
-      {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={isListening ? 'Was hast du gehört?' : 'Deine Antwort …'} autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
+      {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={isListening ? 'Deine Antwort …' : 'Deine Antwort …'} autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
       {checked && !isSpeaking && <GuidedFeedback correct={activeComparison.correct} isFree={isFree} value={value} exercise={activeExercise} category={activeComparison.category as MistakeCategory | undefined} wrongAttempts={wrongAttempts} showSolution={showSolution} onRetry={retry} onShowSolution={() => setShowSolution(true)}/>} 
       {checked && canContinue && <button onClick={continueSession} className="btn-primary mt-4 w-full justify-center">Nächste passende Aufgabe <ChevronRight size={18}/></button>}
     </div>
