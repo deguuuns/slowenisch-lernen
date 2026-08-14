@@ -1,4 +1,4 @@
-import type { CEFRLevel, Exercise, LearnerProfile, UserProgress } from '@/types'
+import type { CEFRLevel, Exercise, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 
 const LEVEL_RANK: Record<CEFRLevel, number> = { A1: 1, A2: 2, B1: 3 }
 
@@ -26,10 +26,41 @@ export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, p
   return true
 }
 
+function introducedState(key: string, kind: LearningItemState['kind'], previous?: LearningItemState): LearningItemState {
+  if (previous) return { ...previous, introduced: true, stage: previous.stage === 'unseen' ? 'introduced' : previous.stage }
+  return {
+    key,
+    kind,
+    stage: 'introduced',
+    attempts: 0,
+    correctCount: 0,
+    incorrectCount: 0,
+    correctStreak: 0,
+    incorrectStreak: 0,
+    mastery: 0.08,
+    difficulty: 1,
+    introduced: true,
+    receptiveMastery: 0.08,
+    productiveMastery: 0,
+  }
+}
+
 export function registerIntroductions(progress: UserProgress, exercise: Exercise): UserProgress {
+  const learningItems = { ...(progress.learningItems ?? {}) }
+
+  for (const item of exercise.introducesVocabulary ?? []) {
+    const key = `vocab:${item}`
+    learningItems[key] = introducedState(key, item.includes(' ') ? 'chunk' : 'vocabulary', learningItems[key])
+  }
+  for (const item of exercise.introducesGrammar ?? []) {
+    const key = `grammar:${item}`
+    learningItems[key] = introducedState(key, 'grammar', learningItems[key])
+  }
+
   return {
     ...progress,
     introducedVocabulary: Array.from(new Set([...(progress.introducedVocabulary ?? []), ...(exercise.introducesVocabulary ?? [])])),
     introducedGrammar: Array.from(new Set([...(progress.introducedGrammar ?? []), ...(exercise.introducesGrammar ?? [])])),
+    learningItems,
   }
 }
