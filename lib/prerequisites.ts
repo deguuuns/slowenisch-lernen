@@ -1,9 +1,12 @@
-import type { Exercise, LearnerProfile, UserProgress } from '@/types'
+import type { CEFRLevel, Exercise, LearnerProfile, UserProgress } from '@/types'
+
+const LEVEL_RANK: Record<CEFRLevel, number> = { A1: 1, A2: 2, B1: 3 }
 
 export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, profile: LearnerProfile | null) {
   const vocabulary = new Set(progress.introducedVocabulary ?? [])
   const grammar = new Set(progress.introducedGrammar ?? [])
 
+  if (profile && exercise.level && LEVEL_RANK[exercise.level] > LEVEL_RANK[profile.approximateLevel]) return false
   if (exercise.requiredVocabulary?.some(item => !vocabulary.has(item))) return false
   if (exercise.requiredGrammar?.some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
