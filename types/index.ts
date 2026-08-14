@@ -1,6 +1,7 @@
 export type CEFRLevel = 'A1' | 'A2' | 'B1'
 export type LearningSkill = 'lesen' | 'hören' | 'schreiben' | 'sprechen' | 'grammatik' | 'wortschatz'
 export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher' | 'überfällig'
+export type KnowledgeStage = 'unseen' | 'introduced' | 'learning' | 'familiar' | 'mastered' | 'review_due'
 export type InputMode = 'typed' | 'speech'
 export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
 export type ExerciseModality = 'text' | 'choice' | 'listening' | 'speaking'
@@ -152,11 +153,12 @@ export type ReviewItem = {
   confidence?: 1 | 2 | 3 | 4 | 5
 }
 
-export type LearningItemKind = 'exercise' | 'vocabulary' | 'grammar' | 'phrase' | 'pattern' | 'listening' | 'speaking' | 'lesson'
+export type LearningItemKind = 'exercise' | 'vocabulary' | 'grammar' | 'phrase' | 'chunk' | 'verb' | 'conjugation' | 'pattern' | 'listening' | 'speaking' | 'lesson'
 
 export type LearningItemState = {
   key: string
   kind: LearningItemKind
+  stage?: KnowledgeStage
   level?: CEFRLevel
   skills?: LearningSkill[]
   grammarTag?: string
@@ -170,6 +172,8 @@ export type LearningItemState = {
   introduced?: boolean
   receptiveMastery?: number
   productiveMastery?: number
+  totalHintsUsed?: number
+  lastHintsUsed?: number
   lastSeenAt?: number
   nextDueAt?: number
   averageResponseMs?: number
@@ -189,6 +193,7 @@ export type SessionHistoryItem = {
   grammarTag?: string
   contentKey?: string
   contextTag?: string
+  hintsUsed?: number
 }
 
 export type DailyActivity = {
