@@ -3,6 +3,7 @@ export type LearningSkill = 'lesen' | 'hören' | 'schreiben' | 'sprechen' | 'gra
 export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher' | 'überfällig'
 export type InputMode = 'typed' | 'speech'
 export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
+export type ExerciseModality = 'text' | 'choice' | 'listening' | 'speaking'
 
 export type Vocabulary = {
   id: string
@@ -41,6 +42,9 @@ export type ExerciseType =
   | 'listen-type'
   | 'listen-answer'
   | 'dialog-comprehension'
+  | 'speak-answer'
+  | 'spot-error'
+  | 'transform'
 
 export type Exercise = {
   id: string
@@ -60,6 +64,9 @@ export type Exercise = {
   grammarTag?: string
   prerequisites?: string[]
   learningTargets?: string[]
+  modality?: ExerciseModality
+  contentKey?: string
+  contextTag?: string
 }
 
 export type GrammarPoint = {
@@ -162,6 +169,11 @@ export type SessionHistoryItem = {
   timestamp: number
   mistakeCategory?: MistakeCategory
   reason?: string
+  exerciseType?: ExerciseType
+  modality?: ExerciseModality
+  grammarTag?: string
+  contentKey?: string
+  contextTag?: string
 }
 
 export type DailyActivity = {
