@@ -4,6 +4,8 @@ export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher' | 'überf
 export type InputMode = 'typed' | 'speech'
 export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
 export type ExerciseModality = 'text' | 'choice' | 'listening' | 'speaking'
+export type StartMode = 'zero' | 'self-assessment' | 'placement'
+export type SelfAssessmentLevel = 'few-words' | 'simple-sentences' | 'A1' | 'A2' | 'advanced'
 
 export type Vocabulary = {
   id: string
@@ -33,6 +35,7 @@ export type Sentence = {
 }
 
 export type ExerciseType =
+  | 'introduce'
   | 'translate-de-sl'
   | 'fill'
   | 'choice'
@@ -43,6 +46,7 @@ export type ExerciseType =
   | 'listen-answer'
   | 'dialog-comprehension'
   | 'speak-answer'
+  | 'repeat-after-me'
   | 'spot-error'
   | 'transform'
 
@@ -63,10 +67,17 @@ export type Exercise = {
   audioPrompt?: string
   grammarTag?: string
   prerequisites?: string[]
+  requiredVocabulary?: string[]
+  requiredGrammar?: string[]
+  requiredLearningItems?: string[]
+  requiredSkills?: Partial<Record<LearningSkill, number>>
+  introducesVocabulary?: string[]
+  introducesGrammar?: string[]
   learningTargets?: string[]
   modality?: ExerciseModality
   contentKey?: string
   contextTag?: string
+  personalQuestion?: boolean
 }
 
 export type GrammarPoint = {
@@ -117,6 +128,7 @@ export type MistakeCategory =
   | 'location-direction'
   | 'word-order'
   | 'number-form'
+  | 'missing-word'
   | 'unknown'
 
 export type Mistake = {
@@ -155,6 +167,9 @@ export type LearningItemState = {
   incorrectStreak: number
   mastery: number
   difficulty: number
+  introduced?: boolean
+  receptiveMastery?: number
+  productiveMastery?: number
   lastSeenAt?: number
   nextDueAt?: number
   averageResponseMs?: number
@@ -183,12 +198,41 @@ export type DailyActivity = {
   correct: number
 }
 
+export type LearnerProfile = {
+  id: string
+  name: string
+  startMode: StartMode
+  selfAssessment?: SelfAssessmentLevel
+  approximateLevel: CEFRLevel
+  onboardingCompleted: boolean
+  placementCompleted?: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export type ExerciseAttempt = {
+  id: string
+  profileId: string
+  exerciseId: string
+  learningGoalIds: string[]
+  timestamp: number
+  inputMode: InputMode
+  answer?: string
+  correct: boolean
+  mistakeCategory?: MistakeCategory
+  responseMs?: number
+  hintsUsed?: number
+  attemptNumber?: number
+}
+
 export type UserProgress = {
   schemaVersion?: number
   completedLessons: number[]
   streak: number
   wordsLearned: string[]
   secureWords: string[]
+  introducedVocabulary?: string[]
+  introducedGrammar?: string[]
   mistakes: Mistake[]
   reviews: ReviewItem[]
   speakingMinutes: number
