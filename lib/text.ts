@@ -21,6 +21,7 @@ function normalizeNumbers(value: string) {
 export function normalizeAnswer(value: string) {
   return normalizeNumbers(value)
     .toLocaleLowerCase('sl-SI')
+    .replace(/\b(?:2|dva|dve)\b/g, '2')
     .trim()
     .replace(/[.!?;,]/g, '')
     .replace(/\s+/g, ' ')
