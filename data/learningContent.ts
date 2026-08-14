@@ -31,19 +31,19 @@ const exerciseOverrides: Record<string, Partial<Exercise>> = {
   e05: { level: 'A1', skills: ['grammatik'], grammarTag: 'case-location', difficulty: 2 },
   e06: { level: 'A1', skills: ['grammatik'], grammarTag: 'case-direction', difficulty: 2 },
   e07: { level: 'A1', skills: ['schreiben','sprechen'], evaluationMode: 'free' },
-  e08: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'dual', difficulty: 3, acceptedAnswers: ['Imam 2 brata.'] },
-  e09: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'accusative', difficulty: 2 },
+  e08: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'dual', learningTargets: ['grammar:dual'], difficulty: 3, acceptedAnswers: ['Imam 2 brata.'] },
+  e09: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'accusative', learningTargets: ['grammar:accusative'], difficulty: 2 },
   e10: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'location', difficulty: 2, evaluationMode: 'accepted', acceptedAnswers: ['V Nemčiji živim.'] },
   e11: { level: 'A1', skills: ['grammatik'], grammarTag: 'negation', difficulty: 2 },
   e12: { level: 'A1', skills: ['schreiben','sprechen'], evaluationMode: 'free' },
   e13: { level: 'A1', skills: ['schreiben','wortschatz'], difficulty: 2, acceptedAnswers: ['Star sem 35 let.'] },
   e14: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'location', difficulty: 2 },
   e15: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'direction', difficulty: 2 },
-  e16: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'time-number-form', difficulty: 3, acceptedAnswers: ['Grem spat ob 10.'] },
+  e16: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'time-number-form', learningTargets: ['grammar:time-number-form'], difficulty: 3, acceptedAnswers: ['Grem spat ob 10.'] },
   e17: { level: 'A1', skills: ['wortschatz'], difficulty: 1 },
   e18: { level: 'A1', skills: ['schreiben','sprechen'], evaluationMode: 'free' },
   e19: { level: 'A1', skills: ['schreiben','wortschatz'], difficulty: 1 },
-  e20: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'accusative', difficulty: 2 },
+  e20: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'accusative', learningTargets: ['grammar:accusative'], difficulty: 2 },
   e21: { level: 'A1', skills: ['schreiben','wortschatz'], difficulty: 1 },
   e22: { level: 'A1', skills: ['schreiben','grammatik'], grammarTag: 'accusative', difficulty: 2 },
   e23: { level: 'A1', skills: ['schreiben','sprechen'], evaluationMode: 'free' },
@@ -91,7 +91,7 @@ export const lessons: Lesson[] = seedLessons.map(lesson => ({
   },
 }))
 
-export const exercises: Exercise[] = seedExercises.map(exercise => ({
+const baseExercises: Exercise[] = seedExercises.map(exercise => ({
   level: 'A1',
   skills: exercise.type === 'free' ? ['schreiben','sprechen'] : ['schreiben'],
   evaluationMode: exercise.type === 'free' ? 'free' : 'exact',
@@ -99,6 +99,19 @@ export const exercises: Exercise[] = seedExercises.map(exercise => ({
   ...exercise,
   ...(exerciseOverrides[exercise.id] ?? {}),
 }))
+
+const transferExercises: Exercise[] = [
+  { id:'t-dual-1', lesson:2, type:'fill', level:'A1', difficulty:2, prompt:'Imam ___ brata. (zwei)', answer:'dva', skills:['grammatik','schreiben'], grammarTag:'dual', learningTargets:['grammar:dual'], explanation:'Bei männlichen Personen heißt „zwei“ im Dual hier „dva“.' },
+  { id:'t-dual-2', lesson:2, type:'translate-de-sl', level:'A1', difficulty:3, prompt:'Ich sehe zwei Freunde.', answer:'Vidim dva prijatelja.', skills:['grammatik','schreiben'], grammarTag:'dual', learningTargets:['grammar:dual'], acceptedAnswers:['Vidim 2 prijatelja.'] },
+  { id:'t-location-1', lesson:1, type:'translate-de-sl', level:'A1', difficulty:2, prompt:'Ich bin in Deutschland.', answer:'Sem v Nemčiji.', skills:['grammatik','schreiben'], grammarTag:'location-direction', learningTargets:['grammar:location-direction'] },
+  { id:'t-direction-1', lesson:1, type:'translate-de-sl', level:'A1', difficulty:2, prompt:'Ich gehe nach Slowenien.', answer:'Grem v Slovenijo.', skills:['grammatik','schreiben'], grammarTag:'location-direction', learningTargets:['grammar:location-direction'] },
+  { id:'t-home-1', lesson:3, type:'fill', level:'A1', difficulty:2, prompt:'Zdaj sem ___. (zu Hause)', answer:'doma', skills:['grammatik','wortschatz'], grammarTag:'location-direction', learningTargets:['grammar:doma-domov'] },
+  { id:'t-home-2', lesson:3, type:'fill', level:'A1', difficulty:2, prompt:'Zdaj grem ___. (nach Hause)', answer:'domov', skills:['grammatik','wortschatz'], grammarTag:'location-direction', learningTargets:['grammar:doma-domov'] },
+  { id:'t-time-1', lesson:3, type:'fill', level:'A1', difficulty:2, prompt:'Grem spat ob ___. (zehn)', answer:'desetih', skills:['grammatik','schreiben'], grammarTag:'time-number-form', learningTargets:['grammar:time-number-form'] },
+  { id:'t-pizza-1', lesson:4, type:'fill', level:'A1', difficulty:2, prompt:'Jem ___. (Pizza)', answer:'pico', skills:['grammatik','schreiben'], grammarTag:'accusative', learningTargets:['grammar:accusative'] },
+]
+
+export const exercises: Exercise[] = [...baseExercises, ...transferExercises]
 
 export const vocabulary: Vocabulary[] = seedVocabulary.map(item => ({
   ...item,
