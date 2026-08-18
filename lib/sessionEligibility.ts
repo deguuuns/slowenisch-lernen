@@ -5,6 +5,7 @@ import { isExerciseUnlocked } from './prerequisites'
 
 const MAX_TARGET_APPEARANCES_PER_SESSION = 3
 const RECENT_CONTENT_WINDOW = 8
+const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
 
 const LEGACY_GRAMMAR_REQUIREMENTS: Record<string, string> = {
   'location-direction': 'location-direction',
@@ -73,10 +74,10 @@ function requiredGrammarFor(exercise: Exercise) {
 }
 
 function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
-  const vocabulary = new Set(progress.introducedVocabulary ?? [])
+  const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
 
-  if (exercise.requiredVocabulary?.some(item => !vocabulary.has(item))) return false
+  if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
   if (exercise.type !== 'introduce' && requiredGrammarFor(exercise).some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
   return true
@@ -95,23 +96,23 @@ function targetStageSatisfied(exercise: Exercise, progress: UserProgress) {
 }
 
 function currentPhaseStillHasUnseenIntroductions(exercises: Exercise[], progress: UserProgress, phase: number) {
-  const introduced = new Set(progress.introducedVocabulary ?? [])
+  const introduced = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
   return exercises.some(exercise => {
     if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
     const newVocabulary = exercise.introducesVocabulary ?? []
     const newGrammar = exercise.introducesGrammar ?? []
-    return newVocabulary.some(item => !introduced.has(item)) || newGrammar.some(item => !grammar.has(item))
+    return newVocabulary.some(item => !introduced.has(normalizeKey(item))) || newGrammar.some(item => !grammar.has(item))
   })
 }
 
 function isNextIntroduction(exercise: Exercise, exercises: Exercise[], progress: UserProgress, phase: number) {
   if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
-  const introduced = new Set(progress.introducedVocabulary ?? [])
+  const introduced = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
   const unseen = exercises
     .filter(item => item.curriculumPhase === phase && item.type === 'introduce')
-    .filter(item => (item.introducesVocabulary ?? []).some(value => !introduced.has(value)) || (item.introducesGrammar ?? []).some(value => !grammar.has(value)))
+    .filter(item => (item.introducesVocabulary ?? []).some(value => !introduced.has(normalizeKey(value))) || (item.introducesGrammar ?? []).some(value => !grammar.has(value)))
     .sort((a, b) => (a.curriculumOrder ?? 999) - (b.curriculumOrder ?? 999))
   return unseen[0]?.id === exercise.id
 }
@@ -129,14 +130,11 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
   const phase = getCurrentBeginnerPhase(progress).id
   if (!exercise.curriculumPhase) return false
   if (exercise.curriculumPhase > phase) return false
-
-  // Earlier phases may return as review, but may not inject new content again.
   if (exercise.curriculumPhase < phase) return exercise.type !== 'introduce'
 
   const introductionsPending = currentPhaseStillHasUnseenIntroductions(exercises, progress, phase)
   if (introductionsPending) {
     if (newItemBudgetReached(exercise, session)) return false
-    // Teach the small vocabulary packet first, in a deterministic order, before testing it.
     return isNextIntroduction(exercise, exercises, progress, phase)
   }
 
@@ -160,9 +158,9 @@ export function isEligibleForAdaptiveSession(
   if (!prerequisitesAreKnown(exercise, progress)) return false
   if (!targetStageSatisfied(exercise, progress)) return false
 
-  // Production is a late stage, never a way to introduce vocabulary by accident.
   if (isProductive(exercise)) {
-    if (exercise.requiredVocabulary?.some(item => !(progress.introducedVocabulary ?? []).includes(item))) return false
+    const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
+    if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
     const targetStates = targetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
     if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer') {
       if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall)) return false
