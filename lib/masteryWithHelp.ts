@@ -16,7 +16,7 @@ export function knowledgeStage(state: LearningItemState | undefined, now = Date.
   if ((state.recallMastery ?? 0) >= 0.35) return 'recall'
   if ((state.receptiveMastery ?? 0) >= 0.25) return 'recognition'
   if (state.mastery >= 0.62) return 'familiar'
-  if (state.mastery >= 0.25) return 'learning'
+  if (state.mastery >= 0.25) return 'recognition'
   if (state.introduced || state.stage === 'introduced') return 'introduced'
   if (state.attempts === 0) return 'unseen'
   return 'introduced'
