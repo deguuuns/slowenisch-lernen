@@ -45,12 +45,13 @@ test('recall is blocked until recognition evidence exists', () => {
   progress = registerIntroductions(progress, byId('ja'))
   progress = registerIntroductions(progress, byId('ne'))
   const recall = byId('p1-hvala-recall')
-  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, Date.now(), all), false)
+  const now = Date.now()
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now, all), false)
 
   const recognition = byId('p1-hvala-rec-de')
-  progress = updateLearnerStateWithHelp(progress, recognition, { correct:true, responseMs:1500, hintsUsed:0 }, 1000)
+  progress = updateLearnerStateWithHelp(progress, recognition, { correct:true, responseMs:1500, hintsUsed:0 }, now)
   assert.equal(progress.learningItems?.['vocab:hvala']?.stage, 'recognition')
-  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, Date.now(), all), true)
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now, all), true)
 })
 
 test('beginner phase does not advance merely because words were shown', () => {
