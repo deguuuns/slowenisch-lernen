@@ -18,8 +18,10 @@ export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, p
   }
 
   if (profile?.startMode === 'zero') {
-    if (vocabulary.size < 6 && exercise.contextTag !== 'beginner-foundation') return false
-    if (vocabulary.size < 12 && exercise.lesson > 1) return false
+    // Explicit curriculum metadata is now the stronger beginner gate. Keep the old
+    // context restriction only for legacy content that is not part of that curriculum.
+    if (exercise.curriculumPhase === undefined && vocabulary.size < 6 && exercise.contextTag !== 'beginner-foundation') return false
+    if (exercise.curriculumPhase === undefined && vocabulary.size < 12 && exercise.lesson > 1) return false
   }
 
   return true
