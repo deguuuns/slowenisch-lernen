@@ -1,13 +1,14 @@
 import type { CEFRLevel, Exercise, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 
 const LEVEL_RANK: Record<CEFRLevel, number> = { A1: 1, A2: 2, B1: 3 }
+const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
 
 export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, profile: LearnerProfile | null) {
-  const vocabulary = new Set(progress.introducedVocabulary ?? [])
+  const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
 
   if (profile && exercise.level && LEVEL_RANK[exercise.level] > LEVEL_RANK[profile.approximateLevel]) return false
-  if (exercise.requiredVocabulary?.some(item => !vocabulary.has(item))) return false
+  if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
   if (exercise.requiredGrammar?.some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
   if (exercise.requiredSkills) {
@@ -17,9 +18,7 @@ export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, p
   }
 
   if (profile?.startMode === 'zero') {
-    // A brand-new learner stays inside the explicit starter curriculum until a small foundation exists.
     if (vocabulary.size < 6 && exercise.contextTag !== 'beginner-foundation') return false
-    // Do not jump to later lessons while the user is still building the first active vocabulary.
     if (vocabulary.size < 12 && exercise.lesson > 1) return false
   }
 
@@ -41,6 +40,7 @@ function introducedState(key: string, kind: LearningItemState['kind'], previous?
     difficulty: 1,
     introduced: true,
     receptiveMastery: 0.08,
+    recallMastery: 0,
     productiveMastery: 0,
   }
 }
