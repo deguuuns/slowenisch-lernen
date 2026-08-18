@@ -5,6 +5,8 @@ import { AlertCircle, CheckCircle2, ChevronRight, Eye, Flag, Lightbulb, RotateCc
 import AudioButton from '@/components/AudioButton'
 import SpeechPractice from '@/components/SpeechPractice'
 import { beginnerExercises } from '@/data/beginnerContent'
+import { beginnerReinforcementExercises } from '@/data/beginnerReinforcement'
+import { getBeginnerSessionGoal } from '@/data/beginnerCurriculum'
 import { foundationExercises } from '@/data/foundationCurriculum'
 import { exercises as diverseExercises } from '@/data/diverseContent'
 import { compareAnswer } from '@/lib/answerMatching'
@@ -22,8 +24,6 @@ import {
 } from '@/lib/learningEngine'
 import { recordLearningTime, registerMistake, scheduleReview } from '@/lib/storage'
 import type { Exercise, LearningSkill, MistakeCategory, UserProgress } from '@/types'
-
-const SESSION_TARGET = 14
 
 export default function AdaptiveLearningSession({
   progress,
@@ -43,9 +43,16 @@ export default function AdaptiveLearningSession({
   const [showSolution, setShowSolution] = useState(false)
   const [startedAt, setStartedAt] = useState(() => Date.now())
   const [showReason, setShowReason] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(false)
+  const [transcriptHelpUsed, setTranscriptHelpUsed] = useState(false)
   const profile = useMemo(() => getActiveProfile(), [])
+  const beginnerGoal = useMemo(() => getBeginnerSessionGoal(progress), [progress])
+  const sessionTarget = profile?.startMode === 'zero' ? 10 : 14
 
-  const allAdaptiveContent = useMemo(() => [...beginnerExercises, ...foundationExercises, ...diverseExercises], [])
+  const allAdaptiveContent = useMemo(
+    () => [...beginnerExercises, ...beginnerReinforcementExercises, ...foundationExercises, ...diverseExercises],
+    [],
+  )
   const contentPool = useMemo(
     () => eligibleAdaptiveContent(allAdaptiveContent, progress, session, profile),
     [allAdaptiveContent, progress, profile, session],
@@ -73,21 +80,32 @@ export default function AdaptiveLearningSession({
   const isSpeaking = activeExercise.modality === 'speaking' || activeExercise.type === 'speak-answer' || activeExercise.type === 'repeat-after-me'
   const isListening = activeExercise.modality === 'listening' || activeExercise.type.startsWith('listen-')
   const isIntroduction = activeExercise.type === 'introduce'
-  const done = session.answered >= SESSION_TARGET
+  const done = session.answered >= sessionTarget
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
   const freeCorrect = isFree && !!freeEvaluation?.acceptable
-  const canContinue = isFree ? freeCorrect || showSolution : activeComparison.correct || showSolution
+  const canContinue = isIntroduction || (isFree ? freeCorrect || showSolution : activeComparison.correct || showSolution)
 
   if (done) {
     const accuracy = session.answered ? Math.round(session.correct / session.answered * 100) : 0
     const modalities = Array.from(new Set(session.history.map(item => item.modality).filter(Boolean)))
-    return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} Aufgaben · {accuracy}% korrekt · ca. {elapsedMinutes} Min.</p><p className="mt-2 text-sm text-slate-400">Heute gemischt: {modalities.join(' · ') || 'Text'}</p><button onClick={onFinish} className="mt-6 min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Fertig</button></div></div>
+    return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} Schritte · {accuracy}% bei geprüften Aufgaben · ca. {elapsedMinutes} Min.</p>{profile?.startMode === 'zero' && <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute im Fokus</div><div className="mt-1 text-lg font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-300">{beginnerGoal.goal}</p></div>}<p className="mt-3 text-sm text-slate-400">Geübt: {modalities.join(' · ') || 'Text'}</p><button onClick={onFinish} className="mt-6 min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Fertig</button></div></div>
+  }
+
+  function resetForNext() {
+    setValue('')
+    setChecked(false)
+    setWrongAttempts(0)
+    setShowSolution(false)
+    setStartedAt(Date.now())
+    setShowReason(false)
+    setShowTranscript(false)
+    setTranscriptHelpUsed(false)
   }
 
   function insertSpecialChar(char: string) { setValue(current => current + char); setChecked(false) }
 
   function check() {
-    if (!value.trim()) return
+    if (isIntroduction || !value.trim()) return
     if (isFree) {
       setChecked(true)
       if (!freeEvaluation?.acceptable) setWrongAttempts(current => current + 1)
@@ -102,12 +120,18 @@ export default function AdaptiveLearningSession({
 
   function retry() { setChecked(false); setShowSolution(false) }
 
+  function completeIntroduction() {
+    setProgress(current => recordLearningTime(registerIntroductions(current, activeExercise), 0.1, true))
+    setSession(current => registerSessionOutcome(current, activeCandidate, { correct: true, responseMs: Math.max(250, Date.now() - startedAt) }))
+    resetForNext()
+  }
+
   function continueSession() {
-    if (!canContinue) return
+    if (!canContinue || isIntroduction) return
     const correct = isFree ? freeCorrect : activeComparison.correct
     const responseMs = Math.max(250, Date.now() - startedAt)
     const category = activeComparison.category as MistakeCategory | undefined
-    const hintsUsed = wrongAttempts + (showSolution ? 2 : 0)
+    const hintsUsed = wrongAttempts + (showSolution ? 2 : 0) + (transcriptHelpUsed ? 1 : 0)
 
     setProgress(current => {
       let next = registerIntroductions(current, activeExercise)
@@ -135,6 +159,8 @@ export default function AdaptiveLearningSession({
             contentKey: activeExercise.contentKey ?? activeExercise.answer,
             contextTag: activeExercise.contextTag,
             hintsUsed,
+            learningPhase: activeExercise.learningPhase,
+            curriculumPhase: activeExercise.curriculumPhase,
           }].slice(-80),
         }
         if (!correct && activeExercise.grammarTag) next.mistakes = registerMistake(next.mistakes, `grammar:${activeExercise.grammarTag}`, category)
@@ -143,24 +169,29 @@ export default function AdaptiveLearningSession({
     })
 
     setSession(current => registerSessionOutcome(current, activeCandidate, { correct, responseMs, mistakeCategory: category }))
-    setValue(''); setChecked(false); setWrongAttempts(0); setShowSolution(false); setStartedAt(Date.now()); setShowReason(false)
+    resetForNext()
   }
 
+  const phaseLabel = activeExercise.learningPhase === 'new' ? 'NEU' : activeExercise.learningPhase === 'review' ? 'WIEDERHOLEN' : activeExercise.learningPhase === 'recognition' || activeExercise.learningPhase === 'recall' ? 'ÜBEN' : 'ANWENDEN'
+
   return <div className="space-y-4">
-    <div className="flex items-center justify-between gap-3"><div className="text-sm font-bold text-slate-500">Persönliche Session · {session.answered + 1}/{SESSION_TARGET}</div><button onClick={onFinish} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-white"><Flag size={16}/> Beenden</button></div>
-    <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${session.answered / SESSION_TARGET * 100}%` }}/></div>
+    {profile?.startMode === 'zero' && <div className="rounded-3xl bg-white p-4 shadow-sm"><div className="text-xs font-black uppercase tracking-[0.18em] text-lime-700">Lernziel · Phase {beginnerGoal.phase}</div><div className="mt-1 text-xl font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-500">{beginnerGoal.goal}</p></div>}
+    <div className="flex items-center justify-between gap-3"><div className="text-sm font-bold text-slate-500">Persönliche Session · {session.answered + 1}/{sessionTarget}</div><button onClick={onFinish} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-white"><Flag size={16}/> Beenden</button></div>
+    <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${session.answered / sessionTarget * 100}%` }}/></div>
     <div className="card">
-      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-1.5">{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-lime-50 px-2.5 py-1 text-xs font-bold text-lime-800">{skill}</span>)}<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{isSpeaking ? 'Sprechen' : isListening ? 'Hören' : isChoice ? 'Auswahl' : isIntroduction ? 'Neu lernen' : 'Produktion'}</span></div><button onClick={() => setShowReason(current => !current)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button></div>
-      {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Auswahl der Lern-Engine</div>{activeCandidate.reasons.slice(0, 5).map(reason => <div key={reason} className="mt-1 text-lime-800">+ {reason}</div>)}{activeCandidate.penalties.slice(0, 4).map(reason => <div key={reason} className="mt-1 text-amber-700">− {reason}</div>)}</div>}
-      {isIntroduction && <div className="mt-4 rounded-3xl border border-lime-200 bg-lime-50 p-4"><div className="text-xs font-black uppercase tracking-[0.18em] text-lime-800">Erst verstehen, dann üben</div><p className="mt-2 text-sm text-slate-700">Diese Karte führt einen neuen Baustein ein. Spätere Aufgaben dürfen ihn erst danach aktiv verlangen.</p></div>}
-      {isListening && <div className="mt-4 rounded-3xl bg-slate-950 p-5 text-white"><div className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Nur hören – Text bleibt verborgen</div><div className="mt-3"><AudioButton text={activeExercise.audioPrompt ?? activeExercise.answer}/></div></div>}
-      {!isSpeaking && <h2 className="mt-4 text-2xl font-black">{activeExercise.prompt}</h2>}
-      {activeExercise.hint && !checked && !isListening && <p className="mt-2 text-sm text-slate-500">Hinweis: {activeExercise.hint}</p>}
-      {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder="Deine Antwort …" autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
-      {checked && !isSpeaking && <GuidedFeedback correct={isFree ? freeCorrect : activeComparison.correct} isFree={isFree} freeFeedback={freeEvaluation?.feedback} value={value} exercise={activeExercise} category={activeComparison.category as MistakeCategory | undefined} wrongAttempts={wrongAttempts} showSolution={showSolution} onRetry={retry} onShowSolution={() => setShowSolution(true)}/>} 
-      {checked && canContinue && <button onClick={continueSession} className="btn-primary mt-4 w-full justify-center">Nächste passende Aufgabe <ChevronRight size={18}/></button>}
+      <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-1.5"><span className="rounded-full bg-lime-100 px-2.5 py-1 text-xs font-black text-lime-800">{phaseLabel}</span>{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600">{skill}</span>)}</div><button onClick={() => setShowReason(current => !current)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button></div>
+      {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Warum jetzt?</div>{activeExercise.curriculumPhase && <div className="mt-1 text-lime-800">+ gehört zum aktuellen Anfänger-Lernziel</div>}{activeCandidate.reasons.slice(0, 5).map(reason => <div key={reason} className="mt-1 text-lime-800">+ {reason}</div>)}{activeCandidate.penalties.slice(0, 4).map(reason => <div key={reason} className="mt-1 text-amber-700">− {reason}</div>)}</div>}
+
+      {isIntroduction ? <div className="mt-5 rounded-3xl border border-lime-200 bg-lime-50 p-5"><div className="text-xs font-black uppercase tracking-[0.2em] text-lime-800">Neu kennenlernen</div><div className="mt-4 text-3xl font-black">{activeExercise.introSl ?? activeExercise.answer}</div><div className="mt-1 text-xl text-slate-700">{activeExercise.introDe}</div>{activeExercise.introUsage && <p className="mt-4 text-sm leading-6 text-slate-600"><strong>Verwendung:</strong> {activeExercise.introUsage}</p>}<div className="mt-5"><AudioButton text={activeExercise.audioPrompt ?? activeExercise.answer}/></div><button onClick={completeIntroduction} className="btn-primary mt-6 w-full justify-center">Weiter <ChevronRight size={18}/></button></div> : <>
+        {isListening && <div className="mt-4 rounded-3xl bg-slate-950 p-5 text-white"><div className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">Nur hören – Text bleibt verborgen</div><div className="mt-3"><AudioButton text={activeExercise.audioPrompt ?? activeExercise.answer}/></div>{showTranscript ? <div className="mt-4 rounded-2xl bg-white/10 p-3 text-lg font-bold">{activeExercise.audioPrompt ?? activeExercise.answer}</div> : <button onClick={() => { setShowTranscript(true); setTranscriptHelpUsed(true) }} className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-slate-300 underline"><Eye size={16}/> Text anzeigen</button>}</div>}
+        {!isSpeaking && <h2 className="mt-4 text-2xl font-black">{activeExercise.prompt}</h2>}
+        {activeExercise.hint && !checked && !isListening && <p className="mt-2 text-sm text-slate-500">Hinweis: {activeExercise.hint}</p>}
+        {isSpeaking ? <div className="mt-4"><SpeechPractice key={activeExercise.id} prompt={activeExercise.prompt} expected={activeExercise.answer} acceptedAnswers={activeExercise.acceptedAnswers} onResult={(_correct, actual) => { setValue(actual); setChecked(true) }}/></div> : isChoice ? <div className="mt-5 grid gap-2">{Array.from(new Set([...(activeExercise.alternatives ?? []), activeExercise.answer])).map(option => <button key={option} onClick={() => { setValue(option); setChecked(false) }} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-semibold ${value === option ? 'border-lime-500 bg-lime-50' : 'border-slate-200 bg-white'}`}>{option}</button>)}{!checked && <button onClick={check} disabled={!value} className="btn-primary mt-2 w-full justify-center">Prüfen</button>}</div> : <><input value={value} onChange={event => { setValue(event.target.value); setChecked(false) }} onKeyDown={event => { if (event.key === 'Enter' && value.trim()) check() }} className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder="Deine Antwort …" autoComplete="off" spellCheck={false}/><div className="mt-2 flex gap-2">{['č','š','ž'].map(char => <button key={char} type="button" onClick={() => insertSpecialChar(char)} className="touch-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{char.toUpperCase()}</button>)}</div>{!checked && <button onClick={check} disabled={!value.trim()} className="btn-primary mt-4 w-full justify-center">Prüfen</button>}</>}
+        {checked && !isSpeaking && <GuidedFeedback correct={isFree ? freeCorrect : activeComparison.correct} isFree={isFree} freeFeedback={freeEvaluation?.feedback} value={value} exercise={activeExercise} category={activeComparison.category as MistakeCategory | undefined} wrongAttempts={wrongAttempts} showSolution={showSolution} onRetry={retry} onShowSolution={() => setShowSolution(true)}/>} 
+        {checked && canContinue && <button onClick={continueSession} className="btn-primary mt-4 w-full justify-center">Nächste passende Aufgabe <ChevronRight size={18}/></button>}
+      </>}
     </div>
-    <div className="flex items-center gap-2 rounded-2xl bg-white/70 p-3 text-xs text-slate-500"><Sparkles size={15}/><span>Nach jeder Antwort werden Lernwert, Voraussetzungen und Abwechslung neu berechnet.</span></div>
+    <div className="flex items-center gap-2 rounded-2xl bg-white/70 p-3 text-xs text-slate-500"><Sparkles size={15}/><span>Curriculum bestimmt den Stoff. Die Lern-Engine entscheidet nur, wann und wie du ihn sinnvoll übst.</span></div>
   </div>
 }
 
