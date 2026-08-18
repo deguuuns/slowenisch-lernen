@@ -11,6 +11,31 @@ const GERMAN_MARKERS = new Set([
   'ich','du','er','sie','wir','ihr','bin','bist','ist','sind','habe','hast','gehe','wohne','kann','hier','alles','was','will','deutschland','österreich','slowenien',
 ])
 
+// Free production must fail closed: we only mark an answer as correct when the app can
+// actually justify it. In particular, starting a string with "Sem" is not enough to
+// certify the rest as Slovenian. These are intentionally high-confidence beginner
+// location answers; unsupported personal locations remain usable as input, but are not
+// awarded mastery until we have a reliable validator for them.
+const KNOWN_LOCATION_ANSWERS = new Set([
+  'sem doma',
+  'sem tukaj',
+  'sem zunaj',
+  'sem v sloveniji',
+  'sem v nemčiji',
+  'sem v avstriji',
+  'sem v ljubljani',
+  'sem v mariboru',
+  'sem v šoli',
+  'sem v službi',
+  'sem v trgovini',
+  'sem v hotelu',
+  'sem v restavraciji',
+  'sem v kavarni',
+  'sem na delu',
+  'sem na poti',
+  'sem na dopustu',
+])
+
 function foldDiacritics(value: string) {
   return normalizeSurfaceForm(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
@@ -27,6 +52,13 @@ function result(acceptable: boolean, reason: string, feedback: string): FreeProd
   return { acceptable, reason, feedback }
 }
 
+function isKnownLocationAnswer(exercise: Exercise, input: string) {
+  const normalized = normalizeSurfaceForm(input).replace(/^zdaj\s+/, '')
+  const explicit = [exercise.answer, ...(exercise.acceptedAnswers ?? [])]
+    .map(answer => normalizeSurfaceForm(answer).replace(/^zdaj\s+/, ''))
+  return KNOWN_LOCATION_ANSWERS.has(normalized) || explicit.includes(normalized)
+}
+
 export function validateFreeProduction(exercise: Exercise, input: string): FreeProductionResult {
   const normalized = normalizeSurfaceForm(input)
   if (!normalized || normalized.length < 2) return result(false, 'empty', 'Schreibe zuerst eine kurze slowenische Antwort.')
@@ -35,10 +67,13 @@ export function validateFreeProduction(exercise: Exercise, input: string): FreeP
   const prompt = foldDiacritics(exercise.prompt)
 
   if (prompt.includes('kje si zdaj')) {
-    const ok = /^(zdaj\s+)?sem\s+/.test(normalized) && normalized.split(/\s+/).length <= 8
-    return ok
-      ? result(true, 'location-answer', 'Das ist eine plausible persönliche Ortsantwort.')
-      : result(false, 'location-shape', 'Antworte mit der bekannten Struktur „Sem …“ und sage, wo du bist.')
+    if (isKnownLocationAnswer(exercise, input)) {
+      return result(true, 'location-answer', 'Das ist eine passende slowenische Ortsantwort.')
+    }
+    if (/^(zdaj\s+)?sem\b/.test(normalized)) {
+      return result(false, 'unverified-location', 'Die Struktur mit „Sem …“ passt, aber diese Ortsangabe kann die App noch nicht sicher als korrektes Slowenisch bewerten. Nutze einen bereits gelernten Ortsbaustein.')
+    }
+    return result(false, 'location-shape', 'Antworte mit der bekannten Struktur „Sem …“ und sage, wo du bist.')
   }
 
   if (prompt.includes('koliko bratov imas')) {
