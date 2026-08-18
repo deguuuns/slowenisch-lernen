@@ -124,6 +124,10 @@ function newItemBudgetReached(exercise: Exercise, session: SessionState) {
 }
 
 function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
+  // Standalone/legacy pools keep their existing behavior. The hard phase gate is only active
+  // when the real adaptive pool contains explicit curriculum metadata.
+  const hasCurriculumContent = exercises.some(item => item.curriculumPhase !== undefined)
+  if (!hasCurriculumContent) return true
   if (profile?.startMode !== 'zero' || isBeginnerFoundationComplete(progress)) return true
 
   const phase = getCurrentBeginnerPhase(progress).id
