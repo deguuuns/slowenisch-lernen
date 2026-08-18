@@ -47,7 +47,8 @@ export default function AdaptiveLearningSession({
   const [transcriptHelpUsed, setTranscriptHelpUsed] = useState(false)
   const profile = useMemo(() => getActiveProfile(), [])
   const beginnerGoal = useMemo(() => getBeginnerSessionGoal(progress), [progress])
-  const sessionTarget = profile?.startMode === 'zero' ? 10 : 14
+  const sessionMax = profile?.startMode === 'zero' ? 12 : 15
+  const sessionMin = profile?.startMode === 'zero' ? 7 : 9
 
   const allAdaptiveContent = useMemo(
     () => [...beginnerExercises, ...beginnerReinforcementExercises, ...foundationExercises, ...diverseExercises],
@@ -68,8 +69,16 @@ export default function AdaptiveLearningSession({
   }) : null, [exercise, value])
   const freeEvaluation = useMemo(() => exercise?.evaluationMode === 'free' ? validateFreeProduction(exercise, value) : null, [exercise, value])
 
-  if (!candidate || !exercise || !comparison) {
-    return <div className="card"><h2 className="text-2xl font-black">Keine passende Aufgabe gefunden.</h2><p className="mt-2 text-slate-500">Im Moment ist kein sinnvoller nächster Schritt freigeschaltet. Das kann bedeuten, dass eine Einführung oder Voraussetzung fehlt.</p><button onClick={onFinish} className="btn-primary mt-4">Zurück</button></div>
+  const assessedHistory = session.history.filter(item => item.exerciseType !== 'introduce')
+  const lastFiveAssessed = assessedHistory.slice(-5)
+  const learningGoalReached = session.answered >= sessionMin && lastFiveAssessed.length >= 5 && lastFiveAssessed.every(item => item.correct)
+  const maxReached = session.answered >= sessionMax
+  const noSafeNextStep = !candidate || !exercise || !comparison
+  const done = maxReached || learningGoalReached || noSafeNextStep
+  const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
+
+  if (done) {
+    return <SessionSummary session={session} elapsedMinutes={elapsedMinutes} beginnerGoal={beginnerGoal} isZeroBeginner={profile?.startMode === 'zero'} onFinish={onFinish}/>
   }
 
   const activeCandidate = candidate
@@ -80,16 +89,8 @@ export default function AdaptiveLearningSession({
   const isSpeaking = activeExercise.modality === 'speaking' || activeExercise.type === 'speak-answer' || activeExercise.type === 'repeat-after-me'
   const isListening = activeExercise.modality === 'listening' || activeExercise.type.startsWith('listen-')
   const isIntroduction = activeExercise.type === 'introduce'
-  const done = session.answered >= sessionTarget
-  const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
   const freeCorrect = isFree && !!freeEvaluation?.acceptable
   const canContinue = isIntroduction || (isFree ? freeCorrect || showSolution : activeComparison.correct || showSolution)
-
-  if (done) {
-    const accuracy = session.answered ? Math.round(session.correct / session.answered * 100) : 0
-    const modalities = Array.from(new Set(session.history.map(item => item.modality).filter(Boolean)))
-    return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} Schritte · {accuracy}% bei geprüften Aufgaben · ca. {elapsedMinutes} Min.</p>{profile?.startMode === 'zero' && <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute im Fokus</div><div className="mt-1 text-lg font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-300">{beginnerGoal.goal}</p></div>}<p className="mt-3 text-sm text-slate-400">Geübt: {modalities.join(' · ') || 'Text'}</p><button onClick={onFinish} className="mt-6 min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Fertig</button></div></div>
-  }
 
   function resetForNext() {
     setValue('')
@@ -173,11 +174,12 @@ export default function AdaptiveLearningSession({
   }
 
   const phaseLabel = activeExercise.learningPhase === 'new' ? 'NEU' : activeExercise.learningPhase === 'review' ? 'WIEDERHOLEN' : activeExercise.learningPhase === 'recognition' || activeExercise.learningPhase === 'recall' ? 'ÜBEN' : 'ANWENDEN'
+  const progressPercent = Math.min(100, Math.round(session.answered / sessionMax * 100))
 
   return <div className="space-y-4">
     {profile?.startMode === 'zero' && <div className="rounded-3xl bg-white p-4 shadow-sm"><div className="text-xs font-black uppercase tracking-[0.18em] text-lime-700">Lernziel · Phase {beginnerGoal.phase}</div><div className="mt-1 text-xl font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-500">{beginnerGoal.goal}</p></div>}
-    <div className="flex items-center justify-between gap-3"><div className="text-sm font-bold text-slate-500">Persönliche Session · {session.answered + 1}/{sessionTarget}</div><button onClick={onFinish} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-white"><Flag size={16}/> Beenden</button></div>
-    <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${session.answered / sessionTarget * 100}%` }}/></div>
+    <div className="flex items-center justify-between gap-3"><div className="text-sm font-bold text-slate-500">Persönliche Session · Schritt {session.answered + 1}</div><button onClick={onFinish} className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-slate-500 hover:bg-white"><Flag size={16}/> Beenden</button></div>
+    <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-lime-400 transition-all" style={{ width: `${progressPercent}%` }}/></div>
     <div className="card">
       <div className="flex flex-wrap items-center justify-between gap-2"><div className="flex flex-wrap gap-1.5"><span className="rounded-full bg-lime-100 px-2.5 py-1 text-xs font-black text-lime-800">{phaseLabel}</span>{(activeExercise.skills ?? ['schreiben']).map(skill => <span key={skill} className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-600">{skill}</span>)}</div><button onClick={() => setShowReason(current => !current)} className="text-xs font-semibold text-slate-400">Warum diese Aufgabe?</button></div>
       {showReason && <div className="mt-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600"><div className="font-bold text-slate-800">Warum jetzt?</div>{activeExercise.curriculumPhase && <div className="mt-1 text-lime-800">+ gehört zum aktuellen Anfänger-Lernziel</div>}{activeCandidate.reasons.slice(0, 5).map(reason => <div key={reason} className="mt-1 text-lime-800">+ {reason}</div>)}{activeCandidate.penalties.slice(0, 4).map(reason => <div key={reason} className="mt-1 text-amber-700">− {reason}</div>)}</div>}
@@ -193,6 +195,14 @@ export default function AdaptiveLearningSession({
     </div>
     <div className="flex items-center gap-2 rounded-2xl bg-white/70 p-3 text-xs text-slate-500"><Sparkles size={15}/><span>Curriculum bestimmt den Stoff. Die Lern-Engine entscheidet nur, wann und wie du ihn sinnvoll übst.</span></div>
   </div>
+}
+
+function SessionSummary({ session, elapsedMinutes, beginnerGoal, isZeroBeginner, onFinish }: { session: SessionState; elapsedMinutes: number; beginnerGoal: { phase: number; title: string; goal: string }; isZeroBeginner: boolean; onFinish: () => void }) {
+  const assessed = session.history.filter(item => item.exerciseType !== 'introduce')
+  const accuracy = assessed.length ? Math.round(assessed.filter(item => item.correct).length / assessed.length * 100) : 100
+  const modalities = Array.from(new Set(session.history.map(item => item.modality).filter(Boolean)))
+  const learnedTargets = Array.from(new Set(session.history.filter(item => item.correct).flatMap(item => item.learningTargets).filter(target => target.startsWith('vocab:') || target.startsWith('chunk:') || target.startsWith('verb:') || target.startsWith('grammar:')))).slice(0, 6)
+  return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} sinnvolle Schritte · {accuracy}% bei geprüften Aufgaben · ca. {elapsedMinutes} Min.</p>{isZeroBeginner && <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute im Fokus</div><div className="mt-1 text-lg font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-300">{beginnerGoal.goal}</p></div>}{learnedTargets.length > 0 && <div className="mt-5"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute gefestigt</div><div className="mt-2 flex flex-wrap gap-2">{learnedTargets.map(target => <span key={target} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold">{target.split(':').slice(1).join(':')}</span>)}</div></div>}<p className="mt-4 text-sm text-slate-400">Geübt: {modalities.join(' · ') || 'Grundlagen'}</p><p className="mt-2 text-sm text-slate-400">Die Session endet, sobald das Lernziel ausreichend gefestigt ist oder kein weiterer sicherer Schritt nötig ist. Es wird nicht künstlich auf eine feste Aufgabenzahl aufgefüllt.</p><button onClick={onFinish} className="mt-6 min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Training beenden</button></div></div>
 }
 
 function GuidedFeedback({ correct, isFree, freeFeedback, value, exercise, category, wrongAttempts, showSolution, onRetry, onShowSolution }: { correct: boolean; isFree: boolean; freeFeedback?: string; value: string; exercise: Exercise; category?: MistakeCategory; wrongAttempts: number; showSolution: boolean; onRetry: () => void; onShowSolution: () => void }) {
