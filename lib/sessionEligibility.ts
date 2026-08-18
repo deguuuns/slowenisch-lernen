@@ -1,4 +1,5 @@
-import type { Exercise, LearnerProfile, UserProgress } from '@/types'
+import { getCurrentBeginnerPhase, isBeginnerFoundationComplete } from '@/data/beginnerCurriculum'
+import type { Exercise, KnowledgeStage, LearnerProfile, UserProgress } from '@/types'
 import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
 
@@ -18,6 +19,18 @@ const LEGACY_GRAMMAR_REQUIREMENTS: Record<string, string> = {
   negation: 'negation',
 }
 
+const STAGE_RANK: Record<KnowledgeStage, number> = {
+  unseen: 0,
+  introduced: 1,
+  recognition: 2,
+  learning: 2,
+  recall: 3,
+  production: 4,
+  familiar: 4,
+  mastered: 5,
+  review_due: 5,
+}
+
 function targetsFor(exercise: Exercise) {
   if (exercise.learningTargets?.length) return exercise.learningTargets
   const targets = [`lesson:${exercise.lesson}`]
@@ -26,7 +39,7 @@ function targetsFor(exercise: Exercise) {
 }
 
 function isProductive(exercise: Exercise) {
-  return ['translate-de-sl', 'free', 'ending', 'listen-answer', 'speak-answer', 'transform'].includes(exercise.type)
+  return exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer' || ['translate-de-sl', 'free', 'ending', 'listen-answer', 'speak-answer', 'transform'].includes(exercise.type)
 }
 
 function wasCorrectInThisSession(exercise: Exercise, session: SessionState) {
@@ -69,38 +82,94 @@ function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
   return true
 }
 
+function targetStageSatisfied(exercise: Exercise, progress: UserProgress) {
+  if (!exercise.requiredTargetStage) return true
+  const required = STAGE_RANK[exercise.requiredTargetStage]
+  const meaningfulTargets = targetsFor(exercise).filter(target => target.startsWith('vocab:') || target.startsWith('grammar:') || target.startsWith('verb:') || target.startsWith('conjugation:') || target.startsWith('pattern:'))
+  if (!meaningfulTargets.length) return true
+  return meaningfulTargets.every(target => {
+    const state = progress.learningItems?.[target]
+    const stage = state?.stage ?? (state?.introduced ? 'introduced' : 'unseen')
+    return STAGE_RANK[stage] >= required
+  })
+}
+
+function currentPhaseStillHasUnseenIntroductions(exercises: Exercise[], progress: UserProgress, phase: number) {
+  const introduced = new Set(progress.introducedVocabulary ?? [])
+  const grammar = new Set(progress.introducedGrammar ?? [])
+  return exercises.some(exercise => {
+    if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
+    const newVocabulary = exercise.introducesVocabulary ?? []
+    const newGrammar = exercise.introducesGrammar ?? []
+    return newVocabulary.some(item => !introduced.has(item)) || newGrammar.some(item => !grammar.has(item))
+  })
+}
+
+function isNextIntroduction(exercise: Exercise, exercises: Exercise[], progress: UserProgress, phase: number) {
+  if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
+  const introduced = new Set(progress.introducedVocabulary ?? [])
+  const grammar = new Set(progress.introducedGrammar ?? [])
+  const unseen = exercises
+    .filter(item => item.curriculumPhase === phase && item.type === 'introduce')
+    .filter(item => (item.introducesVocabulary ?? []).some(value => !introduced.has(value)) || (item.introducesGrammar ?? []).some(value => !grammar.has(value)))
+    .sort((a, b) => (a.curriculumOrder ?? 999) - (b.curriculumOrder ?? 999))
+  return unseen[0]?.id === exercise.id
+}
+
+function newItemBudgetReached(exercise: Exercise, session: SessionState) {
+  if (exercise.type !== 'introduce') return false
+  const max = exercise.maxNewItemsInSession ?? 5
+  const introduced = session.history.filter(item => item.learningPhase === 'new').length
+  return introduced >= max
+}
+
+function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
+  if (profile?.startMode !== 'zero' || isBeginnerFoundationComplete(progress)) return true
+
+  const phase = getCurrentBeginnerPhase(progress).id
+  if (!exercise.curriculumPhase) return false
+  if (exercise.curriculumPhase > phase) return false
+
+  // Earlier phases may return as review, but may not inject new content again.
+  if (exercise.curriculumPhase < phase) return exercise.type !== 'introduce'
+
+  const introductionsPending = currentPhaseStillHasUnseenIntroductions(exercises, progress, phase)
+  if (introductionsPending) {
+    if (newItemBudgetReached(exercise, session)) return false
+    // Teach the small vocabulary packet first, in a deterministic order, before testing it.
+    return isNextIntroduction(exercise, exercises, progress, phase)
+  }
+
+  return true
+}
+
 export function isEligibleForAdaptiveSession(
   exercise: Exercise,
   progress: UserProgress,
   session: SessionState,
   profile: LearnerProfile | null,
   now = Date.now(),
+  allExercises: Exercise[] = [exercise],
 ) {
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
+  if (!curriculumAllows(exercise, allExercises, progress, session, profile)) return false
 
-  // Raw legacy exercises often do not declare all vocabulary they require. A learner who chose
-  // "start from zero" only receives curated content (identified by a contentKey) in adaptive mode.
-  // Legacy material remains available in the manual lesson library.
   if (profile?.startMode === 'zero' && !exercise.contentKey) return false
-
-  // A concrete question that was solved correctly has done its job for this session.
   if (wasCorrectInThisSession(exercise, session)) return false
-
-  // Do not actively test secure content again before its spaced-repetition due date.
-  // The same vocabulary may still occur naturally inside a different exercise.
   if (isSecureAndNotDue(exercise, progress, now)) return false
-
-  // Legacy content did not always declare prerequisites explicitly. Infer the known grammar families here.
-  // This applies to recognition as well as production: explanation first, exercise second.
   if (!prerequisitesAreKnown(exercise, progress)) return false
+  if (!targetStageSatisfied(exercise, progress)) return false
 
-  // For active production we are extra strict: unknown vocabulary cannot be silently introduced inside a test.
-  if (isProductive(exercise) && exercise.requiredVocabulary?.some(item => !(progress.introducedVocabulary ?? []).includes(item))) return false
+  // Production is a late stage, never a way to introduce vocabulary by accident.
+  if (isProductive(exercise)) {
+    if (exercise.requiredVocabulary?.some(item => !(progress.introducedVocabulary ?? []).includes(item))) return false
+    const targetStates = targetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
+    if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer') {
+      if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall)) return false
+    }
+  }
 
-  // A current weakness may recur, but normally with another sentence/context.
   if (sameContentWasRecentlyUsed(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
-
-  // Stop one learning target from dominating a whole session. A recent error may override this cap.
   if (targetAppearances(exercise, session) >= MAX_TARGET_APPEARANCES_PER_SESSION && !targetRecentlyFailed(exercise, session)) return false
 
   return true
@@ -113,5 +182,5 @@ export function eligibleAdaptiveContent(
   profile: LearnerProfile | null,
   now = Date.now(),
 ) {
-  return exercises.filter(exercise => isEligibleForAdaptiveSession(exercise, progress, session, profile, now))
+  return exercises.filter(exercise => isEligibleForAdaptiveSession(exercise, progress, session, profile, now, exercises))
 }
