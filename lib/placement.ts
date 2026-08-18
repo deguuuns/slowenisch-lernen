@@ -11,16 +11,23 @@ export type PlacementQuestion = {
   audioPrompt?: string
 }
 
+// The placement starts with recognition only. A correct multiple-choice answer is
+// evidence that a target is familiar receptively; it is deliberately NOT proof of
+// recall or productive mastery.
 export const placementA1: PlacementQuestion[] = [
-  { id:'p-greeting', prompt:'Was bedeutet „Živjo“?', answer:'Hallo', alternatives:['Hallo','Danke','Tschüss'], level:'A1', skills:['wortschatz','lesen'], learningTargets:['vocab:živjo'] },
-  { id:'p-home', prompt:'Welche Übersetzung passt zu „Ich bin zu Hause“?', answer:'Sem doma.', alternatives:['Sem doma.','Grem domov.','Sem domov.'], level:'A1', skills:['grammatik','lesen'], learningTargets:['grammar:doma-domov'] },
-  { id:'p-dual', prompt:'Welche Form passt: „Imam ___ brata.“?', answer:'dva', alternatives:['dva','dve','dveh'], level:'A1', skills:['grammatik'], learningTargets:['grammar:dual'] },
+  { id:'p-zivjo', prompt:'Was bedeutet „Živjo“?', answer:'Hallo', alternatives:['Hallo','Danke','Bitte'], level:'A1', skills:['wortschatz','lesen'], learningTargets:['vocab:živjo'] },
+  { id:'p-hvala', prompt:'Was bedeutet „Hvala“?', answer:'Danke', alternatives:['Danke','Guten Tag','Nein'], level:'A1', skills:['wortschatz','lesen'], learningTargets:['vocab:hvala'] },
+  { id:'p-prosim', prompt:'Was bedeutet „Prosim“?', answer:'Bitte / gern', alternatives:['Bitte / gern','Gute Nacht','Ja'], level:'A1', skills:['wortschatz','lesen'], learningTargets:['vocab:prosim'] },
+  { id:'p-greeting', prompt:'Welche Wendung bedeutet „Guten Tag“?', answer:'Dober dan.', alternatives:['Dober dan.','Lahko noč.','Kako si?'], level:'A1', skills:['wortschatz','lesen'], learningTargets:['vocab:dober dan'] },
+  { id:'p-sem', prompt:'Welche Bedeutung passt zu „sem“?', answer:'ich bin', alternatives:['ich bin','du bist','er/sie ist'], level:'A1', skills:['grammatik','lesen'], learningTargets:['conjugation:biti:1s'] },
 ]
 
+// Only learners who are very secure on the basic recognition block see this short
+// extension. These questions still remain supported/recognition-oriented.
 export const placementA2: PlacementQuestion[] = [
-  { id:'p-location', prompt:'Du bist in Slowenien. Welche Form ist richtig?', answer:'Sem v Sloveniji.', alternatives:['Sem v Sloveniji.','Sem v Slovenijo.','Grem v Sloveniji.'], level:'A2', skills:['grammatik','lesen'], learningTargets:['grammar:location-direction'] },
-  { id:'p-time', prompt:'Welche Form bedeutet hier „um zehn Uhr“?', answer:'ob desetih', alternatives:['ob deset','ob desetih','v deset'], level:'A2', skills:['grammatik'], learningTargets:['grammar:time-number-form'] },
-  { id:'p-listen', prompt:'Höre den Satz. Was bedeutet er?', audioPrompt:'Rad berem.', answer:'Ich lese gern.', alternatives:['Ich lese gern.','Ich arbeite heute.','Ich gehe nach Hause.'], level:'A2', skills:['hören','wortschatz'], learningTargets:['skill:hören'] },
+  { id:'p-si', prompt:'Welche Bedeutung passt zu „si“?', answer:'du bist', alternatives:['ich bin','du bist','er/sie ist'], level:'A2', skills:['grammatik','lesen'], learningTargets:['conjugation:biti:2s'] },
+  { id:'p-kako', prompt:'Was bedeutet „Kako si?“', answer:'Wie geht es dir?', alternatives:['Wie geht es dir?','Wo bist du?','Wohin gehst du?'], level:'A2', skills:['wortschatz','lesen'], learningTargets:['vocab:kako si'] },
+  { id:'p-listen', prompt:'Höre das Wort. Was bedeutet es?', audioPrompt:'Hvala.', answer:'Danke', alternatives:['Danke','Bitte','Hallo'], level:'A2', skills:['hören','wortschatz'], learningTargets:['vocab:hvala','skill:hören'] },
 ]
 
 export type PlacementEvidence = {
@@ -32,7 +39,7 @@ export type PlacementEvidence = {
 }
 
 export function shouldContinueToA2(a1Correct: number) {
-  return a1Correct >= 2
+  return a1Correct >= 4
 }
 
 export function scorePlacement(results: Array<{ question: PlacementQuestion; correct: boolean }>): PlacementEvidence {
