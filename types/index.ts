@@ -1,7 +1,8 @@
 export type CEFRLevel = 'A1' | 'A2' | 'B1'
 export type LearningSkill = 'lesen' | 'hören' | 'schreiben' | 'sprechen' | 'grammatik' | 'wortschatz'
 export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher' | 'überfällig'
-export type KnowledgeStage = 'unseen' | 'introduced' | 'learning' | 'familiar' | 'mastered' | 'review_due'
+export type KnowledgeStage = 'unseen' | 'introduced' | 'recognition' | 'recall' | 'production' | 'familiar' | 'mastered' | 'review_due'
+export type LearningPhase = 'new' | 'recognition' | 'recall' | 'application' | 'production' | 'review' | 'transfer'
 export type InputMode = 'typed' | 'speech'
 export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
 export type ExerciseModality = 'text' | 'choice' | 'listening' | 'speaking'
@@ -79,6 +80,14 @@ export type Exercise = {
   contentKey?: string
   contextTag?: string
   personalQuestion?: boolean
+  learningPhase?: LearningPhase
+  curriculumPhase?: number
+  curriculumOrder?: number
+  maxNewItemsInSession?: number
+  requiredTargetStage?: KnowledgeStage
+  introSl?: string
+  introDe?: string
+  introUsage?: string
 }
 
 export type GrammarPoint = {
@@ -171,6 +180,7 @@ export type LearningItemState = {
   difficulty: number
   introduced?: boolean
   receptiveMastery?: number
+  recallMastery?: number
   productiveMastery?: number
   totalHintsUsed?: number
   lastHintsUsed?: number
@@ -194,6 +204,8 @@ export type SessionHistoryItem = {
   contentKey?: string
   contextTag?: string
   hintsUsed?: number
+  learningPhase?: LearningPhase
+  curriculumPhase?: number
 }
 
 export type DailyActivity = {
