@@ -77,8 +77,24 @@ export default function AdaptiveLearningSession({
   const done = maxReached || learningGoalReached || noSafeNextStep
   const elapsedMinutes = Math.max(1, Math.round((Date.now() - session.startedAt) / 60_000))
 
+  function resetForNext() {
+    setValue('')
+    setChecked(false)
+    setWrongAttempts(0)
+    setShowSolution(false)
+    setStartedAt(Date.now())
+    setShowReason(false)
+    setShowTranscript(false)
+    setTranscriptHelpUsed(false)
+  }
+
+  function continueLearning() {
+    setSession(createSessionState())
+    resetForNext()
+  }
+
   if (done) {
-    return <SessionSummary session={session} elapsedMinutes={elapsedMinutes} beginnerGoal={beginnerGoal} isZeroBeginner={profile?.startMode === 'zero'} onFinish={onFinish}/>
+    return <SessionSummary session={session} elapsedMinutes={elapsedMinutes} beginnerGoal={beginnerGoal} isZeroBeginner={profile?.startMode === 'zero'} onFinish={onFinish} onContinue={continueLearning}/>
   }
 
   const activeCandidate = candidate
@@ -91,17 +107,6 @@ export default function AdaptiveLearningSession({
   const isIntroduction = activeExercise.type === 'introduce'
   const freeCorrect = isFree && !!freeEvaluation?.acceptable
   const canContinue = isIntroduction || (isFree ? freeCorrect || showSolution : activeComparison.correct || showSolution)
-
-  function resetForNext() {
-    setValue('')
-    setChecked(false)
-    setWrongAttempts(0)
-    setShowSolution(false)
-    setStartedAt(Date.now())
-    setShowReason(false)
-    setShowTranscript(false)
-    setTranscriptHelpUsed(false)
-  }
 
   function insertSpecialChar(char: string) { setValue(current => current + char); setChecked(false) }
 
@@ -197,12 +202,14 @@ export default function AdaptiveLearningSession({
   </div>
 }
 
-function SessionSummary({ session, elapsedMinutes, beginnerGoal, isZeroBeginner, onFinish }: { session: SessionState; elapsedMinutes: number; beginnerGoal: { phase: number; title: string; goal: string }; isZeroBeginner: boolean; onFinish: () => void }) {
+function SessionSummary({ session, elapsedMinutes, beginnerGoal, isZeroBeginner, onFinish, onContinue }: { session: SessionState; elapsedMinutes: number; beginnerGoal: { phase: number; title: string; goal: string }; isZeroBeginner: boolean; onFinish: () => void; onContinue: () => void }) {
   const assessed = session.history.filter(item => item.exerciseType !== 'introduce')
-  const accuracy = assessed.length ? Math.round(assessed.filter(item => item.correct).length / assessed.length * 100) : 100
+  const introductions = session.history.filter(item => item.exerciseType === 'introduce')
+  const accuracy = assessed.length ? Math.round(assessed.filter(item => item.correct).length / assessed.length * 100) : null
   const modalities = Array.from(new Set(session.history.map(item => item.modality).filter(Boolean)))
-  const learnedTargets = Array.from(new Set(session.history.filter(item => item.correct).flatMap(item => item.learningTargets).filter(target => target.startsWith('vocab:') || target.startsWith('chunk:') || target.startsWith('verb:') || target.startsWith('grammar:')))).slice(0, 6)
-  return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} sinnvolle Schritte · {accuracy}% bei geprüften Aufgaben · ca. {elapsedMinutes} Min.</p>{isZeroBeginner && <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute im Fokus</div><div className="mt-1 text-lg font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-300">{beginnerGoal.goal}</p></div>}{learnedTargets.length > 0 && <div className="mt-5"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute gefestigt</div><div className="mt-2 flex flex-wrap gap-2">{learnedTargets.map(target => <span key={target} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold">{target.split(':').slice(1).join(':')}</span>)}</div></div>}<p className="mt-4 text-sm text-slate-400">Geübt: {modalities.join(' · ') || 'Grundlagen'}</p><p className="mt-2 text-sm text-slate-400">Die Session endet, sobald das Lernziel ausreichend gefestigt ist oder kein weiterer sicherer Schritt nötig ist. Es wird nicht künstlich auf eine feste Aufgabenzahl aufgefüllt.</p><button onClick={onFinish} className="mt-6 min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Training beenden</button></div></div>
+  const strengthenedTargets = Array.from(new Set(assessed.filter(item => item.correct).flatMap(item => item.learningTargets).filter(target => target.startsWith('vocab:') || target.startsWith('chunk:') || target.startsWith('verb:') || target.startsWith('grammar:')))).slice(0, 6)
+  const introducedTargets = Array.from(new Set(introductions.flatMap(item => item.learningTargets).filter(target => target.startsWith('vocab:') || target.startsWith('chunk:') || target.startsWith('verb:') || target.startsWith('grammar:')))).slice(0, 6)
+  return <div className="space-y-5"><div className="card bg-slate-950 text-white"><div className="text-sm font-bold text-lime-300">Session abgeschlossen</div><h2 className="mt-2 text-3xl font-black">Dobro opravljeno.</h2><p className="mt-3 text-slate-300">{session.answered} sinnvolle Schritte{accuracy !== null ? ` · ${accuracy}% bei geprüften Aufgaben` : ''} · ca. {elapsedMinutes} Min.</p>{isZeroBeginner && <div className="mt-5 rounded-2xl bg-white/10 p-4"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute im Fokus</div><div className="mt-1 text-lg font-black">{beginnerGoal.title}</div><p className="mt-1 text-sm text-slate-300">{beginnerGoal.goal}</p></div>}{strengthenedTargets.length > 0 && <div className="mt-5"><div className="text-xs font-black uppercase tracking-[0.16em] text-lime-300">Heute gefestigt</div><div className="mt-2 flex flex-wrap gap-2">{strengthenedTargets.map(target => <span key={target} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold">{target.split(':').slice(1).join(':')}</span>)}</div></div>}{introducedTargets.length > 0 && <div className="mt-5"><div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Neu kennengelernt</div><div className="mt-2 flex flex-wrap gap-2">{introducedTargets.map(target => <span key={target} className="rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold">{target.split(':').slice(1).join(':')}</span>)}</div></div>}<p className="mt-4 text-sm text-slate-400">Geübt: {modalities.join(' · ') || 'Grundlagen'}</p><p className="mt-2 text-sm text-slate-400">Die Session endet, sobald das Lernziel ausreichend gefestigt ist oder für diesen Lernblock kein weiterer sicherer Schritt nötig ist. Du kannst direkt mit dem nächsten Lernblock weitermachen.</p><div className="mt-6 grid gap-3 sm:grid-cols-2"><button onClick={onContinue} className="min-h-12 rounded-2xl bg-lime-300 px-5 py-3 font-black text-slate-950">Weiterlernen</button><button onClick={onFinish} className="min-h-12 rounded-2xl border border-white/20 px-5 py-3 font-black text-white">Training beenden</button></div></div></div>
 }
 
 function GuidedFeedback({ correct, isFree, freeFeedback, value, exercise, category, wrongAttempts, showSolution, onRetry, onShowSolution }: { correct: boolean; isFree: boolean; freeFeedback?: string; value: string; exercise: Exercise; category?: MistakeCategory; wrongAttempts: number; showSolution: boolean; onRetry: () => void; onShowSolution: () => void }) {
