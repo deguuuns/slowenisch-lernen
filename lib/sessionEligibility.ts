@@ -24,7 +24,6 @@ const STAGE_RANK: Record<KnowledgeStage, number> = {
   unseen: 0,
   introduced: 1,
   recognition: 2,
-  learning: 2,
   recall: 3,
   production: 4,
   familiar: 4,
