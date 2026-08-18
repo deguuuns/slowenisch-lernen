@@ -1,4 +1,4 @@
-import { getCurrentBeginnerPhase, isBeginnerFoundationComplete } from '@/data/beginnerCurriculum'
+import { getCurrentBeginnerPhase, isBeginnerFoundationComplete } from '../data/beginnerCurriculum'
 import type { Exercise, KnowledgeStage, LearnerProfile, UserProgress } from '@/types'
 import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
