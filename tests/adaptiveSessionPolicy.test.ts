@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createSessionState } from '../lib/learningEngine'
+import { createSessionState, type SessionState } from '../lib/learningEngine'
 import { eligibleAdaptiveContent, isEligibleForAdaptiveSession } from '../lib/sessionEligibility'
 import type { Exercise, LearnerProfile, SessionHistoryItem, UserProgress } from '../types'
 
@@ -35,7 +35,7 @@ function intro(id: string, word: string, order: number): Exercise {
 }
 
 test('new-item budget pauses introductions without dead-ending recognition practice', () => {
-  const session = {
+  const session: SessionState = {
     ...createSessionState(), answered:5, correct:5, introducedNew:5,
     history:[
       history('vocab:živjo','i1'), history('vocab:hvala','i2'), history('vocab:prosim','i3'),
@@ -54,13 +54,9 @@ test('new-item budget pauses introductions without dead-ending recognition pract
 })
 
 test('two clean successes are enough to pause the same learning target for this session', () => {
-  const session = {
-    ...createSessionState(), answered:2, correct:2,
-    history:[
-      { ...history('vocab:živjo','r1'), exerciseType:'choice', learningPhase:'recognition', contentKey:'meaning-zivjo' },
-      { ...history('vocab:živjo','r2'), exerciseType:'listen-choice', modality:'listening', learningPhase:'recognition', contentKey:'audio-zivjo' },
-    ],
-  }
+  const first: SessionHistoryItem = { ...history('vocab:živjo','r1'), exerciseType:'choice', learningPhase:'recognition', contentKey:'meaning-zivjo' }
+  const second: SessionHistoryItem = { ...history('vocab:živjo','r2'), exerciseType:'listen-choice', modality:'listening', learningPhase:'recognition', contentKey:'audio-zivjo' }
+  const session: SessionState = { ...createSessionState(), answered:2, correct:2, history:[first, second] }
   const next: Exercise = {
     id:'r3', lesson:1, type:'choice', prompt:'Was heißt Hallo?', answer:'živjo', alternatives:['živjo','hvala','prosim'],
     level:'A1', skills:['wortschatz'], contentKey:'reverse-zivjo', learningPhase:'recognition', curriculumPhase:1,
@@ -70,13 +66,9 @@ test('two clean successes are enough to pause the same learning target for this 
 })
 
 test('a failed target is allowed extra varied learning opportunities', () => {
-  const session = {
-    ...createSessionState(), answered:2, correct:1,
-    history:[
-      { ...history('vocab:živjo','r1',false), exerciseType:'choice', learningPhase:'recognition', contentKey:'meaning-zivjo' },
-      { ...history('vocab:živjo','r2',true), exerciseType:'listen-choice', modality:'listening', learningPhase:'recognition', contentKey:'audio-zivjo' },
-    ],
-  }
+  const first: SessionHistoryItem = { ...history('vocab:živjo','r1',false), exerciseType:'choice', learningPhase:'recognition', contentKey:'meaning-zivjo' }
+  const second: SessionHistoryItem = { ...history('vocab:živjo','r2',true), exerciseType:'listen-choice', modality:'listening', learningPhase:'recognition', contentKey:'audio-zivjo' }
+  const session: SessionState = { ...createSessionState(), answered:2, correct:1, history:[first, second] }
   const next: Exercise = {
     id:'r3', lesson:1, type:'choice', prompt:'Was heißt Hallo?', answer:'živjo', alternatives:['živjo','hvala','prosim'],
     level:'A1', skills:['wortschatz'], contentKey:'reverse-zivjo', learningPhase:'recognition', curriculumPhase:1,
