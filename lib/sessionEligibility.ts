@@ -89,7 +89,11 @@ function targetStageSatisfied(exercise: Exercise, progress: UserProgress) {
   if (!meaningfulTargets.length) return true
   return meaningfulTargets.every(target => {
     const state = progress.learningItems?.[target]
-    const stage = state?.stage ?? (state?.introduced ? 'introduced' : 'unseen')
+    if (!state) return false
+    if (exercise.requiredTargetStage === 'recognition' && (state.receptiveMastery ?? 0) >= 0.18) return true
+    if (exercise.requiredTargetStage === 'recall' && (state.recallMastery ?? 0) >= 0.18) return true
+    if (exercise.requiredTargetStage === 'production' && (state.productiveMastery ?? 0) >= 0.18) return true
+    const stage = state.stage ?? (state.introduced ? 'introduced' : 'unseen')
     return STAGE_RANK[stage] >= required
   })
 }
@@ -124,8 +128,6 @@ function newItemBudgetReached(exercise: Exercise, session: SessionState) {
 }
 
 function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
-  // Standalone/legacy pools keep their existing behavior. The hard phase gate is only active
-  // when the real adaptive pool contains explicit curriculum metadata.
   const hasCurriculumContent = exercises.some(item => item.curriculumPhase !== undefined)
   if (!hasCurriculumContent) return true
   if (profile?.startMode !== 'zero' || isBeginnerFoundationComplete(progress)) return true
