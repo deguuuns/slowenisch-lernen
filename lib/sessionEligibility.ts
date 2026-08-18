@@ -3,7 +3,6 @@ import type { Exercise, KnowledgeStage, LearnerProfile, UserProgress } from '@/t
 import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
 
-const MAX_TARGET_APPEARANCES_PER_SESSION = 3
 const RECENT_CONTENT_WINDOW = 8
 const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
 
@@ -46,9 +45,14 @@ function wasCorrectInThisSession(exercise: Exercise, session: SessionState) {
   return session.history.some(item => item.exerciseId === exercise.id && item.correct)
 }
 
-function targetAppearances(exercise: Exercise, session: SessionState) {
+function targetSessionStats(exercise: Exercise, session: SessionState) {
   const targets = new Set(targetsFor(exercise))
-  return session.history.filter(item => item.learningTargets.some(target => targets.has(target))).length
+  const matching = session.history.filter(item => item.learningTargets.some(target => targets.has(target)))
+  return {
+    appearances: matching.length,
+    successes: matching.filter(item => item.correct).length,
+    failures: matching.filter(item => !item.correct).length,
+  }
 }
 
 function targetRecentlyFailed(exercise: Exercise, session: SessionState) {
@@ -59,6 +63,13 @@ function targetRecentlyFailed(exercise: Exercise, session: SessionState) {
 function sameContentWasRecentlyUsed(exercise: Exercise, session: SessionState) {
   const key = exercise.contentKey ?? exercise.answer
   return session.history.slice(-RECENT_CONTENT_WINDOW).some(item => item.contentKey === key)
+}
+
+function targetBudgetReached(exercise: Exercise, session: SessionState) {
+  const stats = targetSessionStats(exercise, session)
+  if (stats.failures > 0) return stats.appearances >= 4
+  if (stats.successes >= 2) return stats.appearances >= 2
+  return stats.appearances >= 3
 }
 
 function isSecureAndNotDue(exercise: Exercise, progress: UserProgress, now: number) {
@@ -121,7 +132,6 @@ function isNextIntroduction(exercise: Exercise, exercises: Exercise[], progress:
 }
 
 function newItemBudgetReached(exercise: Exercise, session: SessionState) {
-  if (exercise.type !== 'introduce') return false
   const max = exercise.maxNewItemsInSession ?? 5
   const introduced = session.history.filter(item => item.learningPhase === 'new').length
   return introduced >= max
@@ -139,24 +149,32 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
 
   const introductionsPending = currentPhaseStillHasUnseenIntroductions(exercises, progress, phase)
   if (introductionsPending) {
-    if (newItemBudgetReached(exercise, session)) return false
-    return isNextIntroduction(exercise, exercises, progress, phase)
+    // Important: once the session has reached its new-item budget, do NOT block the
+    // whole phase. That used to create the "Keine passende Aufgabe gefunden" dead end:
+    // more introductions were pending, but the budget forbade them and recognition
+    // exercises were also rejected. We now pause further NEW items and practise the
+    // already introduced material until the next session.
+    if (exercise.type === 'introduce') {
+      if (newItemBudgetReached(exercise, session)) return false
+      return isNextIntroduction(exercise, exercises, progress, phase)
+    }
+    if (!newItemBudgetReached(exercise, session)) return false
+    return true
   }
 
   return true
 }
 
-export function isEligibleForAdaptiveSession(
+function passesHardSafetyGates(
   exercise: Exercise,
   progress: UserProgress,
   session: SessionState,
   profile: LearnerProfile | null,
-  now = Date.now(),
-  allExercises: Exercise[] = [exercise],
+  now: number,
+  allExercises: Exercise[],
 ) {
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
   if (!curriculumAllows(exercise, allExercises, progress, session, profile)) return false
-
   if (profile?.startMode === 'zero' && !exercise.contentKey) return false
   if (wasCorrectInThisSession(exercise, session)) return false
   if (isSecureAndNotDue(exercise, progress, now)) return false
@@ -172,9 +190,40 @@ export function isEligibleForAdaptiveSession(
     }
   }
 
-  if (sameContentWasRecentlyUsed(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
-  if (targetAppearances(exercise, session) >= MAX_TARGET_APPEARANCES_PER_SESSION && !targetRecentlyFailed(exercise, session)) return false
+  return true
+}
 
+export function isEligibleForAdaptiveSession(
+  exercise: Exercise,
+  progress: UserProgress,
+  session: SessionState,
+  profile: LearnerProfile | null,
+  now = Date.now(),
+  allExercises: Exercise[] = [exercise],
+) {
+  if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
+
+  if (sameContentWasRecentlyUsed(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
+  if (targetBudgetReached(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
+
+  return true
+}
+
+function isEligibleFallback(
+  exercise: Exercise,
+  progress: UserProgress,
+  session: SessionState,
+  profile: LearnerProfile | null,
+  now: number,
+  allExercises: Exercise[],
+) {
+  if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
+
+  // Fallback may relax only presentation spacing. It never bypasses curriculum,
+  // prerequisites, stage gates, unknown vocabulary or an exercise already solved
+  // correctly in this session.
+  const stats = targetSessionStats(exercise, session)
+  if (stats.failures === 0 && stats.successes >= 2) return false
   return true
 }
 
@@ -185,5 +234,12 @@ export function eligibleAdaptiveContent(
   profile: LearnerProfile | null,
   now = Date.now(),
 ) {
-  return exercises.filter(exercise => isEligibleForAdaptiveSession(exercise, progress, session, profile, now, exercises))
+  const preferred = exercises.filter(exercise => isEligibleForAdaptiveSession(exercise, progress, session, profile, now, exercises))
+  if (preferred.length) return preferred
+
+  // Controlled fallback hierarchy: keep every didactic safety rule, but allow a
+  // different presentation of material that is genuinely still in learning. If even
+  // that pool is empty, the caller can end the session cleanly instead of inventing
+  // unsafe content.
+  return exercises.filter(exercise => isEligibleFallback(exercise, progress, session, profile, now, exercises))
 }
