@@ -21,18 +21,25 @@ export const beginnerCurriculum: BeginnerCurriculumPhase[] = [
   { id: 10, title: 'KJE oder KAM?', goal: 'Ort und Richtung bewusst unterscheiden und erst jetzt die Formen aktiv anwenden.', newItems: [], unlockMastery: 0.2 },
 ]
 
+export const a1ExpansionStage: BeginnerCurriculumPhase = {
+  id: 11,
+  title: 'A1-Aufbau',
+  goal: 'Die Beginner-Grundlage ist abgeschlossen. Jetzt werden Wortschatz, Verben, Alltag und Grammatik schrittweise erweitert.',
+  newItems: [],
+  unlockMastery: 1,
+}
+
 function itemRecognition(progress: UserProgress, item: string) {
   const state = progress.learningItems?.[`vocab:${item}`]
   if (!state) return 0
   const explicit = state.receptiveMastery ?? 0
   const stageEvidence = state.stage === 'recognition' || state.stage === 'recall' || state.stage === 'production' || state.stage === 'familiar' || state.stage === 'mastered' || state.stage === 'review_due' ? 0.25 : 0
-  // A clean assessed recognition is enough to advance a beginner item. Merely seeing
-  // an introduction is not: introductions have attempts=0 and no receptive evidence.
   const assessedRecognition = state.correctCount > 0 && state.attempts > 0 ? 0.22 : 0
   return Math.max(explicit, stageEvidence, assessedRecognition)
 }
 
 export function isCurriculumPhaseComplete(progress: UserProgress, phase: BeginnerCurriculumPhase) {
+  if (phase.id === a1ExpansionStage.id) return false
   if (!phase.newItems.length) {
     const grammar = progress.learningItems?.['grammar:location-direction']
     return (grammar?.receptiveMastery ?? grammar?.mastery ?? 0) >= phase.unlockMastery
@@ -44,21 +51,18 @@ export function isBeginnerFoundationComplete(progress: UserProgress) {
   return beginnerCurriculum.every(phase => isCurriculumPhaseComplete(progress, phase))
 }
 
-/** Null means the 10-phase beginner foundation is genuinely complete. */
-export function getCurrentBeginnerPhase(progress: UserProgress): BeginnerCurriculumPhase | null {
-  return beginnerCurriculum.find(phase => !isCurriculumPhaseComplete(progress, phase)) ?? null
+/** Returns phase 11 after the beginner foundation instead of looping on phase 10. */
+export function getCurrentBeginnerPhase(progress: UserProgress): BeginnerCurriculumPhase {
+  return beginnerCurriculum.find(phase => !isCurriculumPhaseComplete(progress, phase)) ?? a1ExpansionStage
 }
 
 export function getBeginnerSessionGoal(progress: UserProgress) {
   const phase = getCurrentBeginnerPhase(progress)
-  if (!phase) {
-    return {
-      phase: null,
-      title: 'A1-Aufbau',
-      goal: 'Die Beginner-Grundlage ist abgeschlossen. Jetzt werden Wortschatz, Verben, Alltag und Grammatik schrittweise erweitert.',
-      newItems: [],
-      foundationComplete: true,
-    }
+  return {
+    phase: phase.id,
+    title: phase.title,
+    goal: phase.goal,
+    newItems: phase.newItems,
+    foundationComplete: phase.id === a1ExpansionStage.id,
   }
-  return { phase: phase.id, title: phase.title, goal: phase.goal, newItems: phase.newItems, foundationComplete: false }
 }
