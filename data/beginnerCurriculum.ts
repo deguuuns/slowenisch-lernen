@@ -29,8 +29,24 @@ export const a1ExpansionStage: BeginnerCurriculumPhase = {
   unlockMastery: 1,
 }
 
+const normalize = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
+
+function itemState(progress: UserProgress, item: string) {
+  const normalized = normalize(item)
+  return progress.learningItems?.[`vocab:${item}`]
+    ?? progress.learningItems?.[`vocab:${normalized}`]
+    ?? progress.learningItems?.[`chunk:${normalized.replace(/\s+/g, '-')}`]
+}
+
+function itemIntroduced(progress: UserProgress, item: string) {
+  const normalized = normalize(item)
+  if ((progress.introducedVocabulary ?? []).some(value => normalize(value) === normalized)) return true
+  const state = itemState(progress, item)
+  return !!state?.introduced || state?.stage === 'introduced' || state?.stage === 'recognition' || state?.stage === 'recall' || state?.stage === 'production' || state?.stage === 'familiar' || state?.stage === 'mastered' || state?.stage === 'review_due'
+}
+
 function itemRecognition(progress: UserProgress, item: string) {
-  const state = progress.learningItems?.[`vocab:${item}`]
+  const state = itemState(progress, item)
   if (!state) return 0
   const explicit = state.receptiveMastery ?? 0
   const stageEvidence = state.stage === 'recognition' || state.stage === 'recall' || state.stage === 'production' || state.stage === 'familiar' || state.stage === 'mastered' || state.stage === 'review_due' ? 0.25 : 0
@@ -38,22 +54,40 @@ function itemRecognition(progress: UserProgress, item: string) {
   return Math.max(explicit, stageEvidence, assessedRecognition)
 }
 
-export function isCurriculumPhaseComplete(progress: UserProgress, phase: BeginnerCurriculumPhase) {
+/**
+ * Advancement is intentionally weaker than long-term mastery. The curriculum should
+ * move forward once the learner has seen every item and demonstrated recognition for
+ * most of the phase; spaced repetition handles the remaining consolidation later.
+ */
+export function isCurriculumPhaseAdvancementReady(progress: UserProgress, phase: BeginnerCurriculumPhase) {
   if (phase.id === a1ExpansionStage.id) return false
   if (!phase.newItems.length) {
     const grammar = progress.learningItems?.['grammar:location-direction']
     return (grammar?.receptiveMastery ?? grammar?.mastery ?? 0) >= phase.unlockMastery
   }
-  return phase.newItems.every(item => itemRecognition(progress, item) >= phase.unlockMastery)
+
+  if (!phase.newItems.every(item => itemIntroduced(progress, item))) return false
+
+  const recognitionCount = phase.newItems.filter(item => itemRecognition(progress, item) >= phase.unlockMastery).length
+  const requiredRecognitionCount = phase.newItems.length <= 2
+    ? phase.newItems.length
+    : Math.max(2, Math.ceil(phase.newItems.length * 0.7))
+
+  return recognitionCount >= requiredRecognitionCount
+}
+
+/** Backwards-compatible name used throughout the app; completion here means ready to advance, not mastered forever. */
+export function isCurriculumPhaseComplete(progress: UserProgress, phase: BeginnerCurriculumPhase) {
+  return isCurriculumPhaseAdvancementReady(progress, phase)
 }
 
 export function isBeginnerFoundationComplete(progress: UserProgress) {
-  return beginnerCurriculum.every(phase => isCurriculumPhaseComplete(progress, phase))
+  return beginnerCurriculum.every(phase => isCurriculumPhaseAdvancementReady(progress, phase))
 }
 
 /** Returns phase 11 after the beginner foundation instead of looping on phase 10. */
 export function getCurrentBeginnerPhase(progress: UserProgress): BeginnerCurriculumPhase {
-  return beginnerCurriculum.find(phase => !isCurriculumPhaseComplete(progress, phase)) ?? a1ExpansionStage
+  return beginnerCurriculum.find(phase => !isCurriculumPhaseAdvancementReady(progress, phase)) ?? a1ExpansionStage
 }
 
 export function getBeginnerSessionGoal(progress: UserProgress) {
