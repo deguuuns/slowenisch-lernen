@@ -7,6 +7,7 @@ const KEY = 'slovensko-progress-v1'
 export const defaultProgress: UserProgress = {
   completedLessons: [],
   streak: 1,
+  introducedWords: [],
   wordsLearned: [],
   secureWords: [],
   mistakes: [],
