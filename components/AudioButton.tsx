@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Pause, Play, Rabbit, RotateCcw, Volume2 } from 'lucide-react'
+import { loadProgress } from '@/lib/storage'
 
 type Speed = 'verySlow' | 'slow' | 'normal' | 'native'
 const rates: Record<Speed, number> = { verySlow: 0.55, slow: 0.72, normal: 0.9, native: 1.05 }
@@ -24,7 +25,11 @@ export default function AudioButton({ text, compact = false }: { text: string; c
   const [activeWord, setActiveWord] = useState<number | null>(null)
   const words = useMemo(() => text.split(/\s+/), [text])
 
-  useEffect(() => () => window.speechSynthesis?.cancel(), [])
+  useEffect(() => {
+    const preferred=loadProgress().preferences?.audioSpeed
+    setSpeed(preferred==='normal'?'normal':'slow')
+    return () => window.speechSynthesis?.cancel()
+  }, [])
 
   function speakWords() {
     if (!('speechSynthesis' in window)) return
