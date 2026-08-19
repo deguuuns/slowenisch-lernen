@@ -1,7 +1,8 @@
 import type { CEFRLevel, Exercise, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 
 const LEVEL_RANK: Record<CEFRLevel, number> = { A1: 1, A2: 2, B1: 3 }
-const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
+const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim().replace(/[.!?]+$/g, '')
+const chunkKey = (value: string) => `chunk:${normalizeKey(value).replace(/\s+/g, '-')}`
 
 export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, profile: LearnerProfile | null) {
   const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
@@ -9,6 +10,8 @@ export function isExerciseUnlocked(exercise: Exercise, progress: UserProgress, p
 
   if (profile && exercise.level && LEVEL_RANK[exercise.level] > LEVEL_RANK[profile.approximateLevel]) return false
   if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
+  if (exercise.requiredInputVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
+  if (exercise.requiredOutputVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
   if (exercise.requiredGrammar?.some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
   if (exercise.requiredSkills) {
@@ -50,9 +53,19 @@ function introducedState(key: string, kind: LearningItemState['kind'], previous?
 export function registerIntroductions(progress: UserProgress, exercise: Exercise): UserProgress {
   const learningItems = { ...(progress.learningItems ?? {}) }
 
-  for (const item of exercise.introducesVocabulary ?? []) {
-    const key = `vocab:${item}`
-    learningItems[key] = introducedState(key, item.includes(' ') ? 'chunk' : 'vocabulary', learningItems[key])
+  for (const rawItem of exercise.introducesVocabulary ?? []) {
+    const item = normalizeKey(rawItem)
+    const vocabKey = `vocab:${item}`
+    const isChunk = item.includes(' ')
+    learningItems[vocabKey] = introducedState(vocabKey, isChunk ? 'chunk' : 'vocabulary', learningItems[vocabKey])
+
+    // Backwards-compatible alias for modern chunk:* targets. The existing beginner
+    // curriculum still uses vocab:<chunk text>, while foundation/legacy-safe content
+    // may reference chunk:<slug>. Both point at equivalent introduction evidence.
+    if (isChunk) {
+      const alias = chunkKey(item)
+      learningItems[alias] = introducedState(alias, 'chunk', learningItems[alias] ?? learningItems[vocabKey])
+    }
   }
   for (const item of exercise.introducesGrammar ?? []) {
     const key = `grammar:${item}`
@@ -61,7 +74,7 @@ export function registerIntroductions(progress: UserProgress, exercise: Exercise
 
   return {
     ...progress,
-    introducedVocabulary: Array.from(new Set([...(progress.introducedVocabulary ?? []), ...(exercise.introducesVocabulary ?? [])])),
+    introducedVocabulary: Array.from(new Set([...(progress.introducedVocabulary ?? []), ...(exercise.introducesVocabulary ?? []).map(normalizeKey)])),
     introducedGrammar: Array.from(new Set([...(progress.introducedGrammar ?? []), ...(exercise.introducesGrammar ?? [])])),
     learningItems,
   }
