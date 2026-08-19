@@ -66,6 +66,15 @@ export type MasteryItem = {
   lastSeen:number
 }
 
+export type LearnerPreferences = {
+  onboardingCompleted:boolean
+  nativeLanguage:'de'
+  targetLevel:'A1'|'A2'|'B1'|'B2'
+  dailyGoalMinutes:5|10|15|20|30
+  pace:'ruhig'|'normal'|'intensiv'
+  audioSpeed:'langsam'|'normal'
+}
+
 export type UserProgress = {
   completedLessons:number[]
   streak:number
@@ -79,4 +88,5 @@ export type UserProgress = {
   mastery:Record<string,MasteryItem>
   recentAttempts:AttemptSignal[]
   transferQueue:TransferItem[]
+  preferences:LearnerPreferences
 }
