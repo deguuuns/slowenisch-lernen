@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 import { CloudSession, cloudConfigured, signIn, signOut, signUp } from '@/lib/cloud-sync'
+import { defaultPreferences } from '@/lib/storage'
 import { LearnerPreferences } from '@/types'
 
-export default function AccountMenu({session,syncState,preferences,onSession,onPreferences}:{session:CloudSession|null;syncState:string;preferences:LearnerPreferences;onSession:(s:CloudSession|null)=>void;onPreferences:(p:LearnerPreferences)=>void}){
+export default function AccountMenu({session,syncState,preferences=defaultPreferences,onSession,onPreferences}:{session:CloudSession|null;syncState:string;preferences?:LearnerPreferences;onSession:(s:CloudSession|null)=>void;onPreferences?:(p:LearnerPreferences)=>void}){
   const [open,setOpen]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   async function login(create=false){ setBusy(true);setMessage('');try{const s=create?await signUp(email,password):await signIn(email,password);if(s){onSession(s);setMessage('Angemeldet – Fortschritt wird synchronisiert.')}else setMessage('Bitte bestätige deine E-Mail und melde dich danach an.')}catch(e:any){setMessage(e.message)}finally{setBusy(false)} }
   async function logout(){await signOut();onSession(null);setOpen(false)}
+  function change(next:LearnerPreferences){onPreferences?.(next)}
   const label=session?.user?.email?.split('@')[0]||'Konto'
   return <div className="relative">
     <button onClick={()=>setOpen(!open)} className="rounded-full bg-white px-3 py-2 text-sm font-bold shadow-soft">{label}</button>
@@ -22,9 +24,10 @@ export default function AccountMenu({session,syncState,preferences,onSession,onP
         <button disabled={busy||!email||password.length<6} onClick={()=>login(true)} className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold disabled:opacity-40">Konto erstellen</button>
       </>}
       <div className="my-4 border-t border-slate-100"/><div className="font-black">Lerneinstellungen</div>
-      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Tagesziel</label><select value={preferences.dailyGoalMinutes} onChange={e=>onPreferences({...preferences,dailyGoalMinutes:Number(e.target.value) as LearnerPreferences['dailyGoalMinutes']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3"><option value={5}>5 Minuten</option><option value={10}>10 Minuten</option><option value={15}>15 Minuten</option><option value={20}>20 Minuten</option><option value={30}>30 Minuten</option></select>
-      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Tempo</label><select value={preferences.pace} onChange={e=>onPreferences({...preferences,pace:e.target.value as LearnerPreferences['pace']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3"><option value="ruhig">Ruhig</option><option value="normal">Normal</option><option value="intensiv">Intensiv</option></select>
-      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Audio</label><select value={preferences.audioSpeed} onChange={e=>onPreferences({...preferences,audioSpeed:e.target.value as LearnerPreferences['audioSpeed']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3"><option value="langsam">Langsam</option><option value="normal">Normal</option></select>
+      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Tagesziel</label><select disabled={!onPreferences} value={preferences.dailyGoalMinutes} onChange={e=>change({...preferences,dailyGoalMinutes:Number(e.target.value) as LearnerPreferences['dailyGoalMinutes']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3 disabled:opacity-50"><option value={5}>5 Minuten</option><option value={10}>10 Minuten</option><option value={15}>15 Minuten</option><option value={20}>20 Minuten</option><option value={30}>30 Minuten</option></select>
+      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Tempo</label><select disabled={!onPreferences} value={preferences.pace} onChange={e=>change({...preferences,pace:e.target.value as LearnerPreferences['pace']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3 disabled:opacity-50"><option value="ruhig">Ruhig</option><option value="normal">Normal</option><option value="intensiv">Intensiv</option></select>
+      <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Audio</label><select disabled={!onPreferences} value={preferences.audioSpeed} onChange={e=>change({...preferences,audioSpeed:e.target.value as LearnerPreferences['audioSpeed']})} className="mt-1 w-full rounded-2xl border border-slate-200 px-3 py-3 disabled:opacity-50"><option value="langsam">Langsam</option><option value="normal">Normal</option></select>
+      {!onPreferences&&<div className="mt-2 text-xs text-slate-400">Die Einstellungen werden im nächsten Integrationsschritt mit deinem Lernprofil verbunden.</div>}
       {session&&<button onClick={logout} className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold">Abmelden</button>}
     </div>}
   </div>
