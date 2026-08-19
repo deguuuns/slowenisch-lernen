@@ -26,6 +26,7 @@ export type Exercise = {
   prompt:string
   answer:string
   alternatives?:string[]
+  acceptedAnswers?:string[]
   hint?:string
   explanation?:string
   vocabularyIds?:string[]
