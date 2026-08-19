@@ -1,10 +1,10 @@
 import { getCurrentBeginnerPhase, isBeginnerFoundationComplete } from '../data/beginnerCurriculum'
-import type { Exercise, KnowledgeStage, LearnerProfile, UserProgress } from '@/types'
+import type { Exercise, KnowledgeStage, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
 
 const RECENT_CONTENT_WINDOW = 8
-const CROSS_SESSION_CONTENT_WINDOW = 10
+const CROSS_SESSION_COOLDOWN_MS = 24 * 60 * 60_000
 const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
 
 const LEGACY_GRAMMAR_REQUIREMENTS: Record<string, string> = {
@@ -24,6 +24,24 @@ function targetsFor(exercise: Exercise) {
   return targets
 }
 
+function activeTargetsFor(exercise: Exercise) {
+  const contextOnly = new Set(exercise.contextOnlyTargets ?? [])
+  return targetsFor(exercise).filter(target => !contextOnly.has(target))
+}
+
+export function canActivelyTestLearningItem(state: LearningItemState | undefined, now = Date.now()) {
+  if (!state) return true
+  if (state.incorrectStreak > 0 || (state.lastHintsUsed ?? 0) > 0) return true
+  if (state.nextDueAt !== undefined && state.nextDueAt <= now) return true
+  if (state.activeTestCooldownUntil !== undefined && state.activeTestCooldownUntil > now) return false
+  return true
+}
+
+function activeTargetsAreAvailable(exercise: Exercise, progress: UserProgress, now: number) {
+  if (exercise.type === 'introduce') return true
+  return activeTargetsFor(exercise).every(target => canActivelyTestLearningItem(progress.learningItems?.[target], now))
+}
+
 function isProductive(exercise: Exercise) {
   return exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer' || ['translate-de-sl', 'free', 'ending', 'listen-answer', 'speak-answer', 'transform'].includes(exercise.type)
 }
@@ -33,13 +51,13 @@ function wasCorrectInThisSession(exercise: Exercise, session: SessionState) {
 }
 
 function targetSessionStats(exercise: Exercise, session: SessionState) {
-  const targets = new Set(targetsFor(exercise))
+  const targets = new Set(activeTargetsFor(exercise))
   const matching = session.history.filter(item => item.learningTargets.some(target => targets.has(target)))
   return { appearances: matching.length, successes: matching.filter(item => item.correct).length, failures: matching.filter(item => !item.correct).length }
 }
 
 function targetRecentlyFailed(exercise: Exercise, session: SessionState) {
-  const targets = new Set(targetsFor(exercise))
+  const targets = new Set(activeTargetsFor(exercise))
   return session.history.slice(-6).some(item => !item.correct && item.learningTargets.some(target => targets.has(target)))
 }
 
@@ -48,12 +66,12 @@ function sameContentWasRecentlyUsed(exercise: Exercise, session: SessionState) {
   return session.history.slice(-RECENT_CONTENT_WINDOW).some(item => item.contentKey === key)
 }
 
-function sameContentWasJustUsedAcrossSessions(exercise: Exercise, progress: UserProgress) {
+function sameContentWasJustUsedAcrossSessions(exercise: Exercise, progress: UserProgress, now: number) {
   const key = exercise.contentKey ?? exercise.answer
   if (!key) return false
-  const recent = (progress.recentSessionHistory ?? []).slice(-CROSS_SESSION_CONTENT_WINDOW)
-  const match = recent.findLast(item => item.contentKey === key)
-  return !!match?.correct
+  const recent = progress.recentSessionHistory ?? []
+  const match = [...recent].reverse().find(item => item.contentKey === key)
+  return !!match?.correct && now - match.timestamp < CROSS_SESSION_COOLDOWN_MS
 }
 
 function targetBudgetReached(exercise: Exercise, session: SessionState) {
@@ -86,7 +104,7 @@ function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
 function targetStageSatisfied(exercise: Exercise, progress: UserProgress) {
   if (!exercise.requiredTargetStage) return true
   const required = STAGE_RANK[exercise.requiredTargetStage]
-  const meaningfulTargets = targetsFor(exercise).filter(target => target.startsWith('vocab:') || target.startsWith('grammar:') || target.startsWith('verb:') || target.startsWith('conjugation:') || target.startsWith('pattern:'))
+  const meaningfulTargets = activeTargetsFor(exercise).filter(target => target.startsWith('vocab:') || target.startsWith('grammar:') || target.startsWith('verb:') || target.startsWith('conjugation:') || target.startsWith('pattern:'))
   if (!meaningfulTargets.length) return true
   return meaningfulTargets.every(target => {
     const state = progress.learningItems?.[target]
@@ -155,11 +173,12 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
   if (isSecureAndNotDue(exercise, progress, now)) return false
   if (!prerequisitesAreKnown(exercise, progress)) return false
   if (!targetStageSatisfied(exercise, progress)) return false
+  if (!activeTargetsAreAvailable(exercise, progress, now)) return false
 
   if (isProductive(exercise)) {
     const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
     if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
-    const targetStates = targetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
+    const targetStates = activeTargetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
     if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer') {
       if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall)) return false
     }
@@ -170,16 +189,14 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
 export function isEligibleForAdaptiveSession(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now = Date.now(), allExercises: Exercise[] = [exercise]) {
   if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
   if (sameContentWasRecentlyUsed(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
-  if (sameContentWasJustUsedAcrossSessions(exercise, progress) && !targetRecentlyFailed(exercise, session)) return false
+  if (sameContentWasJustUsedAcrossSessions(exercise, progress, now) && !targetRecentlyFailed(exercise, session)) return false
   if (targetBudgetReached(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
   return true
 }
 
 function isEligibleFallback(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now: number, allExercises: Exercise[]) {
   if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
-  // Fallback may relax only in-session presentation spacing. Cross-session correct
-  // content remains cooled down so "Weiterlernen" cannot simply replay the prior unit.
-  if (sameContentWasJustUsedAcrossSessions(exercise, progress)) return false
+  if (sameContentWasJustUsedAcrossSessions(exercise, progress, now)) return false
   const stats = targetSessionStats(exercise, session)
   if (stats.failures === 0 && stats.successes >= 2) return false
   return true
