@@ -32,10 +32,12 @@ test('a zero beginner receives the first introduction before any test', () => {
   assert.deepEqual(eligible.map(item => item.id), ['zivjo'])
 })
 
-test('after Živjo introduction the next new word is introduced before recognition starts', () => {
+test('after Živjo was introduced, active recognition becomes available instead of forcing another intro-only chain', () => {
   const progress = registerIntroductions(emptyProgress(), byId('zivjo'))
   const eligible = eligibleAdaptiveContent(all, progress, createSessionState(), profile)
-  assert.deepEqual(eligible.map(item => item.id), ['hvala'])
+  assert.ok(eligible.some(item => item.id === 'p1-zivjo-rec-de'))
+  assert.ok(eligible.some(item => item.id === 'p1-zivjo-listen'))
+  assert.ok(eligible.some(item => item.id === 'hvala'))
 })
 
 test('recall is stage-locked before recognition and then deferred until the real review due date', () => {
