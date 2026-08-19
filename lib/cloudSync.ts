@@ -68,7 +68,22 @@ function mergeLearningItem(a: LearningItemState | undefined, b: LearningItemStat
   }
 }
 
+function resetGeneration(progress: UserProgress) {
+  return progress.resetGeneration ?? 0
+}
+
+function newerResetWins(local: UserProgress, cloud: UserProgress): UserProgress | null {
+  const localGeneration = resetGeneration(local)
+  const cloudGeneration = resetGeneration(cloud)
+  if (localGeneration > cloudGeneration) return { ...defaultProgress, ...local }
+  if (cloudGeneration > localGeneration) return { ...defaultProgress, ...cloud }
+  return null
+}
+
 export function mergeProgress(local: UserProgress, cloud: UserProgress): UserProgress {
+  const resetWinner = newerResetWins(local, cloud)
+  if (resetWinner) return resetWinner
+
   const reviewKeys = Array.from(new Set([...local.reviews.map(x => x.key), ...cloud.reviews.map(x => x.key)]))
   const itemKeys = Array.from(new Set([...Object.keys(local.learningItems ?? {}), ...Object.keys(cloud.learningItems ?? {})]))
   const recent = [...(cloud.recentSessionHistory ?? []), ...(local.recentSessionHistory ?? [])]
@@ -80,6 +95,8 @@ export function mergeProgress(local: UserProgress, cloud: UserProgress): UserPro
     ...defaultProgress,
     ...cloud,
     ...local,
+    resetGeneration: Math.max(resetGeneration(local), resetGeneration(cloud)),
+    progressResetAt: Math.max(local.progressResetAt ?? 0, cloud.progressResetAt ?? 0) || undefined,
     completedLessons: Array.from(new Set([...cloud.completedLessons, ...local.completedLessons])),
     wordsLearned: Array.from(new Set([...cloud.wordsLearned, ...local.wordsLearned])),
     secureWords: Array.from(new Set([...cloud.secureWords, ...local.secureWords])),
@@ -142,6 +159,25 @@ export async function syncProfile(profile: LearnerProfile, localState?: UserProg
     }),
   })
   return merged
+}
+
+export async function overwriteProfileState(profile: LearnerProfile, state: UserProgress) {
+  const session = await getValidSupabaseSession()
+  if (!session) return null
+  const cloudProfile = await ensureCloudProfile(profile)
+  const stateRows = await supabaseRest<CloudState[]>(`learner_states?profile_id=eq.${cloudProfile.id}&select=revision&limit=1`)
+  saveProgress(state, profile.id, { silent: true })
+  await supabaseRest('learner_states?on_conflict=user_id,profile_id', {
+    method: 'POST',
+    body: JSON.stringify({
+      user_id: session.user.id,
+      profile_id: cloudProfile.id,
+      state,
+      revision: (stateRows[0]?.revision ?? 0) + 1,
+      updated_at: new Date().toISOString(),
+    }),
+  })
+  return state
 }
 
 export async function pushProfileState(profile: LearnerProfile, state: UserProgress) {
