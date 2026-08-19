@@ -6,6 +6,7 @@ export type LearningPhase = 'new' | 'recognition' | 'recall' | 'application' | '
 export type InputMode = 'typed' | 'speech'
 export type ExerciseEvaluationMode = 'exact' | 'accepted' | 'free'
 export type ExerciseModality = 'text' | 'choice' | 'listening' | 'speaking'
+export type VisualType = 'learning-card' | 'image-choice' | 'audio-image-choice' | 'scene'
 export type StartMode = 'zero' | 'self-assessment' | 'placement'
 export type SelfAssessmentLevel = 'few-words' | 'simple-sentences' | 'A1' | 'A2' | 'advanced'
 
@@ -24,6 +25,10 @@ export type Vocabulary = {
   plural?: string
   forms?: string[]
   audioText?: string
+  visualKey?: string
+  image?: string
+  imageAlt?: string
+  visualCategory?: string
 }
 
 export type Sentence = {
@@ -52,6 +57,12 @@ export type ExerciseType =
   | 'spot-error'
   | 'transform'
 
+export type VisualOption = {
+  value: string
+  visualKey: string
+  imageAlt?: string
+}
+
 export type Exercise = {
   id: string
   lesson: number
@@ -76,9 +87,11 @@ export type Exercise = {
   introducesVocabulary?: string[]
   introducesGrammar?: string[]
   learningTargets?: string[]
+  contextOnlyTargets?: string[]
   modality?: ExerciseModality
   contentKey?: string
   contextTag?: string
+  sentencePatternKey?: string
   personalQuestion?: boolean
   learningPhase?: LearningPhase
   curriculumPhase?: number
@@ -88,6 +101,12 @@ export type Exercise = {
   introSl?: string
   introDe?: string
   introUsage?: string
+  visualType?: VisualType
+  visualKey?: string
+  image?: string
+  imageAlt?: string
+  visualCategory?: string
+  visualOptions?: VisualOption[]
 }
 
 export type GrammarPoint = {
@@ -185,6 +204,9 @@ export type LearningItemState = {
   totalHintsUsed?: number
   lastHintsUsed?: number
   lastSeenAt?: number
+  lastSuccessfulTestAt?: number
+  activeTestCooldownUntil?: number
+  lastUsedAsContextAt?: number
   nextDueAt?: number
   averageResponseMs?: number
   lastMistakeCategory?: MistakeCategory
@@ -203,6 +225,8 @@ export type SessionHistoryItem = {
   grammarTag?: string
   contentKey?: string
   contextTag?: string
+  sentencePatternKey?: string
+  visualType?: VisualType
   hintsUsed?: number
   learningPhase?: LearningPhase
   curriculumPhase?: number
