@@ -112,15 +112,16 @@ export function updateLearnerStateWithHelp(
   }
 
   for (const target of getLearningTargets(exercise)) {
+    if (contextOnly.has(target)) {
+      const previous = previousItems[target]
+      if (previous) items[target] = { ...previous, lastUsedAsContextAt: now }
+      continue
+    }
     if (items[target]) {
       const evidence = stageEvidence(exercise, previousItems[target], items[target], outcome)
       const adjusted = applyHelpPenalty(previousItems[target], { ...items[target], ...evidence }, hintsUsed, kindForTarget(target))
-      items[target] = applyTestTiming(adjusted, outcome, now, !contextOnly.has(target))
+      items[target] = applyTestTiming(adjusted, outcome, now, true)
     }
-  }
-
-  for (const target of contextOnly) {
-    if (items[target]) items[target] = { ...items[target], lastUsedAsContextAt: now }
   }
 
   return { ...next, learningItems: items }
