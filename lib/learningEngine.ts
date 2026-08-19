@@ -6,6 +6,7 @@ import type {
   SessionHistoryItem,
   UserProgress,
 } from '@/types'
+import { isPassiveTeachingStep, semanticGroupStreak } from './sessionQuality'
 
 export type SessionState = {
   startedAt: number
@@ -201,6 +202,18 @@ function diversityAdjustment(exercise: Exercise, session: SessionState) {
   if (exercise.grammarTag && recent.slice(-GRAMMAR_PRESENTATION_COOLDOWN).some(item => item.grammarTag === exercise.grammarTag)) {
     score -= 8
     penalties.push('gleiches Grammatikziel kurz entzerren')
+  }
+
+  const themeStreak = semanticGroupStreak(recent, exercise)
+  if (themeStreak >= 3) {
+    score -= 72
+    penalties.push('dieselbe enge Themenfamilie kam zu lange hintereinander')
+  } else if (themeStreak >= 2) {
+    score -= 42
+    penalties.push('Themenwechsel bevorzugen')
+  } else if (recent.length >= 2 && themeStreak === 0) {
+    score += 8
+    reasons.push('neuer Kontext verhindert Themenmonotonie')
   }
 
   if (exercise.contextTag && recent.slice(-3).some(item => item.contextTag === exercise.contextTag)) {
@@ -477,6 +490,7 @@ export function registerSessionOutcome(
 ): SessionState {
   const wasNew = candidate.reasons.includes('neuer Stoff passend zum Lernfortschritt')
   const exercise = candidate.exercise
+  const passiveTeaching = isPassiveTeachingStep(exercise)
   const modality = exercise.modality ?? (exercise.type.startsWith('listen-') ? 'listening' : exercise.type === 'speak-answer' ? 'speaking' : exercise.type === 'choice' ? 'choice' : 'text')
   const historyItem: SessionHistoryItem = {
     exerciseId: exercise.id,
@@ -493,12 +507,16 @@ export function registerSessionOutcome(
     contextTag: exercise.contextTag,
     sentencePatternKey: exercise.sentencePatternKey,
     visualType: exercise.visualType,
+    learningPhase: exercise.learningPhase,
+    curriculumPhase: exercise.curriculumPhase,
   }
   return {
     ...session,
-    answered: session.answered + 1,
-    correct: session.correct + (outcome.correct ? 1 : 0),
-    introducedNew: session.introducedNew + (wasNew ? 1 : 0),
+    // Passive teaching cards are useful exposure, but they are not solved exercises and
+    // must not consume the active-practice session budget or inflate accuracy.
+    answered: session.answered + (passiveTeaching ? 0 : 1),
+    correct: session.correct + (!passiveTeaching && outcome.correct ? 1 : 0),
+    introducedNew: session.introducedNew + (passiveTeaching || wasNew ? 1 : 0),
     recentExerciseIds: [...session.recentExerciseIds, exercise.id].slice(-10),
     history: [...session.history, historyItem].slice(-40),
   }
