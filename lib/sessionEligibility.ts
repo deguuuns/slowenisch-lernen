@@ -4,30 +4,17 @@ import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
 
 const RECENT_CONTENT_WINDOW = 8
+const CROSS_SESSION_CONTENT_WINDOW = 10
 const normalizeKey = (value: string) => value.toLocaleLowerCase('sl-SI').trim()
 
 const LEGACY_GRAMMAR_REQUIREMENTS: Record<string, string> = {
-  'location-direction': 'location-direction',
-  location: 'location-direction',
-  direction: 'location-direction',
-  'case-location': 'location-direction',
-  'case-direction': 'location-direction',
-  preposition: 'location-direction',
-  dual: 'dual',
-  'time-number-form': 'time-number-form',
-  accusative: 'accusative',
-  negation: 'negation',
+  'location-direction': 'location-direction', location: 'location-direction', direction: 'location-direction',
+  'case-location': 'location-direction', 'case-direction': 'location-direction', preposition: 'location-direction',
+  dual: 'dual', 'time-number-form': 'time-number-form', accusative: 'accusative', negation: 'negation',
 }
 
 const STAGE_RANK: Record<KnowledgeStage, number> = {
-  unseen: 0,
-  introduced: 1,
-  recognition: 2,
-  recall: 3,
-  production: 4,
-  familiar: 4,
-  mastered: 5,
-  review_due: 5,
+  unseen: 0, introduced: 1, recognition: 2, recall: 3, production: 4, familiar: 4, mastered: 5, review_due: 5,
 }
 
 function targetsFor(exercise: Exercise) {
@@ -48,11 +35,7 @@ function wasCorrectInThisSession(exercise: Exercise, session: SessionState) {
 function targetSessionStats(exercise: Exercise, session: SessionState) {
   const targets = new Set(targetsFor(exercise))
   const matching = session.history.filter(item => item.learningTargets.some(target => targets.has(target)))
-  return {
-    appearances: matching.length,
-    successes: matching.filter(item => item.correct).length,
-    failures: matching.filter(item => !item.correct).length,
-  }
+  return { appearances: matching.length, successes: matching.filter(item => item.correct).length, failures: matching.filter(item => !item.correct).length }
 }
 
 function targetRecentlyFailed(exercise: Exercise, session: SessionState) {
@@ -63,6 +46,14 @@ function targetRecentlyFailed(exercise: Exercise, session: SessionState) {
 function sameContentWasRecentlyUsed(exercise: Exercise, session: SessionState) {
   const key = exercise.contentKey ?? exercise.answer
   return session.history.slice(-RECENT_CONTENT_WINDOW).some(item => item.contentKey === key)
+}
+
+function sameContentWasJustUsedAcrossSessions(exercise: Exercise, progress: UserProgress) {
+  const key = exercise.contentKey ?? exercise.answer
+  if (!key) return false
+  const recent = (progress.recentSessionHistory ?? []).slice(-CROSS_SESSION_CONTENT_WINDOW)
+  const match = recent.findLast(item => item.contentKey === key)
+  return !!match?.correct
 }
 
 function targetBudgetReached(exercise: Exercise, session: SessionState) {
@@ -86,7 +77,6 @@ function requiredGrammarFor(exercise: Exercise) {
 function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
   const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
-
   if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
   if (exercise.type !== 'introduce' && requiredGrammarFor(exercise).some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
@@ -114,9 +104,7 @@ function currentPhaseStillHasUnseenIntroductions(exercises: Exercise[], progress
   const grammar = new Set(progress.introducedGrammar ?? [])
   return exercises.some(exercise => {
     if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
-    const newVocabulary = exercise.introducesVocabulary ?? []
-    const newGrammar = exercise.introducesGrammar ?? []
-    return newVocabulary.some(item => !introduced.has(normalizeKey(item))) || newGrammar.some(item => !grammar.has(item))
+    return (exercise.introducesVocabulary ?? []).some(item => !introduced.has(normalizeKey(item))) || (exercise.introducesGrammar ?? []).some(item => !grammar.has(item))
   })
 }
 
@@ -124,8 +112,7 @@ function isNextIntroduction(exercise: Exercise, exercises: Exercise[], progress:
   if (exercise.curriculumPhase !== phase || exercise.type !== 'introduce') return false
   const introduced = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
-  const unseen = exercises
-    .filter(item => item.curriculumPhase === phase && item.type === 'introduce')
+  const unseen = exercises.filter(item => item.curriculumPhase === phase && item.type === 'introduce')
     .filter(item => (item.introducesVocabulary ?? []).some(value => !introduced.has(normalizeKey(value))) || (item.introducesGrammar ?? []).some(value => !grammar.has(value)))
     .sort((a, b) => (a.curriculumOrder ?? 999) - (b.curriculumOrder ?? 999))
   return unseen[0]?.id === exercise.id
@@ -133,8 +120,7 @@ function isNextIntroduction(exercise: Exercise, exercises: Exercise[], progress:
 
 function newItemBudgetReached(exercise: Exercise, session: SessionState) {
   const max = exercise.maxNewItemsInSession ?? 5
-  const introduced = session.history.filter(item => item.learningPhase === 'new').length
-  return introduced >= max
+  return session.history.filter(item => item.learningPhase === 'new').length >= max
 }
 
 function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
@@ -142,18 +128,15 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
   if (!hasCurriculumContent) return true
   if (profile?.startMode !== 'zero' || isBeginnerFoundationComplete(progress)) return true
 
-  const phase = getCurrentBeginnerPhase(progress).id
+  const current = getCurrentBeginnerPhase(progress)
+  if (!current) return true
+  const phase = current.id
   if (!exercise.curriculumPhase) return false
   if (exercise.curriculumPhase > phase) return false
   if (exercise.curriculumPhase < phase) return exercise.type !== 'introduce'
 
   const introductionsPending = currentPhaseStillHasUnseenIntroductions(exercises, progress, phase)
   if (introductionsPending) {
-    // Important: once the session has reached its new-item budget, do NOT block the
-    // whole phase. That used to create the "Keine passende Aufgabe gefunden" dead end:
-    // more introductions were pending, but the budget forbade them and recognition
-    // exercises were also rejected. We now pause further NEW items and practise the
-    // already introduced material until the next session.
     if (exercise.type === 'introduce') {
       if (newItemBudgetReached(exercise, session)) return false
       return isNextIntroduction(exercise, exercises, progress, phase)
@@ -161,18 +144,10 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
     if (!newItemBudgetReached(exercise, session)) return false
     return true
   }
-
   return true
 }
 
-function passesHardSafetyGates(
-  exercise: Exercise,
-  progress: UserProgress,
-  session: SessionState,
-  profile: LearnerProfile | null,
-  now: number,
-  allExercises: Exercise[],
-) {
+function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now: number, allExercises: Exercise[]) {
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
   if (!curriculumAllows(exercise, allExercises, progress, session, profile)) return false
   if (profile?.startMode === 'zero' && !exercise.contentKey) return false
@@ -189,57 +164,29 @@ function passesHardSafetyGates(
       if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall)) return false
     }
   }
-
   return true
 }
 
-export function isEligibleForAdaptiveSession(
-  exercise: Exercise,
-  progress: UserProgress,
-  session: SessionState,
-  profile: LearnerProfile | null,
-  now = Date.now(),
-  allExercises: Exercise[] = [exercise],
-) {
+export function isEligibleForAdaptiveSession(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now = Date.now(), allExercises: Exercise[] = [exercise]) {
   if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
-
   if (sameContentWasRecentlyUsed(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
+  if (sameContentWasJustUsedAcrossSessions(exercise, progress) && !targetRecentlyFailed(exercise, session)) return false
   if (targetBudgetReached(exercise, session) && !targetRecentlyFailed(exercise, session)) return false
-
   return true
 }
 
-function isEligibleFallback(
-  exercise: Exercise,
-  progress: UserProgress,
-  session: SessionState,
-  profile: LearnerProfile | null,
-  now: number,
-  allExercises: Exercise[],
-) {
+function isEligibleFallback(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now: number, allExercises: Exercise[]) {
   if (!passesHardSafetyGates(exercise, progress, session, profile, now, allExercises)) return false
-
-  // Fallback may relax only presentation spacing. It never bypasses curriculum,
-  // prerequisites, stage gates, unknown vocabulary or an exercise already solved
-  // correctly in this session.
+  // Fallback may relax only in-session presentation spacing. Cross-session correct
+  // content remains cooled down so "Weiterlernen" cannot simply replay the prior unit.
+  if (sameContentWasJustUsedAcrossSessions(exercise, progress)) return false
   const stats = targetSessionStats(exercise, session)
   if (stats.failures === 0 && stats.successes >= 2) return false
   return true
 }
 
-export function eligibleAdaptiveContent(
-  exercises: Exercise[],
-  progress: UserProgress,
-  session: SessionState,
-  profile: LearnerProfile | null,
-  now = Date.now(),
-) {
+export function eligibleAdaptiveContent(exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now = Date.now()) {
   const preferred = exercises.filter(exercise => isEligibleForAdaptiveSession(exercise, progress, session, profile, now, exercises))
   if (preferred.length) return preferred
-
-  // Controlled fallback hierarchy: keep every didactic safety rule, but allow a
-  // different presentation of material that is genuinely still in learning. If even
-  // that pool is empty, the caller can end the session cleanly instead of inventing
-  // unsafe content.
   return exercises.filter(exercise => isEligibleFallback(exercise, progress, session, profile, now, exercises))
 }
