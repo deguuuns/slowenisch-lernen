@@ -17,13 +17,15 @@ const hvala: Exercise = {
   level:'A1', modality:'choice', learningPhase:'recognition', learningTargets:['vocab:hvala'], contentKey:'hvala-meaning', contextTag:'politeness', sentencePatternKey:'word-meaning', skills:['wortschatz']
 }
 
-test('clean success creates an active-test cooldown until a later day', () => {
+test('clean success creates a cooldown and remains blocked until the real due date', () => {
   const now = new Date(2026, 7, 19, 12, 0, 0).getTime()
   const next = updateLearnerStateWithHelp(progress(), hvala, { correct:true, responseMs:900, hintsUsed:0 }, now)
   const state = next.learningItems?.['vocab:hvala']
   assert.ok(state?.activeTestCooldownUntil && state.activeTestCooldownUntil > now)
+  assert.ok(state?.nextDueAt && state.nextDueAt >= state.activeTestCooldownUntil)
   assert.equal(canActivelyTestLearningItem(state, now + 60 * 60_000), false)
-  assert.equal(canActivelyTestLearningItem(state, state!.activeTestCooldownUntil! + 1), true)
+  assert.equal(canActivelyTestLearningItem(state, state!.activeTestCooldownUntil! + 1), false)
+  assert.equal(canActivelyTestLearningItem(state, state!.nextDueAt! + 1), true)
 })
 
 test('cleanly learned target is not actively tested again the same day', () => {
@@ -37,7 +39,7 @@ test('context-only use remains eligible while the learned word itself is cooled 
   const next = updateLearnerStateWithHelp(progress(), hvala, { correct:true, responseMs:900, hintsUsed:0 }, now)
   const contextExercise: Exercise = {
     id:'prosim-dialog', lesson:1, type:'choice', prompt:'A: Hvala! B: ___', answer:'Prosim', alternatives:['Živjo'],
-    level:'A1', modality:'choice', learningPhase:'application', learningTargets:['vocab:hvala'], contextOnlyTargets:['vocab:hvala'],
+    level:'A1', modality:'choice', learningPhase:'application', curriculumPhase:1, learningTargets:['vocab:hvala'], contextOnlyTargets:['vocab:hvala'],
     contentKey:'dialog-hvala-prosim', contextTag:'dialog', sentencePatternKey:'dialog-response', skills:['lesen']
   }
   assert.equal(isEligibleForAdaptiveSession(contextExercise, next, createSessionState(), profile, now + 60 * 60_000, [contextExercise]), true)
@@ -74,14 +76,15 @@ test('top-k selection is stable for the same rendered session step', () => {
   assert.equal(first, second)
 })
 
-test('visual pilot contains ten concrete words with visual and listening variants', () => {
+test('visual pilot contains ten concrete words with visual and listening variants in A1 expansion', () => {
   const intros = visualVocabularyExercises.filter(item => item.type === 'introduce')
   const visualChoices = visualVocabularyExercises.filter(item => item.visualType === 'image-choice')
   const audioChoices = visualVocabularyExercises.filter(item => item.visualType === 'audio-image-choice')
   assert.equal(intros.length, 10)
   assert.equal(visualChoices.length, 10)
   assert.equal(audioChoices.length, 10)
-  assert.ok(intros.some(item => item.answer === 'hiša' && item.introSl?.includes('🏠')))
+  assert.ok(visualVocabularyExercises.every(item => item.curriculumPhase === 11))
+  assert.ok(intros.some(item => item.answer === 'hiša' && item.introSl?.includes('🏠') && item.introDe === 'Haus'))
   assert.ok(audioChoices.every(item => item.prompt === 'Höre zu und wähle das passende Bild.'))
   assert.ok(audioChoices.every(item => !item.prompt.includes(item.audioPrompt ?? '___')))
 })
