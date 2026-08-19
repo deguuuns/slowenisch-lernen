@@ -1,3 +1,4 @@
+import { enrichExercise } from '@/lib/curriculum-metadata'
 import { Exercise, Vocabulary } from '@/types'
 
 export const NEW_WORDS_PER_BLOCK = 3
@@ -9,20 +10,8 @@ export type LearningBlock = {
   exercises: Exercise[]
 }
 
-const exerciseVocabulary: Record<string, string[]> = {
-  e01:['v001'], e02:['v011'], e03:['v015','v077'], e04:['v028'], e05:['v026'], e06:['v027'], e07:['v026','v011'],
-  e08:['v032','v039','v055'], e09:['v032','v040','v054'], e10:['v050'], e11:['v034','v035'], e12:['v046','v039','v055'], e13:['v047','v060'],
-  e14:['v014','v062'], e15:['v063','v024'], e16:['v075','v059'], e17:['v076','v053'], e18:['v068','v065'], e19:['v080','v005'],
-  e20:['v082','v091'], e21:['v085','v088'], e22:['v085','v087'], e23:['v083','v082','v091'], e24:['v086','v085','v087'], e25:['v098'],
-  e26:['v104','v005'], e27:['v005'], e28:['v005'], e29:['v007','v008'], e30:['v055','v005'], e31:['v088','v005'], e32:['v101']
-}
-
 export function withLearningMetadata(exercise: Exercise): Exercise {
-  return {
-    ...exercise,
-    vocabularyIds: exercise.vocabularyIds ?? exerciseVocabulary[exercise.id] ?? [],
-    evaluationMode: exercise.evaluationMode ?? (exercise.type === 'free' ? 'acceptedVariants' : 'exact')
-  }
+  return enrichExercise(exercise)
 }
 
 function unique<T>(items:T[]) { return Array.from(new Set(items)) }
@@ -48,6 +37,7 @@ export function generatedExercisesForWord(word:Vocabulary, lessonWords:Vocabular
       answer:word.de,
       alternatives:choices,
       vocabularyIds:[word.id],
+      grammarRuleIds:[],
       evaluationMode:'exact',
       generated:true
     },
@@ -58,6 +48,7 @@ export function generatedExercisesForWord(word:Vocabulary, lessonWords:Vocabular
       prompt:`Übersetze: ${word.de}`,
       answer:word.sl,
       vocabularyIds:[word.id],
+      grammarRuleIds:[],
       evaluationMode:'acceptedVariants',
       generated:true
     }
@@ -90,6 +81,7 @@ export function buildLearningBlocks(
     const generated=words.flatMap(w=>generatedExercisesForWord(w,lessonWords))
     const selected=unique([...matching,...generated].map(e=>e.id))
       .map(id=>[...matching,...generated].find(e=>e.id===id)!)
+      .sort((a,b)=>Number(a.generated)-Number(b.generated))
       .slice(0,Math.max(EXERCISES_PER_BLOCK,words.length*2))
 
     blocks.push({id:`lesson-${lessonId}-block-${blocks.length+1}`,words,exercises:selected})
@@ -99,7 +91,10 @@ export function buildLearningBlocks(
 }
 
 export function buildFinalReview(lessonId:number, exercises:Exercise[], max=8) {
-  return exercises.filter(e=>e.lesson===lessonId).map(withLearningMetadata).slice(0,max)
+  const lessonExercises=exercises.filter(e=>e.lesson===lessonId).map(withLearningMetadata)
+  const productive=lessonExercises.filter(e=>e.type!=='choice')
+  const recognition=lessonExercises.filter(e=>e.type==='choice')
+  return [...productive,...recognition].slice(0,max)
 }
 
 export function lessonProgress(blockIndex:number,totalBlocks:number,exerciseIndex=0,exerciseCount=1) {
