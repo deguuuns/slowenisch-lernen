@@ -268,6 +268,8 @@ export type ExerciseAttempt = {
 
 export type UserProgress = {
   schemaVersion?: number
+  resetGeneration?: number
+  progressResetAt?: number
   completedLessons: number[]
   streak: number
   wordsLearned: string[]
