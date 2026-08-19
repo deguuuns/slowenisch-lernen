@@ -41,6 +41,9 @@ export function updateMastery(mastery:Record<string,MasteryItem>,ex:Exercise,cor
 
 export function recordAttempt(items:AttemptSignal[],signal:AttemptSignal){ return [...items,signal].slice(-100) }
 export function queueTransfers(items:TransferItem[],ex:Exercise,correct:boolean,attemptCount:number){
+  if(correct&&ex.transferSourceExerciseId&&ex.transferRuleId){
+    return items.filter(x=>!(x.sourceExerciseId===ex.transferSourceExerciseId&&x.grammarRuleId===ex.transferRuleId))
+  }
   if(correct||!ex.grammarRuleIds?.length) return items
   const created=ex.grammarRuleIds.map(grammarRuleId=>({sourceExerciseId:ex.id,grammarRuleId,dueAfter:attemptCount+2+Math.floor(Math.random()*2),createdAt:Date.now()}))
   const map=new Map(items.map(x=>[`${x.sourceExerciseId}:${x.grammarRuleId}`,x])); created.forEach(x=>map.set(`${x.sourceExerciseId}:${x.grammarRuleId}`,x)); return [...map.values()]
