@@ -21,6 +21,7 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
     { value: symbol, visualKey: key, imageAlt: alt },
     ...distractors.map(item => ({ value: item[3], visualKey: item[0], imageAlt: item[4] })),
   ]
+  const curriculumOrder = 110 + index * 3
   return [
     {
       id: `visual-intro-${key}`,
@@ -31,6 +32,8 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       level: 'A1',
       skills: ['wortschatz','hören'],
       learningPhase: 'new',
+      curriculumPhase: 11,
+      curriculumOrder,
       introducesVocabulary: [sl],
       learningTargets: [`vocab:${sl}`],
       contentKey: `visual-intro-${key}`,
@@ -60,6 +63,8 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       skills: ['lesen','wortschatz'],
       modality: 'choice',
       learningPhase: 'recognition',
+      curriculumPhase: 11,
+      curriculumOrder: curriculumOrder + 1,
       requiredVocabulary: [sl],
       requiredTargetStage: 'introduced',
       learningTargets: [`vocab:${sl}`],
@@ -82,6 +87,8 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       skills: ['hören','wortschatz'],
       modality: 'listening',
       learningPhase: 'recognition',
+      curriculumPhase: 11,
+      curriculumOrder: curriculumOrder + 2,
       requiredVocabulary: [sl],
       requiredTargetStage: 'introduced',
       learningTargets: [`vocab:${sl}`],
