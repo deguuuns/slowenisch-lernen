@@ -18,16 +18,18 @@ const experiencedProfile: LearnerProfile = {
 function progress(overrides: Partial<UserProgress> = {}): UserProgress {
   return {
     schemaVersion: 4, completedLessons: [], streak: 1, wordsLearned: [], secureWords: [], mistakes: [], reviews: [],
-    speakingMinutes: 0, listeningMinutes: 0, introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','kje','kam','grem','danes'],
-    introducedGrammar: ['biti-1s','biti-basic','kje-kam','location-direction'], skillXp: {}, learningItems: {}, recentSessionHistory: [], ...overrides,
+    speakingMinutes: 0, listeningMinutes: 0, introducedVocabulary: ['živjo','da','ne','jaz','sem','doma','domov','kje','kam','grem','danes'],
+    introducedGrammar: ['biti-1s','biti-basic','kje-kam','location-direction'], skillXp: {}, learningItems: {
+      'grammar:location-direction': { key:'grammar:location-direction', kind:'grammar', stage:'recall', attempts:2, correctCount:2, incorrectCount:0, correctStreak:2, incorrectStreak:0, mastery:0.6, recallMastery:0.4, difficulty:2 },
+    }, recentSessionHistory: [], ...overrides,
   }
 }
 
 function exercise(overrides: Partial<Exercise> = {}): Exercise {
   return {
     id: 'x1', lesson: 1, type: 'translate-de-sl', prompt: 'Ich gehe nach Slowenien.', answer: 'Grem v Slovenijo.',
-    level: 'A1', skills: ['schreiben','grammatik'], requiredVocabulary: ['grem'], requiredGrammar: ['location-direction'],
-    learningTargets: ['grammar:location-direction'], contentKey: 'go-slovenia', contextTag: 'reisen', ...overrides,
+    level: 'A1', skills: ['schreiben','grammatik'], requiredVocabulary: ['grem'], requiredOutputVocabulary:['grem'], requiredGrammar: ['location-direction'],
+    learningTargets: ['grammar:location-direction'], contentKey: 'go-slovenia', contextTag: 'reisen', learningPhase:'production', requiredTargetStage:'recall', requirementsComplete:true, ...overrides,
   }
 }
 
@@ -68,13 +70,13 @@ test('mastered vocabulary may still be used naturally in a different new sentenc
     'vocab:danes': { key:'vocab:danes', kind:'vocabulary', stage:'mastered', attempts:5, correctCount:5, incorrectCount:0, correctStreak:5, incorrectStreak:0, mastery:0.95, difficulty:1, nextDueAt:now + 7*86_400_000 },
     'grammar:location-direction': { key:'grammar:location-direction', kind:'grammar', stage:'recall', attempts:2, correctCount:2, incorrectCount:0, correctStreak:2, incorrectStreak:0, mastery:0.6, recallMastery:0.4, difficulty:2 },
   } })
-  const newSentence = exercise({ id:'new-sentence', prompt:'Heute gehe ich nach Hause.', answer:'Danes grem domov.', requiredVocabulary:['danes','grem'], contentKey:'today-go-home', contextOnlyTargets:['vocab:danes'] })
+  const newSentence = exercise({ id:'new-sentence', prompt:'Heute gehe ich nach Hause.', answer:'Danes grem domov.', requiredVocabulary:['danes','grem','domov'], requiredOutputVocabulary:['grem','domov'], contentKey:'today-go-home', contextOnlyTargets:['vocab:danes'] })
   assert.equal(isEligibleForAdaptiveSession(newSentence, p, createSessionState(), experiencedProfile, now), true)
 })
 
 test('same target can return after an error with different content for an established learner', () => {
   const session = { ...createSessionState(), history: [hist({ exerciseId:'bad-one', correct:false, contentKey:'old-content' })] }
-  const transfer = exercise({ id:'transfer', prompt:'Ich gehe nach Hause.', answer:'Grem domov.', contentKey:'go-home', contextTag:'alltag' })
+  const transfer = exercise({ id:'transfer', prompt:'Ich gehe nach Hause.', answer:'Grem domov.', requiredVocabulary:['grem','domov'], requiredOutputVocabulary:['grem','domov'], contentKey:'go-home', contextTag:'alltag' })
   assert.equal(isEligibleForAdaptiveSession(transfer, progress(), session, experiencedProfile), true)
 })
 
@@ -86,6 +88,6 @@ test('one target cannot dominate indefinitely without a recent error', () => {
 })
 
 test('zero beginners do not receive unannotated legacy exercises in adaptive mode', () => {
-  const legacy = exercise({ id:'legacy', contentKey:undefined })
+  const legacy = exercise({ id:'legacy', contentKey:undefined, requirementsComplete:false, requiredTargetStage:undefined, learningPhase:undefined })
   assert.equal(isEligibleForAdaptiveSession(legacy, progress(), createSessionState(), profile), false)
 })
