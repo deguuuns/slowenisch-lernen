@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mergeProgress } from '../lib/cloudSync'
-import { defaultProgress } from '../lib/storage'
+import { createResetProgress, defaultProgress } from '../lib/storage'
 
 test('mergeProgress keeps learning from both devices', () => {
   const local = {
@@ -30,4 +30,47 @@ test('mergeProgress keeps learning from both devices', () => {
   assert.equal(merged.listeningMinutes, 4)
   assert.equal(merged.learningItems?.['grammar:dual'].mastery, 0.7)
   assert.equal(merged.learningItems?.['grammar:dual'].attempts, 4)
+})
+
+test('a newer explicit reset prevents older cloud learning from coming back', () => {
+  const oldCloud = {
+    ...defaultProgress,
+    resetGeneration: 1,
+    completedLessons: [1, 2, 3],
+    wordsLearned: ['hvala'],
+    reviews: [{ key: 'vocab:hvala', status: 'gelernt' as const, dueAt: 123, intervalIndex: 2 }],
+    learningItems: {
+      'vocab:hvala': { key: 'vocab:hvala', kind: 'vocabulary' as const, attempts: 5, correctCount: 5, incorrectCount: 0, correctStreak: 5, incorrectStreak: 0, mastery: 0.9, difficulty: 1 },
+    },
+  }
+  const resetLocal = createResetProgress(oldCloud, 5_000)
+  const merged = mergeProgress(resetLocal, oldCloud)
+
+  assert.equal(merged.resetGeneration, 2)
+  assert.equal(merged.progressResetAt, 5_000)
+  assert.deepEqual(merged.completedLessons, [])
+  assert.deepEqual(merged.wordsLearned, [])
+  assert.deepEqual(merged.reviews, [])
+  assert.deepEqual(merged.learningItems, {})
+  assert.deepEqual(merged.recentSessionHistory, [])
+})
+
+test('a newer cloud reset also wins over stale local progress', () => {
+  const staleLocal = {
+    ...defaultProgress,
+    resetGeneration: 2,
+    completedLessons: [1],
+    wordsLearned: ['živjo'],
+  }
+  const cloudReset = {
+    ...defaultProgress,
+    resetGeneration: 3,
+    progressResetAt: 9_000,
+  }
+  const merged = mergeProgress(staleLocal, cloudReset)
+
+  assert.equal(merged.resetGeneration, 3)
+  assert.equal(merged.progressResetAt, 9_000)
+  assert.deepEqual(merged.completedLessons, [])
+  assert.deepEqual(merged.wordsLearned, [])
 })
