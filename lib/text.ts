@@ -1,44 +1,14 @@
-const numberWords: Record<string, string> = {
-  '0': 'nič',
-  '1': 'ena',
-  '2': 'dve',
-  '3': 'tri',
-  '4': 'štiri',
-  '5': 'pet',
-  '6': 'šest',
-  '7': 'sedem',
-  '8': 'osem',
-  '9': 'devet',
-  '10': 'deset',
-  '11': 'enajst',
-  '12': 'dvanajst'
-}
+import { evaluateAnswer, normalizeAnswerText } from './answer-evaluation'
 
-function normalizeNumbers(value: string) {
-  return value.replace(/\b(10|11|12|[0-9])\b/g, match => numberWords[match] ?? match)
-}
-
+/**
+ * Backwards-compatible facade for the current UI.
+ * New features should use evaluateAnswer directly so they can surface the
+ * classification and grammar explanation instead of only true/false.
+ */
 export function normalizeAnswer(value: string) {
-  return normalizeNumbers(value)
-    .toLocaleLowerCase('sl-SI')
-    .replace(/\b(?:2|dva|dve)\b/g, '2')
-    .trim()
-    .replace(/[.!?;,]/g, '')
-    .replace(/\s+/g, ' ')
+  return normalizeAnswerText(value)
 }
 
-export function isEquivalent(input: string, expected: string) {
-  const a = normalizeAnswer(input)
-  const b = normalizeAnswer(expected)
-
-  if (a === b) return true
-
-  const variants: Record<string, string[]> = {
-    'grem spat ob desetih': [
-      'grem spat ob deset',
-      'grem spat ob 10'
-    ]
-  }
-
-  return variants[b]?.some(v => normalizeAnswer(v) === a) ?? false
+export function isEquivalent(input: string, expected: string, alternatives: string[] = []) {
+  return evaluateAnswer({ input, expected, alternatives }).isCorrect
 }
