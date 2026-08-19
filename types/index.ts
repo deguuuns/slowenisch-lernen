@@ -80,9 +80,22 @@ export type Exercise = {
   audioPrompt?: string
   grammarTag?: string
   prerequisites?: string[]
+  /** Legacy/general vocabulary dependencies. Prefer input/output dependencies for new production content. */
   requiredVocabulary?: string[]
+  /** Slovenian words/chunks needed to understand the task prompt or audio. */
+  requiredInputVocabulary?: string[]
+  /** Slovenian words/forms needed to construct at least one valid answer. */
+  requiredOutputVocabulary?: string[]
+  /** Explicit learned chunks needed by the prompt or answer. Keys may be chunk:* or plain chunk text. */
+  requiredChunks?: string[]
   requiredGrammar?: string[]
+  /** Exact verb/conjugation learning-item keys, e.g. conjugation:biti:ti. */
+  requiredVerbForms?: string[]
+  /** Exact sentence-pattern learning-item keys, e.g. pattern:sem-location. */
+  requiredSentencePatterns?: string[]
   requiredLearningItems?: string[]
+  /** Marks migrated content whose answerability metadata is intentionally complete. */
+  requirementsComplete?: boolean
   requiredSkills?: Partial<Record<LearningSkill, number>>
   introducesVocabulary?: string[]
   introducesGrammar?: string[]
