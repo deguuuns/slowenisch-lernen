@@ -17,74 +17,33 @@ export type Vocabulary = {
   tags?: string[]
 }
 
-export type Sentence = {
-  id: string
-  sl: string
-  de: string
-  lesson: number
-  note?: string
-}
-
+export type Sentence = { id:string; sl:string; de:string; lesson:number; note?:string }
 export type ExerciseType = 'translate-de-sl' | 'fill' | 'choice' | 'free' | 'ending'
+export type Exercise = { id:string; lesson:number; type:ExerciseType; prompt:string; answer:string; alternatives?:string[]; hint?:string; explanation?:string; vocabularyIds?:string[]; grammarRuleIds?:string[]; evaluationMode?:EvaluationMode; generated?:boolean }
+export type Lesson = { id:number; title:string; subtitle:string; minutes:number; focus:string[]; grammar:{title:string;body:string;examples:string[]} }
+export type ConversationTurn = { speaker:'Tutor'|'Nutzer'; sl:string; de?:string }
+export type Conversation = { id:string; title:string; lesson:number; turns:ConversationTurn[] }
+export type Mistake = { key:string; count:number; lastSeen:number }
+export type ReviewItem = { key:string; status:LearningStatus; dueAt:number; intervalIndex:number }
 
-export type Exercise = {
-  id: string
-  lesson: number
-  type: ExerciseType
-  prompt: string
-  answer: string
-  alternatives?: string[]
-  hint?: string
-  explanation?: string
-  vocabularyIds?: string[]
-  grammarRuleIds?: string[]
-  evaluationMode?: EvaluationMode
-  generated?: boolean
-}
-
-export type Lesson = {
-  id: number
-  title: string
-  subtitle: string
-  minutes: number
-  focus: string[]
-  grammar: { title: string; body: string; examples: string[] }
-}
-
-export type ConversationTurn = {
-  speaker: 'Tutor' | 'Nutzer'
-  sl: string
-  de?: string
-}
-
-export type Conversation = {
-  id: string
-  title: string
-  lesson: number
-  turns: ConversationTurn[]
-}
-
-export type Mistake = {
-  key: string
-  count: number
-  lastSeen: number
-}
-
-export type ReviewItem = {
-  key: string
-  status: LearningStatus
-  dueAt: number
-  intervalIndex: number
+export type MasteryItem = {
+  key:string
+  kind:'vocabulary'|'grammar'|'skill'
+  score:number
+  attempts:number
+  correct:number
+  lastSeen:number
 }
 
 export type UserProgress = {
-  completedLessons: number[]
-  streak: number
-  introducedWords: string[]
-  wordsLearned: string[]
-  secureWords: string[]
-  mistakes: Mistake[]
-  reviews: ReviewItem[]
-  speakingMinutes: number
-  listeningMinutes: number
+  completedLessons:number[]
+  streak:number
+  introducedWords:string[]
+  wordsLearned:string[]
+  secureWords:string[]
+  mistakes:Mistake[]
+  reviews:ReviewItem[]
+  speakingMinutes:number
+  listeningMinutes:number
+  mastery:Record<string,MasteryItem>
 }
