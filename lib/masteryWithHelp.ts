@@ -48,6 +48,30 @@ function stageEvidence(exercise: Exercise, previous: LearningItemState | undefin
   return { receptiveMastery, recallMastery, productiveMastery }
 }
 
+function nextLocalDay(now: number) {
+  const date = new Date(now)
+  date.setHours(24, 0, 0, 0)
+  return date.getTime()
+}
+
+function applyTestTiming(next: LearningItemState, outcome: AssistedOutcome, now: number, activelyTested: boolean) {
+  if (!activelyTested) return next
+  const hintsUsed = Math.max(0, outcome.hintsUsed ?? 0)
+  if (outcome.correct && hintsUsed === 0) {
+    const cooldown = nextLocalDay(now)
+    return {
+      ...next,
+      lastSuccessfulTestAt: now,
+      activeTestCooldownUntil: cooldown,
+      nextDueAt: Math.max(next.nextDueAt ?? 0, cooldown),
+    }
+  }
+  if (!outcome.correct || hintsUsed > 0) {
+    return { ...next, activeTestCooldownUntil: undefined }
+  }
+  return next
+}
+
 function applyHelpPenalty(previous: LearningItemState | undefined, next: LearningItemState, hintsUsed: number, kind?: LearningItemKind) {
   if (!hintsUsed) {
     const adjusted = { ...next, kind: kind ?? next.kind, lastHintsUsed: 0 }
@@ -78,18 +102,25 @@ export function updateLearnerStateWithHelp(
   const next = updateLearnerState(progress, exercise, outcome, now)
   const items = { ...(next.learningItems ?? {}) }
   const hintsUsed = Math.max(0, outcome.hintsUsed ?? 0)
+  const contextOnly = new Set(exercise.contextOnlyTargets ?? [])
 
   const exerciseKey = `exercise:${exercise.id}`
   if (items[exerciseKey]) {
     const evidence = stageEvidence(exercise, previousItems[exerciseKey], items[exerciseKey], outcome)
-    items[exerciseKey] = applyHelpPenalty(previousItems[exerciseKey], { ...items[exerciseKey], ...evidence }, hintsUsed, 'exercise')
+    const adjusted = applyHelpPenalty(previousItems[exerciseKey], { ...items[exerciseKey], ...evidence }, hintsUsed, 'exercise')
+    items[exerciseKey] = applyTestTiming(adjusted, outcome, now, true)
   }
 
   for (const target of getLearningTargets(exercise)) {
     if (items[target]) {
       const evidence = stageEvidence(exercise, previousItems[target], items[target], outcome)
-      items[target] = applyHelpPenalty(previousItems[target], { ...items[target], ...evidence }, hintsUsed, kindForTarget(target))
+      const adjusted = applyHelpPenalty(previousItems[target], { ...items[target], ...evidence }, hintsUsed, kindForTarget(target))
+      items[target] = applyTestTiming(adjusted, outcome, now, !contextOnly.has(target))
     }
+  }
+
+  for (const target of contextOnly) {
+    if (items[target]) items[target] = { ...items[target], lastUsedAsContextAt: now }
   }
 
   return { ...next, learningItems: items }
