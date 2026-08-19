@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Brain, ChevronRight, Plus, Sparkles, UserRound, Users } from 'lucide-react'
+import { Brain, ChevronRight, Plus, RotateCcw, Sparkles, UserRound, Users, X } from 'lucide-react'
 import PlacementTest from '@/components/PlacementTest'
 import type { LearnerProfile, SelfAssessmentLevel, StartMode } from '@/types'
 import type { PlacementEvidence } from '@/lib/placement'
-import { createProfile, getActiveProfile, listProfiles, setActiveProfile } from '@/lib/profileStorage'
+import { overwriteProfileState } from '@/lib/cloudSync'
+import { createProfile, getActiveProfile, listProfiles, setActiveProfile, updateProfile } from '@/lib/profileStorage'
 import { defaultProgress, resetProgressForProfile, saveProgress } from '@/lib/storage'
 
 type Step = 'profiles' | 'name' | 'start' | 'self-assessment' | 'placement' | 'ready'
+type ResetMode = 'progress' | 'fresh' | null
 
 export default function OnboardingGate({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false)
@@ -17,13 +19,21 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
   const [step, setStep] = useState<Step>('profiles')
   const [name, setName] = useState('')
   const [selfAssessment, setSelfAssessment] = useState<SelfAssessmentLevel>('few-words')
+  const [resetMode, setResetMode] = useState<ResetMode>(null)
+  const [resetBusy, setResetBusy] = useState(false)
+  const [resetError, setResetError] = useState('')
 
   useEffect(() => {
     const found = listProfiles()
     const current = getActiveProfile()
     setProfiles(found)
     setActive(current)
-    setStep(current ? 'ready' : found.length ? 'profiles' : 'name')
+    if (current && !current.onboardingCompleted) {
+      setName(current.name)
+      setStep('start')
+    } else {
+      setStep(current ? 'ready' : found.length ? 'profiles' : 'name')
+    }
     setHydrated(true)
   }, [])
 
@@ -37,21 +47,40 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
   function chooseExisting(profile: LearnerProfile) {
     setActiveProfile(profile.id)
     setActive(profile)
-    setStep('ready')
+    setStep(profile.onboardingCompleted ? 'ready' : 'start')
     window.location.reload()
   }
 
-  function createAndOpen(nextMode: StartMode, options?: { level?: 'A1' | 'A2' | 'B1'; placement?: PlacementEvidence }) {
-    const profile = createProfile({
+  function createOrReuseProfile(nextMode: StartMode, options?: { level?: 'A1' | 'A2' | 'B1'; placement?: PlacementEvidence }) {
+    if (active && !active.onboardingCompleted) {
+      const profile: LearnerProfile = {
+        ...active,
+        startMode: nextMode,
+        selfAssessment: nextMode === 'self-assessment' ? selfAssessment : undefined,
+        approximateLevel: options?.level ?? 'A1',
+        onboardingCompleted: true,
+        placementCompleted: nextMode !== 'placement' || !!options?.placement,
+        updatedAt: Date.now(),
+      }
+      updateProfile(profile)
+      setActiveProfile(profile.id)
+      return profile
+    }
+
+    return createProfile({
       name,
       startMode: nextMode,
       selfAssessment: nextMode === 'self-assessment' ? selfAssessment : undefined,
       approximateLevel: options?.level,
       placementCompleted: nextMode !== 'placement' || !!options?.placement,
     })
+  }
+
+  function createAndOpen(nextMode: StartMode, options?: { level?: 'A1' | 'A2' | 'B1'; placement?: PlacementEvidence }) {
+    const profile = createOrReuseProfile(nextMode, options)
 
     if (nextMode === 'zero') {
-      resetProgressForProfile(profile.id)
+      resetProgressForProfile(profile.id, { silent: true })
     } else if (options?.placement) {
       const evidence = options.placement
       const skillSeed = evidence.level === 'A2' ? 14 : 5
@@ -88,11 +117,53 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
     window.location.reload()
   }
 
+  async function performReset() {
+    if (!active || !resetMode) return
+    setResetBusy(true)
+    setResetError('')
+    try {
+      const reset = resetProgressForProfile(active.id, { silent: true })
+      let profileToSync = active
+
+      if (resetMode === 'fresh') {
+        profileToSync = {
+          ...active,
+          startMode: 'zero',
+          selfAssessment: undefined,
+          approximateLevel: 'A1',
+          onboardingCompleted: false,
+          placementCompleted: false,
+          updatedAt: Date.now(),
+        }
+        updateProfile(profileToSync)
+        setActive(profileToSync)
+        setName(profileToSync.name)
+      }
+
+      await overwriteProfileState(profileToSync, reset)
+      window.dispatchEvent(new CustomEvent('slovensko-learning-reset', { detail: { profileId: active.id, mode: resetMode } }))
+      setProfiles(listProfiles())
+      setResetMode(null)
+
+      if (resetMode === 'fresh') {
+        setStep('start')
+      } else {
+        window.location.reload()
+      }
+    } catch (error) {
+      setResetError(error instanceof Error ? error.message : 'Der Lernstand konnte nicht vollständig zurückgesetzt werden.')
+    } finally {
+      setResetBusy(false)
+    }
+  }
+
   return <main className="min-h-screen bg-[#f7f8f4] px-4 py-8">
     <div className="mx-auto max-w-2xl">
       <div className="mb-7"><div className="text-xs font-black uppercase tracking-[0.28em] text-lime-700">Slovensko</div><h1 className="mt-2 text-3xl font-black">Willkommen. Wir bauen deinen Lernweg.</h1><p className="mt-3 text-slate-600">Du musst später nicht entscheiden, was du üben sollst. Sag uns nur, ob du wirklich bei null startest.</p></div>
 
-      {step === 'profiles' && <div className="space-y-4"><div className="card"><h2 className="text-xl font-black">Wer lernt heute?</h2><p className="mt-1 text-sm text-slate-500">Jedes Profil hat auf diesem Gerät einen getrennten Lernstand.</p><div className="mt-4 grid gap-2">{profiles.map(profile => <button key={profile.id} onClick={() => chooseExisting(profile)} className="flex min-h-14 items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left"><span><strong>{profile.name}</strong><span className="ml-2 text-sm text-slate-500">{profile.approximateLevel}</span></span><ChevronRight/></button>)}</div><button onClick={() => { setName(''); setStep('name') }} className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 font-bold text-white"><Plus size={18}/> Neues Lernprofil</button>{active && <button onClick={() => setStep('ready')} className="mt-3 block text-sm font-bold text-slate-500">Zurück zu {active.name}</button>}</div></div>}
+      {step === 'profiles' && <div className="space-y-4"><div className="card"><h2 className="text-xl font-black">Wer lernt heute?</h2><p className="mt-1 text-sm text-slate-500">Jedes Profil hat auf diesem Gerät einen getrennten Lernstand.</p><div className="mt-4 grid gap-2">{profiles.map(profile => <button key={profile.id} onClick={() => chooseExisting(profile)} className="flex min-h-14 items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left"><span><strong>{profile.name}</strong><span className="ml-2 text-sm text-slate-500">{profile.approximateLevel}</span></span><ChevronRight/></button>)}</div><button onClick={() => { setName(''); setActive(null); setStep('name') }} className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 font-bold text-white"><Plus size={18}/> Neues Lernprofil</button>{active && <button onClick={() => setStep('ready')} className="mt-3 block text-sm font-bold text-slate-500">Zurück zu {active.name}</button>}</div>
+        {active && <div className="card border border-amber-200"><div className="flex items-center gap-2"><RotateCcw size={18} className="text-amber-700"/><h3 className="font-black">Anfängerpfad testen</h3></div><p className="mt-2 text-sm text-slate-600">Setze nur den Lernfortschritt dieses Profils zurück. Konto, Login und Profilname bleiben erhalten.</p><button onClick={() => setResetMode('progress')} className="mt-4 min-h-11 w-full rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 font-bold text-amber-900">Lernstand zurücksetzen</button><button onClick={() => setResetMode('fresh')} className="mt-2 min-h-11 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600">Als komplett neuer Lerner starten</button></div>}
+      </div>}
 
       {step === 'name' && <div className="card"><div className="flex items-center gap-2"><UserRound/><h2 className="text-xl font-black">Dein Lernprofil</h2></div><p className="mt-2 text-sm text-slate-500">Auf einem Gerät können mehrere Personen getrennt lernen.</p><label className="mt-5 block text-sm font-bold">Name oder Profilname</label><input autoFocus value={name} onChange={event => setName(event.target.value)} placeholder="z. B. Dejan" className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500"/><button disabled={!name.trim()} onClick={() => setStep('start')} className="btn-primary mt-5 w-full justify-center disabled:opacity-40">Weiter <ChevronRight size={18}/></button>{profiles.length > 0 && <button onClick={() => setStep('profiles')} className="mt-3 w-full text-sm font-bold text-slate-500">Zurück zu den Profilen</button>}</div>}
 
@@ -102,6 +173,8 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
 
       {step === 'placement' && <PlacementTest onComplete={result => createAndOpen('placement', { level: result.level, placement: result })}/>} 
     </div>
+
+    {resetMode && active && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl"><div className="flex items-start justify-between gap-4"><div><div className="text-xs font-black uppercase tracking-[0.2em] text-amber-700">Sicherheitsabfrage</div><h2 className="mt-1 text-2xl font-black">{resetMode === 'fresh' ? 'Komplett neu starten?' : 'Lernstand wirklich zurücksetzen?'}</h2></div><button disabled={resetBusy} onClick={() => setResetMode(null)} className="rounded-xl p-2 text-slate-400"><X/></button></div><p className="mt-3 text-sm leading-6 text-slate-600">{resetMode === 'fresh' ? 'Lernfortschritt, Mastery, Wiederholungen und Session-History werden gelöscht. Danach erscheint die Startauswahl erneut. Dein Konto und der Profilname bleiben erhalten.' : 'Lernfortschritt, Mastery, Wiederholungen und Session-History dieses Profils werden gelöscht. Konto, Login und Profilname bleiben erhalten.'}</p>{resetError && <div className="mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-800">{resetError}</div>}<div className="mt-6 grid gap-2"><button disabled={resetBusy} onClick={() => void performReset()} className="min-h-12 rounded-2xl bg-red-600 px-4 py-3 font-black text-white disabled:opacity-50">{resetBusy ? 'Wird zurückgesetzt …' : resetMode === 'fresh' ? 'Als neuer Lerner starten' : 'Lernstand zurücksetzen'}</button><button disabled={resetBusy} onClick={() => setResetMode(null)} className="min-h-11 rounded-2xl border border-slate-200 px-4 py-3 font-bold text-slate-600">Abbrechen</button></div></div></div>}
   </main>
 }
 
