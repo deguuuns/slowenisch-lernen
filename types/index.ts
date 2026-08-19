@@ -70,6 +70,7 @@ export type ReviewItem = {
 export type UserProgress = {
   completedLessons: number[]
   streak: number
+  introducedWords: string[]
   wordsLearned: string[]
   secureWords: string[]
   mistakes: Mistake[]
