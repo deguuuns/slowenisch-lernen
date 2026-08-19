@@ -1,6 +1,7 @@
 import { getCurrentBeginnerPhase } from '../data/beginnerCurriculum'
 import type { Exercise, KnowledgeStage, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 import type { SessionState } from './learningEngine'
+import { evaluateExerciseAnswerability } from './answerability'
 import { isExerciseUnlocked } from './prerequisites'
 
 const RECENT_CONTENT_WINDOW = 8
@@ -28,11 +29,12 @@ function meaningfulLearningItemCount(progress: UserProgress) {
 
 /**
  * Curriculum safety follows actual knowledge, not only the profile's original start mode.
- * This is important after an explicit progress reset: an old self-assessment profile with
- * empty learning data must behave like a real zero beginner until evidence exists again.
+ * An explicit reset permanently re-enables the modern curriculum gate for that learning
+ * history so stale self-assessment/legacy content cannot leak back in after a few intros.
  */
 export function requiresCurriculumSafety(progress: UserProgress, profile: LearnerProfile | null) {
   if (profile?.startMode === 'zero') return true
+  if ((progress.resetGeneration ?? 0) > 0 || progress.progressResetAt !== undefined) return true
   const introducedCount = (progress.introducedVocabulary?.length ?? 0) + (progress.introducedGrammar?.length ?? 0)
   return introducedCount < 4 && meaningfulLearningItemCount(progress) < 3
 }
@@ -69,7 +71,12 @@ function isProductive(exercise: Exercise) {
 function hasExplicitProductionDependencies(exercise: Exercise) {
   return !!(
     exercise.requiredVocabulary?.length ||
+    exercise.requiredInputVocabulary?.length ||
+    exercise.requiredOutputVocabulary?.length ||
+    exercise.requiredChunks?.length ||
     exercise.requiredGrammar?.length ||
+    exercise.requiredVerbForms?.length ||
+    exercise.requiredSentencePatterns?.length ||
     exercise.requiredLearningItems?.length
   )
 }
@@ -130,7 +137,8 @@ function requiredGrammarFor(exercise: Exercise) {
 function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
   const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
   const grammar = new Set(progress.introducedGrammar ?? [])
-  if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
+  const allVocabulary = [...(exercise.requiredVocabulary ?? []), ...(exercise.requiredInputVocabulary ?? []), ...(exercise.requiredOutputVocabulary ?? [])]
+  if (allVocabulary.some(item => !vocabulary.has(normalizeKey(item)))) return false
   if (exercise.type !== 'introduce' && requiredGrammarFor(exercise).some(item => !grammar.has(item))) return false
   if (exercise.requiredLearningItems?.some(key => (progress.learningItems?.[key]?.mastery ?? 0) < 0.5)) return false
   return true
@@ -205,9 +213,15 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
   const strict = requiresCurriculumSafety(progress, profile)
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
   if (!curriculumAllows(exercise, allExercises, progress, session, profile)) return false
+
+  // Single authoritative answerability gate. Every normal path and fallback path reaches
+  // this function, so blocked legacy/production content cannot be reintroduced by scoring.
+  const answerability = evaluateExerciseAnswerability(exercise, progress)
+  if (!answerability.eligible) return false
+
   if (strict && !exercise.contentKey) return false
-  if (strict && exercise.type === 'introduce' && !hasCompleteIntroductionMetadata(exercise)) return false
-  if (strict && isProductive(exercise) && !hasExplicitProductionDependencies(exercise)) return false
+  if (exercise.type === 'introduce' && !hasCompleteIntroductionMetadata(exercise)) return false
+  if (isProductive(exercise) && !hasExplicitProductionDependencies(exercise)) return false
   if (wasCorrectInThisSession(exercise, session)) return false
   if (isSecureAndNotDue(exercise, progress, now)) return false
   if (!prerequisitesAreKnown(exercise, progress)) return false
@@ -216,7 +230,8 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
 
   if (isProductive(exercise)) {
     const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
-    if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
+    const allVocabulary = [...(exercise.requiredVocabulary ?? []), ...(exercise.requiredInputVocabulary ?? []), ...(exercise.requiredOutputVocabulary ?? [])]
+    if (allVocabulary.some(item => !vocabulary.has(normalizeKey(item)))) return false
     const targetStates = activeTargetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
     if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer' || strict) {
       if (!targetStates.length) return false
@@ -224,6 +239,10 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
     }
   }
   return true
+}
+
+export function getExerciseAnswerabilityDiagnostics(exercise: Exercise, progress: UserProgress) {
+  return evaluateExerciseAnswerability(exercise, progress)
 }
 
 export function isEligibleForAdaptiveSession(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now = Date.now(), allExercises: Exercise[] = [exercise]) {
