@@ -36,14 +36,15 @@ function completeThroughPhase(maxPhase: number) {
 }
 
 test('phase 1 completion advances to phase 2', () => {
-  assert.equal(getCurrentBeginnerPhase(completeThroughPhase(1))?.id, 2)
+  assert.equal(getCurrentBeginnerPhase(completeThroughPhase(1)).id, 2)
 })
 
 test('phase 2 completion resolves continuation to phase 3', () => {
   const progress = completeThroughPhase(2)
   const next = resolveLearningContinuation(progress, 2)
   assert.equal(next.type, 'advance-curriculum')
-  assert.equal(next.phase, 3)
+  if (next.type !== 'advance-curriculum') return
+  assert.equal(next.toPhase, 3)
   assert.match(next.title, /Mini-Dialog/)
 })
 
@@ -51,13 +52,13 @@ test('introduction alone is not enough to complete a phase', () => {
   const progress = baseProgress()
   progress.introducedVocabulary = [...beginnerCurriculum[0].newItems]
   progress.learningItems = Object.fromEntries(beginnerCurriculum[0].newItems.map(item => [`vocab:${item}`, { ...recognised(item), attempts:0, correctCount:0, mastery:0.08, receptiveMastery:0, stage:'introduced' as const }]))
-  assert.equal(getCurrentBeginnerPhase(progress)?.id, 1)
+  assert.equal(getCurrentBeginnerPhase(progress).id, 1)
 })
 
-test('complete beginner foundation does not fall back to phase 10', () => {
+test('complete beginner foundation advances to explicit A1 stage instead of phase 10 loop', () => {
   const progress = completeThroughPhase(10)
   assert.equal(isBeginnerFoundationComplete(progress), true)
-  assert.equal(getCurrentBeginnerPhase(progress), null)
+  assert.equal(getCurrentBeginnerPhase(progress).id, 11)
   assert.equal(resolveLearningContinuation(progress, 10).type, 'next-course-stage')
 })
 
