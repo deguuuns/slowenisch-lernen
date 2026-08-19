@@ -26,6 +26,21 @@ export type Conversation = { id:string; title:string; lesson:number; turns:Conve
 export type Mistake = { key:string; count:number; lastSeen:number }
 export type ReviewItem = { key:string; status:LearningStatus; dueAt:number; intervalIndex:number }
 
+export type AttemptSignal = {
+  exerciseId:string
+  correct:boolean
+  responseMs:number
+  hintsUsed:number
+  occurredAt:number
+}
+
+export type TransferItem = {
+  sourceExerciseId:string
+  grammarRuleId:string
+  dueAfter:number
+  createdAt:number
+}
+
 export type MasteryItem = {
   key:string
   kind:'vocabulary'|'grammar'|'skill'
@@ -46,4 +61,6 @@ export type UserProgress = {
   speakingMinutes:number
   listeningMinutes:number
   mastery:Record<string,MasteryItem>
+  recentAttempts:AttemptSignal[]
+  transferQueue:TransferItem[]
 }
