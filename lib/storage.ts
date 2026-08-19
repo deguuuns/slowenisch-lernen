@@ -10,6 +10,7 @@ const SCHEMA_VERSION = 4
 
 export const defaultProgress: UserProgress = {
   schemaVersion: SCHEMA_VERSION,
+  resetGeneration: 0,
   completedLessons: [],
   streak: 1,
   wordsLearned: [],
@@ -41,6 +42,8 @@ function migrateProgress(input: Partial<UserProgress> | null | undefined): UserP
     ...defaultProgress,
     ...(input ?? {}),
     schemaVersion: SCHEMA_VERSION,
+    resetGeneration: Number.isFinite(input?.resetGeneration) ? Number(input?.resetGeneration) : 0,
+    progressResetAt: Number.isFinite(input?.progressResetAt) ? Number(input?.progressResetAt) : undefined,
     completedLessons: Array.isArray(input?.completedLessons) ? input.completedLessons : [],
     wordsLearned: Array.isArray(input?.wordsLearned) ? input.wordsLearned : [],
     secureWords: Array.isArray(input?.secureWords) ? input.secureWords : [],
@@ -80,7 +83,7 @@ function readStoredProgress(profileId = activeProfileId()) {
 }
 
 export function loadProgress(profileId?: string): UserProgress {
-  if (typeof window === 'undefined') return defaultProgress
+  if (typeof window === 'undefined') return { ...defaultProgress }
   try {
     const id = profileId ?? activeProfileId()
     const raw = readStoredProgress(id)
@@ -104,8 +107,18 @@ export function saveProgress(progress: UserProgress, profileId?: string, options
   }
 }
 
-export function resetProgressForProfile(profileId: string) {
-  if (typeof window !== 'undefined') localStorage.setItem(profileKey(profileId), JSON.stringify(defaultProgress))
+export function createResetProgress(previous?: UserProgress, now = Date.now()): UserProgress {
+  return {
+    ...defaultProgress,
+    resetGeneration: (previous?.resetGeneration ?? 0) + 1,
+    progressResetAt: now,
+  }
+}
+
+export function resetProgressForProfile(profileId: string, options?: { silent?: boolean; now?: number }) {
+  const reset = createResetProgress(loadProgress(profileId), options?.now ?? Date.now())
+  saveProgress(reset, profileId, { silent: options?.silent ?? true })
+  return reset
 }
 
 export function scheduleReview(items: ReviewItem[], key: string, correct: boolean, responseMs?: number): ReviewItem[] {
