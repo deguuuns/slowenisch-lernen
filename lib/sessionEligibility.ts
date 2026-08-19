@@ -3,6 +3,7 @@ import type { Exercise, KnowledgeStage, LearnerProfile, LearningItemState, UserP
 import type { SessionState } from './learningEngine'
 import { evaluateExerciseAnswerability } from './answerability'
 import { isExerciseUnlocked } from './prerequisites'
+import { consecutiveIntroductionCount } from './sessionQuality'
 
 const RECENT_CONTENT_WINDOW = 8
 const CROSS_SESSION_COOLDOWN_MS = 24 * 60 * 60_000
@@ -184,6 +185,20 @@ function newItemBudgetReached(exercise: Exercise, session: SessionState) {
   return session.history.filter(item => item.learningPhase === 'new').length >= max
 }
 
+/**
+ * New teaching cards should be followed by active processing whenever the already
+ * introduced material has a safe exercise available. This prevents five-card
+ * "listen and continue" chains while keeping the answerability gate authoritative.
+ */
+function hasActivePracticeForCurrentPhase(exercises: Exercise[], progress: UserProgress, phase: number) {
+  return exercises.some(candidate => {
+    if (candidate.curriculumPhase !== phase || candidate.type === 'introduce') return false
+    if (!prerequisitesAreKnown(candidate, progress)) return false
+    if (!targetStageSatisfied(candidate, progress)) return false
+    return evaluateExerciseAnswerability(candidate, progress).eligible
+  })
+}
+
 function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
   const hasCurriculumContent = exercises.some(item => item.curriculumPhase !== undefined)
   if (!hasCurriculumContent) return !requiresCurriculumSafety(progress, profile)
@@ -201,9 +216,17 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
   if (introductionsPending) {
     if (exercise.type === 'introduce') {
       if (newItemBudgetReached(exercise, session)) return false
+      const introStreak = consecutiveIntroductionCount(session.history)
+      // One passive teaching card should normally be followed by active practice.
+      // Two passive cards are the absolute ceiling; if content cannot support practice,
+      // ending the session is preferable to an endless introduction slideshow.
+      if (introStreak >= 2) return false
+      if (introStreak >= 1 && hasActivePracticeForCurrentPhase(exercises, progress, phase)) return false
       return isNextIntroduction(exercise, exercises, progress, phase)
     }
-    if (!newItemBudgetReached(exercise, session)) return false
+    // Unlike the old implementation, active practice is allowed before all new items
+    // in the phase have been introduced. The answerability gate below decides whether
+    // the already introduced material is actually ready for this concrete exercise.
     return true
   }
   return true
