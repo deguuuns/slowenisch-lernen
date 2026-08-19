@@ -2,7 +2,8 @@ import { LearningStatus, ReviewItem } from '@/types'
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
-const BASE_INTERVALS = [10 * MINUTE, DAY, 3 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 60 * DAY]
+const REPAIR_INTERVAL = 10 * MINUTE
+const SUCCESS_INTERVALS = [DAY, 3 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 60 * DAY]
 
 export type ReviewResult = {
   correct: boolean
@@ -39,7 +40,7 @@ export function scheduleReviewItem(current: ReviewItem | undefined, key: string,
     return {
       key,
       status: incorrectCount >= 2 ? 'unsicher' : 'neu',
-      dueAt: now + BASE_INTERVALS[0],
+      dueAt: now + REPAIR_INTERVAL,
       intervalIndex: 0,
       correctCount,
       incorrectCount,
@@ -51,9 +52,12 @@ export function scheduleReviewItem(current: ReviewItem | undefined, key: string,
     }
   }
 
-  const nextIndex = Math.min((current?.intervalIndex ?? -1) + 1, BASE_INTERVALS.length - 1)
+  // A clean success is never scheduled again after only a few minutes. The first
+  // normal review is about a day later; 10 minutes is reserved for repair after errors.
+  const previousSuccessfulIndex = current && current.correctCount && current.correctCount > 0 ? current.intervalIndex : -1
+  const nextIndex = Math.min(previousSuccessfulIndex + 1, SUCCESS_INTERVALS.length - 1)
   const multiplier = intervalMultiplier(result, current)
-  const dueAt = now + Math.round(BASE_INTERVALS[nextIndex] * multiplier)
+  const dueAt = now + Math.round(SUCCESS_INTERVALS[nextIndex] * multiplier)
   const status: LearningStatus = nextIndex >= 4 ? 'sicher' : nextIndex >= 2 ? 'gelernt' : 'unsicher'
 
   return {
