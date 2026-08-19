@@ -5,9 +5,10 @@ Die App behält den linearen Kurs als sicheren Lernpfad, legt darüber aber eine
 ## Priorität
 
 1. Fällige Spaced-Repetition-Aufgaben
-2. Schwache Mastery-Werte mit mindestens zwei Versuchen
-3. Aktive Produktion, wenn Erkennen deutlich stärker ist
-4. Neuer Stoff aus der aktuellen Lektion
+2. Verfügbare Grammatik-Transferaufgaben nach Fehlern
+3. Schwache Mastery-Werte mit mindestens zwei Versuchen
+4. Aktive Produktion, wenn Erkennen deutlich stärker ist
+5. Neuer Stoff aus der aktuellen Lektion
 
 ## Learner Model
 
@@ -21,6 +22,8 @@ Mastery wird getrennt gespeichert für:
 
 Die Curriculum-Engine liest diese Werte nur. Die Aktualisierung erfolgt weiterhin zentral in der Progress-/Mastery-Logik.
 
+Zusätzliche Lernsignale sind Antwortzeit und Hilfenutzung. Eine richtige, aber sehr langsame oder stark unterstützte Antwort wird daher schwächer gewichtet als eine sichere, schnelle Antwort ohne Hilfe.
+
 ## Sicherheitsregeln für den Lernfluss
 
 - Adaptiv bedeutet nicht zufällig.
@@ -29,10 +32,14 @@ Die Curriculum-Engine liest diese Werte nur. Die Aktualisierung erfolgt weiterhi
 - Ein einzelner Fehler reicht nicht, um einen Inhalt dauerhaft als schwach zu klassifizieren.
 - Das Curriculum darf die Answer-Evaluation nicht umgehen.
 - Bereits eingeführte Wörter werden nicht erneut als Einführungskarte gezeigt.
+- Transferaufgaben verwenden nach Möglichkeit einen anderen Satz mit derselben Grammatikregel und werden nach erfolgreichem Transfer entfernt.
+
+## Deployment-Validierung
+
+Preview-Builds müssen immer vom aktuellen Branch-Head erzeugt werden. Das erneute Deployen eines älteren fehlgeschlagenen Deployments baut denselben alten Commit erneut und validiert neue Fixes nicht.
 
 ## Nächste Ausbaustufe
 
-- Antwortzeit und Hilfenutzung als zusätzliche Signale
-- verzögerte Transferaufgaben nach Grammatikfehlern
 - skill-spezifische Hör- und Sprech-Mastery
 - adaptive Sitzungsdauer anhand Tagesziel und Belastung
+- Ausbau der Übungsvielfalt vor dem größeren Wortschatzimport
