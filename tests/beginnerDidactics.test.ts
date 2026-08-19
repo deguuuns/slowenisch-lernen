@@ -38,7 +38,7 @@ test('after Živjo introduction the next new word is introduced before recogniti
   assert.deepEqual(eligible.map(item => item.id), ['hvala'])
 })
 
-test('recall is stage-locked before recognition and then deferred by the daily cooldown', () => {
+test('recall is stage-locked before recognition and then deferred until the real review due date', () => {
   let progress = registerIntroductions(emptyProgress(), byId('zivjo'))
   progress = registerIntroductions(progress, byId('hvala'))
   progress = registerIntroductions(progress, byId('prosim'))
@@ -52,11 +52,11 @@ test('recall is stage-locked before recognition and then deferred by the daily c
   progress = updateLearnerStateWithHelp(progress, recognition, { correct:true, responseMs:1500, hintsUsed:0 }, now)
   const state = progress.learningItems?.['vocab:hvala']
   assert.equal(state?.stage, 'recognition')
-  // Recognition has unlocked the next stage conceptually, but a clean success should
-  // not be actively tested again on the same day.
   assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now + 60 * 60_000, all), false)
   assert.ok(state?.activeTestCooldownUntil)
-  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, state!.activeTestCooldownUntil! + 1, all), true)
+  assert.ok(state?.nextDueAt)
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, state!.activeTestCooldownUntil! + 1, all), false)
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, state!.nextDueAt! + 1, all), true)
 })
 
 test('beginner phase does not advance merely because words were shown', () => {
