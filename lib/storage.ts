@@ -1,14 +1,26 @@
 'use client'
 
-import { AttemptSignal, Exercise, MasteryItem, Mistake, ReviewItem, TransferItem, UserProgress } from '@/types'
+import { AttemptSignal, Exercise, LearnerPreferences, MasteryItem, Mistake, ReviewItem, TransferItem, UserProgress } from '@/types'
 
 const KEY = 'slovensko-progress-v1'
 
-export const defaultProgress: UserProgress = { completedLessons:[], streak:1, introducedWords:[], wordsLearned:[], secureWords:[], mistakes:[], reviews:[], speakingMinutes:0, listeningMinutes:0, mastery:{}, recentAttempts:[], transferQueue:[] }
+export const defaultPreferences:LearnerPreferences={onboardingCompleted:false,nativeLanguage:'de',targetLevel:'A1',dailyGoalMinutes:10,pace:'normal',audioSpeed:'normal'}
+export const defaultProgress: UserProgress = { completedLessons:[], streak:1, introducedWords:[], wordsLearned:[], secureWords:[], mistakes:[], reviews:[], speakingMinutes:0, listeningMinutes:0, mastery:{}, recentAttempts:[], transferQueue:[], preferences:defaultPreferences }
 
 export function loadProgress(): UserProgress {
   if (typeof window === 'undefined') return defaultProgress
-  try { const raw=localStorage.getItem(KEY); const parsed=raw?JSON.parse(raw):{}; return raw ? { ...defaultProgress, ...parsed, mastery:{...(parsed.mastery||{})}, recentAttempts:parsed.recentAttempts||[], transferQueue:parsed.transferQueue||[] } : defaultProgress } catch { return defaultProgress }
+  try {
+    const raw=localStorage.getItem(KEY)
+    const parsed=raw?JSON.parse(raw):{}
+    return raw ? {
+      ...defaultProgress,
+      ...parsed,
+      mastery:{...(parsed.mastery||{})},
+      recentAttempts:parsed.recentAttempts||[],
+      transferQueue:parsed.transferQueue||[],
+      preferences:{...defaultPreferences,...(parsed.preferences||{})}
+    } : defaultProgress
+  } catch { return defaultProgress }
 }
 export function saveProgress(progress: UserProgress) { if(typeof window!=='undefined') localStorage.setItem(KEY,JSON.stringify(progress)) }
 
@@ -46,5 +58,5 @@ export function queueTransfers(items:TransferItem[],ex:Exercise,correct:boolean,
   }
   if(correct||!ex.grammarRuleIds?.length) return items
   const created=ex.grammarRuleIds.map(grammarRuleId=>({sourceExerciseId:ex.id,grammarRuleId,dueAfter:attemptCount+2+Math.floor(Math.random()*2),createdAt:Date.now()}))
-  const map=new Map(items.map(x=>[`${x.sourceExerciseId}:${x.grammarRuleId}`,x])); created.forEach(x=>map.set(`${x.sourceExerciseId}:${x.grammarRuleId}`,x)); return [...map.values()]
+  const map=new Map(items.map(x=>[`${x.sourceExerciseId}:${x.grammarRuleId}`,x])); created.forEach(x=>map.set(`${x.sourceExerciseId}:${x.grammarRuleId}`,x)); return Array.from(map.values())
 }
