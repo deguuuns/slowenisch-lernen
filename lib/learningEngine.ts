@@ -41,10 +41,11 @@ export type ExerciseOutcome = {
 
 const ALL_SKILLS: LearningSkill[] = ['lesen', 'hören', 'schreiben', 'sprechen', 'grammatik', 'wortschatz']
 const IMMEDIATE_COOLDOWN = 4
-const CONTENT_COOLDOWN = 7
-const TYPE_COOLDOWN = 2
+const CONTENT_COOLDOWN = 8
+const TYPE_COOLDOWN = 3
 const GRAMMAR_PRESENTATION_COOLDOWN = 2
-const TARGET_REVISIT_GAP = 2
+const TARGET_REVISIT_GAP = 3
+const PATTERN_COOLDOWN = 5
 
 export function getLearningTargets(exercise: Exercise): string[] {
   if (exercise.learningTargets?.length) return exercise.learningTargets
@@ -128,8 +129,8 @@ function skillBalanceBonus(exercise: Exercise, progress: UserProgress, session: 
   let bonus = 0
   for (const skill of exercise.skills ?? []) {
     if (weakestLongTerm.includes(skill)) bonus += 8
-    if (counts[skill] === minCount) bonus += 7
-    if (counts[skill] >= 3) bonus -= 8
+    if (counts[skill] === minCount) bonus += 8
+    if (counts[skill] >= 3) bonus -= 12
   }
   return bonus
 }
@@ -142,26 +143,59 @@ function diversityAdjustment(exercise: Exercise, session: SessionState) {
 
   const contentKey = exercise.contentKey ?? exercise.answer
   if (recent.slice(-CONTENT_COOLDOWN).some(item => item.contentKey === contentKey)) {
-    score -= 70
+    score -= 90
     penalties.push('gleicher Satz/Inhalt war kürzlich bereits dran')
   }
 
-  if (recent.slice(-TYPE_COOLDOWN).some(item => item.exerciseType === exercise.type)) {
-    score -= 22
+  const sameTypeCount = recent.slice(-TYPE_COOLDOWN).filter(item => item.exerciseType === exercise.type).length
+  if (sameTypeCount >= 2) {
+    score -= 40
+    penalties.push('gleicher Aufgabentyp kam zuletzt mehrfach vor')
+  } else if (sameTypeCount === 1) {
+    score -= 18
     penalties.push('gleicher Aufgabentyp war gerade dran')
-  } else if (recent.length && recent[recent.length - 1]?.exerciseType !== exercise.type) {
-    score += 8
+  } else if (recent.length) {
+    score += 10
     reasons.push('abwechslungsreicher Aufgabentyp')
   }
 
   const modality = exercise.modality ?? (exercise.type.startsWith('listen-') ? 'listening' : exercise.type === 'speak-answer' ? 'speaking' : exercise.type === 'choice' ? 'choice' : 'text')
   const recentModalities = recent.slice(-4).map(item => item.modality)
-  if (recentModalities.filter(item => item === modality).length >= 2) {
-    score -= 18
+  const modalityCount = recentModalities.filter(item => item === modality).length
+  if (modalityCount >= 3) {
+    score -= 38
+    penalties.push('Interaktionsform kam zu oft hintereinander')
+  } else if (modalityCount >= 2) {
+    score -= 22
     penalties.push('diese Interaktionsform kam zuletzt häufig vor')
   } else if (!recentModalities.includes(modality)) {
-    score += 10
+    score += 12
     reasons.push('Interaktionsform ausgleichen')
+  }
+
+  if (exercise.visualType) {
+    const visualRecently = recent.slice(-4).some(item => !!item.visualType)
+    if (!visualRecently) {
+      score += 14
+      reasons.push('visueller Lernanker sorgt für Abwechslung')
+    } else if (recent.slice(-2).every(item => !!item.visualType)) {
+      score -= 12
+      penalties.push('visuelle Aufgaben kurz mit anderer Form abwechseln')
+    }
+  }
+
+  if (exercise.sentencePatternKey) {
+    const patternCount = recent.slice(-PATTERN_COOLDOWN).filter(item => item.sentencePatternKey === exercise.sentencePatternKey).length
+    if (patternCount >= 2) {
+      score -= 34
+      penalties.push('gleiches Satzmuster wurde zuletzt mehrfach verwendet')
+    } else if (patternCount === 1) {
+      score -= 12
+      penalties.push('gleiches Satzmuster kurz entzerren')
+    } else if (recent.length >= 2) {
+      score += 6
+      reasons.push('neues Satzmuster in dieser Session')
+    }
   }
 
   if (exercise.grammarTag && recent.slice(-GRAMMAR_PRESENTATION_COOLDOWN).some(item => item.grammarTag === exercise.grammarTag)) {
@@ -170,7 +204,7 @@ function diversityAdjustment(exercise: Exercise, session: SessionState) {
   }
 
   if (exercise.contextTag && recent.slice(-3).some(item => item.contextTag === exercise.contextTag)) {
-    score -= 10
+    score -= 14
     penalties.push('gleichen Alltagskontext nicht direkt wiederholen')
   }
 
@@ -226,9 +260,9 @@ export function scoreExerciseCandidate(
       const days = overdueMs / 86_400_000
       breakdown.urgency += 38 + Math.min(30, days * 5)
       reasons.push('überfällig')
-    } else if (state.nextDueAt - now < 6 * 60 * 60_000) {
+    } else if (state.nextDueAt - now < 6 * 60 * 60_000 && state.incorrectStreak > 0) {
       breakdown.urgency += 12
-      reasons.push('kurz vor dem Vergessen')
+      reasons.push('Reparatur-Wiederholung nach Unsicherheit')
     }
   }
 
@@ -273,7 +307,7 @@ export function scoreExerciseCandidate(
   }
 
   if (targets.some(target => targetWasRecentlySeen(target, session))) {
-    breakdown.diversity -= 6
+    breakdown.diversity -= 10
     penalties.push('Lernziel kurz entzerren')
   }
 
@@ -302,6 +336,15 @@ export function scoreExerciseCandidate(
   }
 }
 
+function seededUnit(seedText: string) {
+  let hash = 2166136261
+  for (let i = 0; i < seedText.length; i += 1) {
+    hash ^= seedText.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0) / 4_294_967_296
+}
+
 export function selectNextExercise(
   progress: UserProgress,
   availableContent: Exercise[],
@@ -312,9 +355,26 @@ export function selectNextExercise(
   const ranked = availableContent
     .filter(exercise => exercise.evaluationMode !== 'free' || session.answered >= 4)
     .map(exercise => scoreExerciseCandidate(exercise, progress, session, now))
+    .filter(candidate => candidate.score > -1_000)
     .sort((a, b) => b.score - a.score)
 
-  return ranked.find(candidate => candidate.score > -1_000) ?? ranked[0] ?? null
+  if (!ranked.length) return null
+  const best = ranked[0].score
+  const top = ranked.filter(candidate => candidate.score >= best - 12).slice(0, 5)
+  if (top.length === 1) return top[0]
+
+  // Stable for a rendered step, different across sessions/steps. This gives variety
+  // without letting a React re-render silently replace the current exercise.
+  const seed = `${session.startedAt}:${session.answered}:${top.map(item => item.exercise.id).join('|')}`
+  const unit = seededUnit(seed)
+  const weights = top.map(item => Math.max(1, item.score - (best - 14)))
+  const total = weights.reduce((sum, value) => sum + value, 0)
+  let cursor = unit * total
+  for (let index = 0; index < top.length; index += 1) {
+    cursor -= weights[index]
+    if (cursor <= 0) return top[index]
+  }
+  return top[0]
 }
 
 export function analyzeContentCoverage(exercises: Exercise[]) {
@@ -336,8 +396,8 @@ export function analyzeContentCoverage(exercises: Exercise[]) {
 
 function computeNextDueAt(correct: boolean, mastery: number, now: number) {
   if (!correct) return now + 10 * 60_000
-  const hours = mastery >= 0.85 ? 14 * 24 : mastery >= 0.65 ? 4 * 24 : mastery >= 0.4 ? 24 : 6
-  return now + hours * 60 * 60_000
+  const days = mastery >= 0.85 ? 30 : mastery >= 0.65 ? 7 : mastery >= 0.4 ? 3 : 1
+  return now + days * 86_400_000
 }
 
 export function updateLearnerState(
@@ -431,6 +491,8 @@ export function registerSessionOutcome(
     grammarTag: exercise.grammarTag,
     contentKey: exercise.contentKey ?? exercise.answer,
     contextTag: exercise.contextTag,
+    sentencePatternKey: exercise.sentencePatternKey,
+    visualType: exercise.visualType,
   }
   return {
     ...session,
