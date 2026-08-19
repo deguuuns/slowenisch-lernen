@@ -1,4 +1,5 @@
 export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher'
+export type EvaluationMode = 'exact' | 'acceptedVariants' | 'grammar' | 'semantic' | 'open'
 
 export type Vocabulary = {
   id: string
@@ -9,6 +10,11 @@ export type Vocabulary = {
   example: string
   exampleDe: string
   lesson: number
+  lemma?: string
+  gender?: 'masculine' | 'feminine' | 'neuter'
+  cefrLevel?: 'A1' | 'A2' | 'B1' | 'B2' | 'C1'
+  pronunciation?: string
+  tags?: string[]
 }
 
 export type Sentence = {
@@ -30,6 +36,10 @@ export type Exercise = {
   alternatives?: string[]
   hint?: string
   explanation?: string
+  vocabularyIds?: string[]
+  grammarRuleIds?: string[]
+  evaluationMode?: EvaluationMode
+  generated?: boolean
 }
 
 export type Lesson = {
