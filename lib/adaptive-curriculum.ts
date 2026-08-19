@@ -1,6 +1,6 @@
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { Exercise, MasteryItem, UserProgress, Vocabulary } from '@/types'
-import { injectDueTransfer } from '@/lib/transfer-practice'
+import { buildTransferExercise, injectDueTransfer } from '@/lib/transfer-practice'
 
 export type AdaptiveActionKind='review'|'strengthen'|'new-content'|'speaking'
 export type AdaptiveRecommendation={kind:AdaptiveActionKind;title:string;reason:string;priority:number;lessonId?:number;focusKeys:string[];exerciseIds:string[]}
@@ -13,7 +13,9 @@ function fluencyConcern(progress:UserProgress){const recent=(progress.recentAtte
 export function buildAdaptiveRecommendation(progress:UserProgress,rawExercises:Exercise[],vocabulary:Vocabulary[],activeLesson:number,now=Date.now()):AdaptiveRecommendation{
  const exercises=enrichExercises(rawExercises)
  const dueIds=progress.reviews.filter(r=>r.dueAt<=now).map(r=>r.key);if(dueIds.length)return {kind:'review',title:'Fällige Wiederholungen',reason:`${dueIds.length} Inhalte sind jetzt fällig. Erst festigen, dann Neues lernen.`,priority:100,focusKeys:dueIds,exerciseIds:dueIds.filter(id=>exercises.some(e=>e.id===id)).slice(0,10)}
- const dueTransfer=(progress.transferQueue||[]).some(x=>(progress.recentAttempts?.length||0)>=x.dueAfter);if(dueTransfer)return {kind:'strengthen',title:'Grammatik auf neue Beispiele übertragen',reason:'Nach einem Grammatikfehler prüft die App jetzt mit einem anderen Satz, ob du die Regel wirklich verstanden hast.',priority:90,focusKeys:['grammar:transfer'],exerciseIds:[]}
+ const attemptCount=progress.recentAttempts?.length||0
+ const viableTransfer=(progress.transferQueue||[]).find(item=>buildTransferExercise(item,exercises,attemptCount))
+ if(viableTransfer)return {kind:'strengthen',title:'Grammatik auf neue Beispiele übertragen',reason:'Nach einem Grammatikfehler prüft die App jetzt mit einem anderen Satz, ob du die Regel wirklich verstanden hast.',priority:90,focusKeys:[`grammar:${viableTransfer.grammarRuleId}`],exerciseIds:[]}
  const weak=weakItems(progress);if(weak.length){const top=weak.slice(0,3),deck=exercisesForMastery(top,exercises),w=top[0],label=w.kind==='vocabulary'?'Wortschatz':w.kind==='grammar'?'Grammatik':'aktive Fähigkeit';return {kind:'strengthen',title:`${label} gezielt festigen`,reason:`Dein Lernmodell erkennt hier noch Unsicherheit (${Math.round(w.score*100)} % Sicherheit).`,priority:80,focusKeys:top.map(x=>x.key),exerciseIds:unique(deck.map(e=>e.id)).slice(0,10)}}
  if(fluencyConcern(progress))return {kind:'strengthen',title:'Sicherer und flüssiger antworten',reason:'Mehrere richtige Antworten brauchten zuletzt viel Zeit oder einen Hinweis. Deshalb festigen wir sie, bevor neuer Stoff kommt.',priority:72,focusKeys:['skill:fluency'],exerciseIds:exercises.filter(e=>e.type!=='choice').map(e=>e.id).slice(0,8)}
  const production=progress.mastery?.['skill:production'],recognition=progress.mastery?.['skill:recognition'];if((recognition?.attempts||0)>=3&&(!production||production.score+0.12<(recognition.score||0)))return {kind:'speaking',title:'Mehr selbst produzieren',reason:'Erkennen klappt besser als selbst formulieren. Deshalb ist jetzt aktive Produktion sinnvoll.',priority:65,focusKeys:['skill:production'],exerciseIds:exercises.filter(e=>e.type==='translate-de-sl'||e.type==='free').map(e=>e.id).slice(0,8)}
