@@ -1,16 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Brain, ChevronRight, Flame, GraduationCap, Headphones, Home, MessageCircle, Mic2, RotateCcw, Search, Sparkles, Trophy, Volume2 } from 'lucide-react'
+import { BookOpen, Brain, ChevronRight, Flame, GraduationCap, Headphones, Home, MessageCircle, Mic2, RotateCcw, Search, Sparkles, Trophy } from 'lucide-react'
 import AudioButton from '@/components/AudioButton'
 import SpeechPractice from '@/components/SpeechPractice'
 import TutorChat from '@/components/TutorChat'
-import { conversations, exercises, lessons, sentences, vocabulary } from '@/data/seed'
+import { conversations, exercises, lessons, vocabulary } from '@/data/seed'
 import { defaultProgress, loadProgress, registerMistake, saveProgress, scheduleReview } from '@/lib/storage'
 import { isEquivalent } from '@/lib/text'
-import { Exercise, UserProgress } from '@/types'
+import { Exercise, UserProgress, Vocabulary } from '@/types'
 
 type Tab = 'home' | 'lesson' | 'review' | 'speak' | 'vocab' | 'progress'
+type LessonStep = 'intro' | 'words' | 'grammar' | 'practice' | 'dialog'
 
 const nav: {id: Tab; label:string; icon:any}[] = [
   {id:'home',label:'Start',icon:Home}, {id:'lesson',label:'Lektionen',icon:BookOpen},
@@ -22,14 +23,19 @@ export default function Page() {
   const [tab,setTab] = useState<Tab>('home')
   const [progress,setProgress] = useState<UserProgress>(defaultProgress)
   const [lessonId,setLessonId] = useState(1)
+
   useEffect(() => setProgress(loadProgress()), [])
   useEffect(() => saveProgress(progress), [progress])
+
   const activeLesson = Math.min(5, Math.max(1, [...progress.completedLessons,0].sort((a,b)=>b-a)[0] + 1))
 
   function finishLesson(id:number) {
     const ids = vocabulary.filter(v=>v.lesson===id).map(v=>v.id)
-setProgress(p => ({ ...p, completedLessons: Array.from(new Set([...p.completedLessons, id])), wordsLearned: Array.from(new Set([...p.wordsLearned, ...ids]))
-}))
+    setProgress(p => ({
+      ...p,
+      completedLessons: Array.from(new Set([...p.completedLessons, id])),
+      wordsLearned: Array.from(new Set([...p.wordsLearned, ...ids]))
+    }))
     setTab('progress')
   }
 
@@ -40,7 +46,7 @@ setProgress(p => ({ ...p, completedLessons: Array.from(new Set([...p.completedLe
         <aside className="hidden md:block"><DesktopNav tab={tab} setTab={setTab}/></aside>
         <section>
           {tab==='home' && <HomeView progress={progress} activeLesson={activeLesson} onContinue={()=>{setLessonId(activeLesson);setTab('lesson')}} onGo={setTab}/>} 
-          {tab==='lesson' && <LessonsView selected={lessonId} setSelected={setLessonId} finish={finishLesson} progress={progress} onExerciseResult={(e,c)=>handleExercise(e,c,setProgress)}/>} 
+          {tab==='lesson' && <LessonsView selected={lessonId} setSelected={setLessonId} finish={finishLesson} progress={progress} setProgress={setProgress} onExerciseResult={(e,c)=>handleExercise(e,c,setProgress)}/>} 
           {tab==='review' && <ReviewView progress={progress} setProgress={setProgress}/>} 
           {tab==='speak' && <SpeakView setProgress={setProgress}/>} 
           {tab==='vocab' && <VocabView progress={progress}/>} 
@@ -62,6 +68,7 @@ function Header({streak}:{streak:number}) {
 function DesktopNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
   return <nav className="sticky top-6 space-y-1 rounded-3xl bg-white p-3 shadow-soft">{nav.map(n=><button key={n.id} onClick={()=>setTab(n.id)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left font-semibold ${tab===n.id?'bg-lime-200 text-slate-950':'text-slate-600 hover:bg-slate-50'}`}><n.icon size={19}/>{n.label}</button>)}</nav>
 }
+
 function MobileNav({tab,setTab}:{tab:Tab;setTab:(t:Tab)=>void}) {
   return <nav className="fixed bottom-0 left-0 right-0 z-50 grid grid-cols-6 border-t border-slate-200 bg-white/95 px-1 py-2 backdrop-blur md:hidden">{nav.map(n=><button key={n.id} onClick={()=>setTab(n.id)} className={`flex flex-col items-center gap-1 text-[10px] font-semibold ${tab===n.id?'text-lime-700':'text-slate-500'}`}><n.icon size={20}/>{n.label}</button>)}</nav>
 }
@@ -86,34 +93,97 @@ function HomeView({progress,activeLesson,onContinue,onGo}:{progress:UserProgress
     </div>
   </div>
 }
+
 function Metric({icon:Icon,value,label}:{icon:any;value:string;label:string}) { return <div className="card"><Icon className="mb-3" size={20}/><div className="text-2xl font-black">{value}</div><div className="text-sm text-slate-500">{label}</div></div> }
 function Quick({icon:Icon,label,onClick}:{icon:any;label:string;onClick:()=>void}) { return <button onClick={onClick} className="card flex min-h-28 flex-col items-start justify-between text-left transition hover:-translate-y-0.5"><Icon/><span className="font-bold">{label}</span></button> }
 
-function LessonsView({selected,setSelected,finish,progress,onExerciseResult}:{selected:number;setSelected:(n:number)=>void;finish:(n:number)=>void;progress:UserProgress;onExerciseResult:(e:Exercise,c:boolean)=>void}) {
+function LessonsView({selected,setSelected,finish,progress,setProgress,onExerciseResult}:{selected:number;setSelected:(n:number)=>void;finish:(n:number)=>void;progress:UserProgress;setProgress:(f:any)=>void;onExerciseResult:(e:Exercise,c:boolean)=>void}) {
   const lesson=lessons.find(l=>l.id===selected)!
-  const [step,setStep]=useState<'intro'|'words'|'grammar'|'practice'|'dialog'>('intro')
+  const [step,setStep]=useState<LessonStep>('intro')
   const exs=exercises.filter(e=>e.lesson===selected)
+  const lessonWords=vocabulary.filter(v=>v.lesson===selected)
+  const unseenWords=lessonWords.filter(v=>!progress.introducedWords.includes(v.id))
+  const hasNewWords=unseenWords.length>0
+  const steps: LessonStep[] = hasNewWords ? ['intro','words','grammar','practice','dialog'] : ['intro','grammar','practice','dialog']
+
+  function selectLesson(id:number) {
+    setSelected(id)
+    const words=vocabulary.filter(v=>v.lesson===id)
+    const allIntroduced=words.length>0 && words.every(v=>progress.introducedWords.includes(v.id))
+    setStep(allIntroduced ? 'practice' : 'intro')
+  }
+
+  function introduceWord(word:Vocabulary) {
+    const remaining=unseenWords.filter(v=>v.id!==word.id)
+    setProgress((p:UserProgress)=>({
+      ...p,
+      introducedWords:Array.from(new Set([...p.introducedWords,word.id]))
+    }))
+    if(remaining.length===0) setStep('practice')
+  }
+
   return <div className="space-y-5">
-    <div className="flex gap-2 overflow-x-auto pb-1">{lessons.map(l=><button key={l.id} onClick={()=>{setSelected(l.id);setStep('intro')}} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${selected===l.id?'bg-slate-950 text-white':'bg-white text-slate-600'}`}>Lektion {l.id}{progress.completedLessons.includes(l.id)?' ✓':''}</button>)}</div>
+    <div className="flex gap-2 overflow-x-auto pb-1">{lessons.map(l=><button key={l.id} onClick={()=>selectLesson(l.id)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${selected===l.id?'bg-slate-950 text-white':'bg-white text-slate-600'}`}>Lektion {l.id}{progress.completedLessons.includes(l.id)?' ✓':''}</button>)}</div>
     <div className="card"><div className="text-sm font-bold text-lime-700">Lektion {lesson.id} · {lesson.minutes} Min.</div><h2 className="mt-1 text-3xl font-black">{lesson.title}</h2><p className="mt-2 text-slate-600">{lesson.subtitle}</p></div>
-    <div className="flex flex-wrap gap-2">{(['intro','words','grammar','practice','dialog'] as const).map(s=><button key={s} onClick={()=>setStep(s)} className={`rounded-xl px-3 py-2 text-sm font-bold ${step===s?'bg-lime-200':'bg-white'}`}>{({intro:'Start',words:'Wörter',grammar:'Grammatik',practice:'Üben',dialog:'Dialog'} as any)[s]}</button>)}</div>
-    {step==='intro' && <div className="card"><h3 className="text-xl font-black">Heute kannst du danach …</h3><div className="mt-4 flex flex-wrap gap-2">{lesson.focus.map(f=><span key={f} className="rounded-full bg-lime-50 px-3 py-2 font-semibold">{f}</span>)}</div><button onClick={()=>setStep('words')} className="btn-primary mt-6">Los geht’s <ChevronRight size={18}/></button></div>}
-    {step==='words' && <div className="grid gap-3">{vocabulary.filter(v=>v.lesson===selected).slice(0,20).map(x=><div key={x.id} className="card flex items-start gap-3"><AudioButton text={x.sl} compact/><div className="min-w-0 flex-1"><div className="flex items-baseline justify-between gap-2"><div className="text-lg font-black">{x.sl}</div><div className="text-xs text-slate-400">{x.partOfSpeech}</div></div><div className="text-slate-600">{x.de}</div><div className="mt-2 rounded-xl bg-slate-50 p-3"><b>{x.example}</b><div className="text-sm text-slate-500">{x.exampleDe}</div></div></div></div>)}</div>}
+    <div className="flex flex-wrap gap-2">{steps.map(s=><button key={s} onClick={()=>setStep(s)} className={`rounded-xl px-3 py-2 text-sm font-bold ${step===s?'bg-lime-200':'bg-white'}`}>{({intro:'Start',words:'Neue Wörter',grammar:'Grammatik',practice:'Üben',dialog:'Dialog'} as Record<LessonStep,string>)[s]}</button>)}</div>
+    {step==='intro' && <div className="card"><h3 className="text-xl font-black">Heute kannst du danach …</h3><div className="mt-4 flex flex-wrap gap-2">{lesson.focus.map(f=><span key={f} className="rounded-full bg-lime-50 px-3 py-2 font-semibold">{f}</span>)}</div><button onClick={()=>setStep(hasNewWords?'words':'practice')} className="btn-primary mt-6">{hasNewWords?'Neue Wörter ansehen':'Direkt üben'} <ChevronRight size={18}/></button></div>}
+    {step==='words' && hasNewWords && <VocabularyIntro word={unseenWords[0]} remaining={unseenWords.length} onContinue={introduceWord}/>} 
     {step==='grammar' && <div className="card"><div className="text-sm font-bold text-lime-700">Grammatik, praktisch</div><h3 className="mt-1 text-2xl font-black">{lesson.grammar.title}</h3><p className="mt-3 text-slate-600">{lesson.grammar.body}</p><div className="mt-4 space-y-2">{lesson.grammar.examples.map(e=><div key={e} className="rounded-2xl bg-lime-50 p-3 font-semibold">{e}</div>)}</div></div>}
     {step==='practice' && <ExerciseDeck exercises={exs} onResult={onExerciseResult}/>} 
     {step==='dialog' && <div className="space-y-4"><ConversationCard lesson={selected}/><button onClick={()=>finish(selected)} className="btn-primary w-full justify-center">Lektion abschließen</button></div>}
   </div>
 }
 
+function VocabularyIntro({word,remaining,onContinue}:{word:Vocabulary;remaining:number;onContinue:(word:Vocabulary)=>void}) {
+  return <div className="card">
+    <div className="text-sm font-bold text-lime-700">Neues Wort · noch {remaining}</div>
+    <div className="mt-5 flex items-start gap-4">
+      <AudioButton text={word.sl}/>
+      <div className="min-w-0 flex-1">
+        <div className="text-3xl font-black">{word.sl}</div>
+        <div className="mt-1 text-lg text-slate-600">{word.de}</div>
+        <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{word.partOfSpeech}</div>
+        <div className="mt-5 rounded-2xl bg-slate-50 p-4"><b>{word.example}</b><div className="mt-1 text-sm text-slate-500">{word.exampleDe}</div></div>
+      </div>
+    </div>
+    <p className="mt-4 text-sm text-slate-500">Dieses Wort wird nur einmal vorgestellt. Danach begegnet es dir in Übungen und Wiederholungen.</p>
+    <button onClick={()=>onContinue(word)} className="btn-primary mt-4 w-full justify-center">Weiter zu Aufgaben <ChevronRight size={18}/></button>
+  </div>
+}
+
+function shuffled<T>(items:T[]) {
+  const copy=[...items]
+  for(let i=copy.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1))
+    ;[copy[i],copy[j]]=[copy[j],copy[i]]
+  }
+  return copy
+}
+
 function ExerciseDeck({exercises:onDeck,onResult}:{exercises:Exercise[];onResult:(e:Exercise,c:boolean)=>void}) {
-  const [i,setI]=useState(0), [value,setValue]=useState(''), [checked,setChecked]=useState(false)
-  const ex=onDeck[i % onDeck.length]
+  const [i,setI]=useState(0)
+  const [value,setValue]=useState('')
+  const [checked,setChecked]=useState(false)
+  const ex=onDeck.length ? onDeck[i % onDeck.length] : undefined
+  const choiceOptions=useMemo(()=>{
+    if(!ex || ex.type!=='choice') return []
+    return shuffled(Array.from(new Set([ex.answer,...(ex.alternatives??[])])))
+  },[ex?.id])
+
   if (!ex) return <div className="card">Für diese Lektion sind noch keine Übungen vorhanden.</div>
   const correct=isEquivalent(value,ex.answer)
 
-  function insertSpecialChar(ch:string) {
-    setValue(v=>v+ch)
+  function next() {
+    setI((i+1)%onDeck.length)
+    setValue('')
     setChecked(false)
+  }
+
+  function submit(answer=value) {
+    if(!answer.trim()) return
+    setValue(answer)
+    setChecked(true)
+    onResult(ex,isEquivalent(answer,ex.answer))
   }
 
   return <div className="card">
@@ -121,33 +191,23 @@ function ExerciseDeck({exercises:onDeck,onResult}:{exercises:Exercise[];onResult
     <h3 className="mt-2 text-xl font-black">{ex.prompt}</h3>
     {ex.hint&&<p className="mt-2 text-sm text-slate-500">Hinweis: {ex.hint}</p>}
 
-    <input
-      value={value}
-      onChange={e=>{setValue(e.target.value);setChecked(false)}}
-      onKeyDown={e=>{if(e.key==='Enter'&&value.trim()){setChecked(true);onResult(ex,isEquivalent(value,ex.answer))}}}
-      className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500"
-      placeholder="Deine Antwort auf Slowenisch …"
-    />
-
-    <div className="mt-2 flex gap-2">
-      {['č','š','ž'].map(ch=><button
-        key={ch}
-        type="button"
-        onClick={()=>insertSpecialChar(ch)}
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-black hover:bg-slate-50"
-        aria-label={`${ch.toUpperCase()} einfügen`}
-      >{ch.toUpperCase()}</button>)}
-    </div>
-
-    <button
-      onClick={()=>{setChecked(true);onResult(ex,correct)}}
-      disabled={!value.trim()}
-      className="btn-primary mt-3 w-full justify-center"
-    >Prüfen</button>
+    {ex.type==='choice' ? <div className="mt-5 grid gap-2">
+      {choiceOptions.map((option,index)=><button key={option} disabled={checked} onClick={()=>submit(option)} className={`rounded-2xl border px-4 py-3 text-left font-semibold transition ${checked&&isEquivalent(option,ex.answer)?'border-lime-500 bg-lime-50':checked&&value===option?'border-amber-400 bg-amber-50':'border-slate-200 bg-white hover:border-lime-400'}`}><span className="mr-3 text-slate-400">{String.fromCharCode(65+index)}</span>{option}</button>)}
+    </div> : <>
+      <input
+        value={value}
+        onChange={e=>{setValue(e.target.value);setChecked(false)}}
+        onKeyDown={e=>{if(e.key==='Enter')submit()}}
+        className="mt-5 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-lime-500"
+        placeholder="Deine Antwort auf Slowenisch …"
+      />
+      <div className="mt-2 flex gap-2">{['č','š','ž'].map(ch=><button key={ch} type="button" onClick={()=>{setValue(v=>v+ch);setChecked(false)}} className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-black hover:bg-slate-50" aria-label={`${ch.toUpperCase()} einfügen`}>{ch.toUpperCase()}</button>)}</div>
+      <button onClick={()=>submit()} disabled={!value.trim()} className="btn-primary mt-3 w-full justify-center">Prüfen</button>
+    </>}
 
     {checked&&<div className={`mt-4 rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`}>
       {correct?<><b>Pravilno!</b> Genau richtig.</>:<><b>Noch nicht.</b><div className="mt-1">Richtig: <span className="font-bold">{ex.answer}</span></div>{ex.explanation&&<div className="mt-2 text-sm">Warum? {ex.explanation}</div>}</>}
-      <button onClick={()=>{setI((i+1)%onDeck.length);setValue('');setChecked(false)}} className="mt-3 font-bold underline">Nächste Aufgabe</button>
+      <button onClick={next} className="mt-3 font-bold underline">Nächste Aufgabe</button>
     </div>}
   </div>
 }
@@ -177,7 +237,7 @@ function VocabView({progress}:{progress:UserProgress}) {
   const [q,setQ]=useState(''), [category,setCategory]=useState('Alle')
   const cats=['Alle',...Array.from(new Set(vocabulary.map(v=>v.category)))]
   const list=useMemo(()=>vocabulary.filter(v=>(category==='Alle'||v.category===category)&&(`${v.sl} ${v.de}`.toLowerCase().includes(q.toLowerCase()))),[q,category])
-  return <div className="space-y-4"><div className="card"><h2 className="text-3xl font-black">Vokabeln</h2><p className="mt-2 text-slate-600">{vocabulary.length} Seed-Wörter im MVP. Das Datenmodell ist auf 1.000+ ausgelegt.</p><div className="mt-4 flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={q} onChange={e=>setQ(e.target.value)} className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-3" placeholder="Slowenisch oder Deutsch …"/></div><select value={category} onChange={e=>setCategory(e.target.value)} className="max-w-36 rounded-2xl border border-slate-200 px-3">{cats.map(c=><option key={c}>{c}</option>)}</select></div></div><div className="grid gap-3 lg:grid-cols-2">{list.map(x=><div key={x.id} className="card flex gap-3"><AudioButton text={x.sl} compact/><div className="flex-1"><div className="flex justify-between gap-2"><b className="text-lg">{x.sl}</b><span className={`rounded-full px-2 py-1 text-xs ${progress.secureWords.includes(x.id)?'bg-lime-100':'bg-slate-100'}`}>{progress.secureWords.includes(x.id)?'sicher':progress.wordsLearned.includes(x.id)?'gelernt':'neu'}</span></div><div className="text-slate-600">{x.de}</div><div className="mt-2 text-sm"><b>{x.example}</b><div className="text-slate-500">{x.exampleDe}</div></div></div></div>)}</div></div>
+  return <div className="space-y-4"><div className="card"><h2 className="text-3xl font-black">Vokabeln</h2><p className="mt-2 text-slate-600">{vocabulary.length} Seed-Wörter im MVP. Das Datenmodell ist auf 1.000+ ausgelegt.</p><div className="mt-4 flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={q} onChange={e=>setQ(e.target.value)} className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-3" placeholder="Slowenisch oder Deutsch …"/></div><select value={category} onChange={e=>setCategory(e.target.value)} className="max-w-36 rounded-2xl border border-slate-200 px-3">{cats.map(c=><option key={c}>{c}</option>)}</select></div></div><div className="grid gap-3 lg:grid-cols-2">{list.map(x=><div key={x.id} className="card flex gap-3"><AudioButton text={x.sl} compact/><div className="flex-1"><div className="flex justify-between gap-2"><b className="text-lg">{x.sl}</b><span className={`rounded-full px-2 py-1 text-xs ${progress.secureWords.includes(x.id)?'bg-lime-100':'bg-slate-100'}`}>{progress.secureWords.includes(x.id)?'sicher':progress.wordsLearned.includes(x.id)?'gelernt':progress.introducedWords.includes(x.id)?'eingeführt':'neu'}</span></div><div className="text-slate-600">{x.de}</div><div className="mt-2 text-sm"><b>{x.example}</b><div className="text-slate-500">{x.exampleDe}</div></div></div></div>)}</div></div>
 }
 
 function ProgressView({progress}:{progress:UserProgress}) {
