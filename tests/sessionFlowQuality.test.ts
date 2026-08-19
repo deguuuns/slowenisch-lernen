@@ -7,7 +7,7 @@ import { createSessionState, registerSessionOutcome, scoreExerciseCandidate } fr
 import { registerIntroductions } from '../lib/prerequisites'
 import { eligibleAdaptiveContent } from '../lib/sessionEligibility'
 import { sessionQualityMetrics } from '../lib/sessionQuality'
-import type { LearnerProfile, SessionHistoryItem, UserProgress } from '../types'
+import type { Exercise, LearnerProfile, SessionHistoryItem, UserProgress } from '../types'
 
 const profile: LearnerProfile = {
   id:'quality-beginner', name:'Beginner', startMode:'zero', approximateLevel:'A1', onboardingCompleted:true, placementCompleted:true, createdAt:1, updatedAt:1,
@@ -34,6 +34,9 @@ test('an introduction is followed by active practice instead of another passive 
   const pool = eligibleAdaptiveContent(all, progress, session, profile, Date.now())
   assert.ok(pool.some(item => item.id === 'p1-zivjo-rec-de'), 'active recognition for the introduced word should be available')
   assert.ok(!pool.some(item => item.type === 'introduce'), 'the next passive introduction should wait until active processing happened')
+  assert.equal(session.answered, 0, 'passive teaching must not consume the solved-exercise budget')
+  assert.equal(session.correct, 0, 'passive teaching must not inflate accuracy')
+  assert.equal(session.introducedNew, 1)
 })
 
 test('advancement ready is weaker than mastery but still requires all phase items to be introduced', () => {
@@ -69,6 +72,20 @@ test('session quality metrics distinguish passive teaching from active exercises
   assert.equal(metrics.maxIntroductionStreak, 1)
   assert.equal(metrics.modalityDiversity, 2)
   assert.ok(metrics.passiveStepRatio < 0.5)
+})
+
+test('repeating the same narrow theme receives a much stronger penalty than changing context', () => {
+  const progress = emptyProgress()
+  const session = createSessionState()
+  session.history = [
+    { exerciseId:'g1', learningTargets:['vocab:a'], skills:['lesen'], correct:true, timestamp:1, exerciseType:'choice', modality:'choice', curriculumPhase:2 },
+    { exerciseId:'g2', learningTargets:['vocab:b'], skills:['hören'], correct:true, timestamp:2, exerciseType:'listen-choice', modality:'listening', curriculumPhase:2 },
+  ]
+  const sameTheme: Exercise = { id:'same-theme', lesson:1, type:'choice', prompt:'x', answer:'x', alternatives:['x'], skills:['lesen'], difficulty:1, curriculumPhase:2, contentKey:'same-theme' }
+  const freshContext: Exercise = { id:'fresh-context', lesson:1, type:'choice', prompt:'y', answer:'y', alternatives:['y'], skills:['lesen'], difficulty:1, curriculumPhase:3, contentKey:'fresh-context' }
+  const sameScore = scoreExerciseCandidate(sameTheme, progress, session).score
+  const freshScore = scoreExerciseCandidate(freshContext, progress, session).score
+  assert.ok(freshScore > sameScore + 20, `expected fresh context to win clearly (${freshScore} vs ${sameScore})`)
 })
 
 test('phase 2 contains active situation and listening practice, not only introduction cards', () => {
