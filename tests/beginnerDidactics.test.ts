@@ -38,26 +38,31 @@ test('after Živjo introduction the next new word is introduced before recogniti
   assert.deepEqual(eligible.map(item => item.id), ['hvala'])
 })
 
-test('recall is blocked until recognition evidence exists', () => {
+test('recall is stage-locked before recognition and then deferred by the daily cooldown', () => {
   let progress = registerIntroductions(emptyProgress(), byId('zivjo'))
   progress = registerIntroductions(progress, byId('hvala'))
   progress = registerIntroductions(progress, byId('prosim'))
   progress = registerIntroductions(progress, byId('ja'))
   progress = registerIntroductions(progress, byId('ne'))
   const recall = byId('p1-hvala-recall')
-  const now = Date.now()
+  const now = new Date(2026, 7, 19, 12, 0, 0).getTime()
   assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now, all), false)
 
   const recognition = byId('p1-hvala-rec-de')
   progress = updateLearnerStateWithHelp(progress, recognition, { correct:true, responseMs:1500, hintsUsed:0 }, now)
-  assert.equal(progress.learningItems?.['vocab:hvala']?.stage, 'recognition')
-  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now, all), true)
+  const state = progress.learningItems?.['vocab:hvala']
+  assert.equal(state?.stage, 'recognition')
+  // Recognition has unlocked the next stage conceptually, but a clean success should
+  // not be actively tested again on the same day.
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, now + 60 * 60_000, all), false)
+  assert.ok(state?.activeTestCooldownUntil)
+  assert.equal(isEligibleForAdaptiveSession(recall, progress, createSessionState(), profile, state!.activeTestCooldownUntil! + 1, all), true)
 })
 
 test('beginner phase does not advance merely because words were shown', () => {
   let progress = emptyProgress()
   for (const id of ['zivjo','hvala','prosim','ja','ne']) progress = registerIntroductions(progress, byId(id))
-  assert.equal(getCurrentBeginnerPhase(progress).id, 1)
+  assert.equal(getCurrentBeginnerPhase(progress)?.id, 1)
 })
 
 test('grammar from later phases cannot jump ahead of the vocabulary curriculum', () => {
