@@ -1,30 +1,32 @@
 import type { Exercise } from '@/types'
 
 const pilot = [
-  ['hisa','hiša','Haus','Ein einfaches Wohnhaus'],
-  ['avto','avto','Auto','Ein Auto'],
-  ['voda','voda','Wasser','Wasser'],
-  ['kava','kava','Kaffee','Eine Tasse Kaffee'],
-  ['kruh','kruh','Brot','Ein Brot'],
-  ['pes','pes','Hund','Ein Hund'],
-  ['macka','mačka','Katze','Eine Katze'],
-  ['knjiga','knjiga','Buch','Ein Buch'],
-  ['telefon','telefon','Telefon','Ein Mobiltelefon'],
-  ['jabolko','jabolko','Apfel','Ein Apfel'],
+  ['hisa','hiša','Haus','🏠','Ein einfaches Wohnhaus'],
+  ['avto','avto','Auto','🚗','Ein Auto'],
+  ['voda','voda','Wasser','💧','Wasser'],
+  ['kava','kava','Kaffee','☕','Eine Tasse Kaffee'],
+  ['kruh','kruh','Brot','🍞','Ein Brot'],
+  ['pes','pes','Hund','🐕','Ein Hund'],
+  ['macka','mačka','Katze','🐈','Eine Katze'],
+  ['knjiga','knjiga','Buch','📖','Ein Buch'],
+  ['telefon','telefon','Telefon','📱','Ein Mobiltelefon'],
+  ['jabolko','jabolko','Apfel','🍎','Ein Apfel'],
 ] as const
 
-export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de, alt], index) => {
-  const distractors = pilot.filter(item => item[1] !== sl).slice((index + 2) % 5, ((index + 2) % 5) + 2)
-  const options = [
-    { value: sl, visualKey: key, imageAlt: alt },
-    ...distractors.map(item => ({ value: item[1], visualKey: item[0], imageAlt: item[3] })),
+export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de, symbol, alt], index) => {
+  const other = pilot.filter(item => item[1] !== sl)
+  const distractors = [other[index % other.length], other[(index + 3) % other.length]]
+  const wordOptions = [sl, ...distractors.map(item => item[1])]
+  const imageOptions = [
+    { value: symbol, visualKey: key, imageAlt: alt },
+    ...distractors.map(item => ({ value: item[3], visualKey: item[0], imageAlt: item[4] })),
   ]
   return [
     {
       id: `visual-intro-${key}`,
       lesson: 1,
       type: 'introduce',
-      prompt: `Lerne ${sl}`,
+      prompt: `Neu: ${symbol} ${sl} = ${de}`,
       answer: sl,
       level: 'A1',
       skills: ['wortschatz','hören'],
@@ -34,9 +36,9 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       contentKey: `visual-intro-${key}`,
       contextTag: 'visual-everyday',
       sentencePatternKey: 'visual-word-intro',
-      introSl: sl,
+      introSl: `${symbol}  ${sl}`,
       introDe: de,
-      introUsage: `Konkretes Alltagswort: ${de}.`,
+      introUsage: `Konkretes Alltagswort. Bildanker: ${symbol}`,
       audioPrompt: sl,
       visualType: 'learning-card',
       visualKey: key,
@@ -48,11 +50,12 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       id: `visual-image-choice-${key}`,
       lesson: 1,
       type: 'choice',
-      prompt: `Welches Bild bedeutet „${sl}“?`,
+      prompt: `Welches slowenische Wort passt zu diesem Bild?\n\n${symbol}`,
       answer: sl,
-      alternatives: options.map(option => option.value).filter(value => value !== sl),
-      visualOptions: options,
+      alternatives: wordOptions.filter(value => value !== sl),
       visualType: 'image-choice',
+      visualKey: key,
+      imageAlt: alt,
       level: 'A1',
       skills: ['lesen','wortschatz'],
       modality: 'choice',
@@ -62,7 +65,7 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       learningTargets: [`vocab:${sl}`],
       contentKey: `visual-image-choice-${key}`,
       contextTag: 'visual-everyday',
-      sentencePatternKey: 'word-to-image',
+      sentencePatternKey: 'image-to-word',
       difficulty: 1,
     },
     {
@@ -70,9 +73,9 @@ export const visualVocabularyExercises: Exercise[] = pilot.flatMap(([key, sl, de
       lesson: 1,
       type: 'listen-choice',
       prompt: 'Höre zu und wähle das passende Bild.',
-      answer: sl,
-      alternatives: options.map(option => option.value).filter(value => value !== sl),
-      visualOptions: options,
+      answer: symbol,
+      alternatives: imageOptions.map(option => option.value).filter(value => value !== symbol),
+      visualOptions: imageOptions,
       visualType: 'audio-image-choice',
       audioPrompt: sl,
       level: 'A1',
