@@ -1,4 +1,4 @@
-import { getCurrentBeginnerPhase, isBeginnerFoundationComplete } from '../data/beginnerCurriculum'
+import { getCurrentBeginnerPhase } from '../data/beginnerCurriculum'
 import type { Exercise, KnowledgeStage, LearnerProfile, LearningItemState, UserProgress } from '@/types'
 import type { SessionState } from './learningEngine'
 import { isExerciseUnlocked } from './prerequisites'
@@ -17,6 +17,26 @@ const STAGE_RANK: Record<KnowledgeStage, number> = {
   unseen: 0, introduced: 1, recognition: 2, recall: 3, production: 4, familiar: 4, mastered: 5, review_due: 5,
 }
 
+function meaningfulLearningItemCount(progress: UserProgress) {
+  return Object.entries(progress.learningItems ?? {}).filter(([key, state]) => {
+    const meaningful = key.startsWith('vocab:') || key.startsWith('chunk:') || key.startsWith('grammar:') || key.startsWith('verb:') || key.startsWith('conjugation:') || key.startsWith('pattern:')
+    if (!meaningful) return false
+    const stage = state.stage ?? (state.introduced ? 'introduced' : 'unseen')
+    return STAGE_RANK[stage] >= STAGE_RANK.recognition || (state.receptiveMastery ?? 0) >= 0.25 || state.mastery >= 0.3
+  }).length
+}
+
+/**
+ * Curriculum safety follows actual knowledge, not only the profile's original start mode.
+ * This is important after an explicit progress reset: an old self-assessment profile with
+ * empty learning data must behave like a real zero beginner until evidence exists again.
+ */
+export function requiresCurriculumSafety(progress: UserProgress, profile: LearnerProfile | null) {
+  if (profile?.startMode === 'zero') return true
+  const introducedCount = (progress.introducedVocabulary?.length ?? 0) + (progress.introducedGrammar?.length ?? 0)
+  return introducedCount < 4 && meaningfulLearningItemCount(progress) < 3
+}
+
 function targetsFor(exercise: Exercise) {
   if (exercise.learningTargets?.length) return exercise.learningTargets
   const targets = [`lesson:${exercise.lesson}`]
@@ -32,7 +52,7 @@ function activeTargetsFor(exercise: Exercise) {
 export function canActivelyTestLearningItem(state: LearningItemState | undefined, now = Date.now()) {
   if (!state) return true
   if (state.incorrectStreak > 0 || (state.lastHintsUsed ?? 0) > 0) return true
-  if (state.nextDueAt !== undefined && state.nextDueAt <= now) return true
+  if (state.nextDueAt !== undefined) return state.nextDueAt <= now
   if (state.activeTestCooldownUntil !== undefined && state.activeTestCooldownUntil > now) return false
   return true
 }
@@ -44,6 +64,20 @@ function activeTargetsAreAvailable(exercise: Exercise, progress: UserProgress, n
 
 function isProductive(exercise: Exercise) {
   return exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer' || ['translate-de-sl', 'free', 'ending', 'listen-answer', 'speak-answer', 'transform'].includes(exercise.type)
+}
+
+function hasExplicitProductionDependencies(exercise: Exercise) {
+  return !!(
+    exercise.requiredVocabulary?.length ||
+    exercise.requiredGrammar?.length ||
+    exercise.requiredLearningItems?.length
+  )
+}
+
+function hasCompleteIntroductionMetadata(exercise: Exercise) {
+  if (exercise.type !== 'introduce') return true
+  const introducesSomething = !!(exercise.introducesVocabulary?.length || exercise.introducesGrammar?.length)
+  return introducesSomething && !!exercise.introSl?.trim() && !!exercise.introDe?.trim()
 }
 
 function wasCorrectInThisSession(exercise: Exercise, session: SessionState) {
@@ -82,8 +116,9 @@ function targetBudgetReached(exercise: Exercise, session: SessionState) {
 }
 
 function isSecureAndNotDue(exercise: Exercise, progress: UserProgress, now: number) {
-  const state = progress.learningItems?.[`exercise:${exercise.id}`]
-  return !!state && state.attempts >= 3 && state.mastery >= 0.82 && !!state.nextDueAt && state.nextDueAt > now
+  const states = activeTargetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean) as LearningItemState[]
+  if (!states.length) return false
+  return states.every(state => state.attempts >= 2 && state.mastery >= 0.75 && !!state.nextDueAt && state.nextDueAt > now)
 }
 
 function requiredGrammarFor(exercise: Exercise) {
@@ -104,8 +139,8 @@ function prerequisitesAreKnown(exercise: Exercise, progress: UserProgress) {
 function targetStageSatisfied(exercise: Exercise, progress: UserProgress) {
   if (!exercise.requiredTargetStage) return true
   const required = STAGE_RANK[exercise.requiredTargetStage]
-  const meaningfulTargets = activeTargetsFor(exercise).filter(target => target.startsWith('vocab:') || target.startsWith('grammar:') || target.startsWith('verb:') || target.startsWith('conjugation:') || target.startsWith('pattern:'))
-  if (!meaningfulTargets.length) return true
+  const meaningfulTargets = activeTargetsFor(exercise).filter(target => target.startsWith('vocab:') || target.startsWith('chunk:') || target.startsWith('grammar:') || target.startsWith('verb:') || target.startsWith('conjugation:') || target.startsWith('pattern:'))
+  if (!meaningfulTargets.length) return false
   return meaningfulTargets.every(target => {
     const state = progress.learningItems?.[target]
     if (!state) return false
@@ -143,12 +178,13 @@ function newItemBudgetReached(exercise: Exercise, session: SessionState) {
 
 function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: UserProgress, session: SessionState, profile: LearnerProfile | null) {
   const hasCurriculumContent = exercises.some(item => item.curriculumPhase !== undefined)
-  if (!hasCurriculumContent) return true
-  if (profile?.startMode !== 'zero' || isBeginnerFoundationComplete(progress)) return true
+  if (!hasCurriculumContent) return !requiresCurriculumSafety(progress, profile)
+  if (!requiresCurriculumSafety(progress, profile)) return true
 
   const current = getCurrentBeginnerPhase(progress)
-  if (!current) return true
   const phase = current.id
+  // Curriculum-managed learners never receive unversioned legacy exercises. This remains
+  // true after phase 10; modern A1 expansion content must explicitly declare phase 11.
   if (!exercise.curriculumPhase) return false
   if (exercise.curriculumPhase > phase) return false
   if (exercise.curriculumPhase < phase) return exercise.type !== 'introduce'
@@ -166,9 +202,12 @@ function curriculumAllows(exercise: Exercise, exercises: Exercise[], progress: U
 }
 
 function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, session: SessionState, profile: LearnerProfile | null, now: number, allExercises: Exercise[]) {
+  const strict = requiresCurriculumSafety(progress, profile)
   if (!isExerciseUnlocked(exercise, progress, profile)) return false
   if (!curriculumAllows(exercise, allExercises, progress, session, profile)) return false
-  if (profile?.startMode === 'zero' && !exercise.contentKey) return false
+  if (strict && !exercise.contentKey) return false
+  if (strict && exercise.type === 'introduce' && !hasCompleteIntroductionMetadata(exercise)) return false
+  if (strict && isProductive(exercise) && !hasExplicitProductionDependencies(exercise)) return false
   if (wasCorrectInThisSession(exercise, session)) return false
   if (isSecureAndNotDue(exercise, progress, now)) return false
   if (!prerequisitesAreKnown(exercise, progress)) return false
@@ -179,8 +218,9 @@ function passesHardSafetyGates(exercise: Exercise, progress: UserProgress, sessi
     const vocabulary = new Set((progress.introducedVocabulary ?? []).map(normalizeKey))
     if (exercise.requiredVocabulary?.some(item => !vocabulary.has(normalizeKey(item)))) return false
     const targetStates = activeTargetsFor(exercise).map(target => progress.learningItems?.[target]).filter(Boolean)
-    if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer') {
-      if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall)) return false
+    if (exercise.learningPhase === 'production' || exercise.learningPhase === 'transfer' || strict) {
+      if (!targetStates.length) return false
+      if (targetStates.some(state => STAGE_RANK[state?.stage ?? 'unseen'] < STAGE_RANK.recall && (state?.recallMastery ?? 0) < 0.18)) return false
     }
   }
   return true
