@@ -40,6 +40,8 @@ Preview-Builds müssen immer vom aktuellen Branch-Head erzeugt werden. Das erneu
 
 Der aktuelle Teststand wurde vor dem Preview über GitHub Actions mit Typecheck, Regressionstests und Production-Build validiert. Ein neuer Branch-Commit darf als Trigger für einen frischen Preview-Build verwendet werden, wenn Vercel zuvor noch einen veralteten Commit gebaut hat.
 
+Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert und darf als frischer Preview-Trigger verwendet werden.
+
 ## Nächste Ausbaustufe
 
 - skill-spezifische Hör- und Sprech-Mastery
