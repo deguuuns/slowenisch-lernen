@@ -7,6 +7,7 @@ import ExerciseDeck, { ExerciseResultMeta } from '@/components/ExerciseDeck'
 import { exercises, lessons, vocabulary } from '@/data/seed'
 import { grammarDefinitions, grammarPrerequisitesMet, isExerciseEligible } from '@/lib/curriculum-access'
 import { buildExamPlan, examSize } from '@/lib/exam-planner'
+import { appendExamHistory, historyItemFromExercises } from '@/lib/exam-history'
 import { createExerciseSession, ExerciseSession } from '@/lib/exercise-session'
 import { buildLearningBlocks } from '@/lib/learning-flow'
 import { allVerbFormsReady, buildVerbPracticeExercises, verbIntrosForVocabulary } from '@/lib/verb-learning'
@@ -37,13 +38,7 @@ function blockSize(progress: UserProgress) {
   return progress.preferences.pace === 'ruhig' ? 2 : 3
 }
 
-export default function LessonFlow({
-  lessonId,
-  progress,
-  setProgress,
-  onExerciseResult,
-  onFinish,
-}: {
+export default function LessonFlow({ lessonId, progress, setProgress, onExerciseResult, onFinish }: {
   lessonId: number
   progress: UserProgress
   setProgress: Dispatch<SetStateAction<UserProgress>>
@@ -52,9 +47,7 @@ export default function LessonFlow({
 }) {
   const lesson = lessons.find(item => item.id === lessonId)
   const [sessionSeed] = useState(() => Date.now())
-  const [blocks] = useState(() =>
-    buildLearningBlocks(lessonId, vocabulary, exercises, progress.introducedWords, blockSize(progress)),
-  )
+  const [blocks] = useState(() => buildLearningBlocks(lessonId, vocabulary, exercises, progress.introducedWords, blockSize(progress)))
   const [stage, setStage] = useState<Stage>(blocks.length ? 'lesson-intro' : 'final-exam')
   const [blockIndex, setBlockIndex] = useState(0)
   const [wordIndex, setWordIndex] = useState(0)
@@ -63,19 +56,10 @@ export default function LessonFlow({
   const [activeSession, setActiveSession] = useState<ExerciseSession | null>(null)
 
   const block = blocks[blockIndex]
-  const blockRuleIds = useMemo(
-    () => Array.from(new Set((block?.exercises || []).flatMap(exercise => exercise.grammarRuleIds || []))),
-    [block],
-  )
-  const pendingRules = blockRuleIds.filter(
-    id => !progress.introducedGrammarRules.includes(id) && grammarPrerequisitesMet(id, progress, blockRuleIds),
-  )
+  const blockRuleIds = useMemo(() => Array.from(new Set((block?.exercises || []).flatMap(exercise => exercise.grammarRuleIds || []))), [block])
+  const pendingRules = blockRuleIds.filter(id => !progress.introducedGrammarRules.includes(id) && grammarPrerequisitesMet(id, progress, blockRuleIds))
   const ruleCards = grammarDefinitions(pendingRules).filter(rule => rule.id !== 'verb-first-person')
-  // Stable for the current block. Progress changes must not replace the verb being trained.
-  const blockVerbIntros = useMemo(
-    () => verbIntrosForVocabulary(block?.words.map(word => word.id) || []),
-    [block],
-  )
+  const blockVerbIntros = useMemo(() => verbIntrosForVocabulary(block?.words.map(word => word.id) || []), [block])
   const currentVerb = blockVerbIntros[verbIndex]
 
   const percent = useMemo(() => {
@@ -87,44 +71,22 @@ export default function LessonFlow({
 
   useEffect(() => {
     if (activeSession) return
-
     if (stage === 'verb-practice' && currentVerb) {
-      setActiveSession(createExerciseSession(
-        'verb-practice',
-        buildVerbPracticeExercises(lessonId, currentVerb),
-        `lesson-${lessonId}:block-${blockIndex}:verb-${currentVerb.verbId}:round-${verbRound}`,
-      ))
+      setActiveSession(createExerciseSession('verb-practice', buildVerbPracticeExercises(lessonId, currentVerb), `lesson-${lessonId}:block-${blockIndex}:verb-${currentVerb.verbId}:round-${verbRound}`))
       return
     }
-
     if (stage === 'block-practice' && block) {
       const deck = block.exercises.filter(exercise => isExerciseEligible(exercise, progress))
-      setActiveSession(createExerciseSession(
-        'learning-block',
-        deck,
-        `lesson-${lessonId}:block-${blockIndex}:practice:${sessionSeed}`,
-      ))
+      setActiveSession(createExerciseSession('learning-block', deck, `lesson-${lessonId}:block-${blockIndex}:practice:${sessionSeed}`))
       return
     }
-
     if (stage === 'checkpoint' && block) {
-      const deck = buildExamPlan({
-        kind: 'checkpoint', lessonId, exercises, vocabulary, progress,
-        seed: sessionSeed + blockIndex * 101,
-        targetSize: examSize('checkpoint', progress, block.words.length),
-      })
-      setActiveSession(createExerciseSession(
-        'checkpoint', deck, `lesson-${lessonId}:block-${blockIndex}:checkpoint:${sessionSeed}`,
-      ))
+      const deck = buildExamPlan({ kind: 'checkpoint', lessonId, exercises, vocabulary, progress, seed: sessionSeed + blockIndex * 101, targetSize: examSize('checkpoint', progress, block.words.length) })
+      setActiveSession(createExerciseSession('checkpoint', deck, `lesson-${lessonId}:block-${blockIndex}:checkpoint:${sessionSeed}`))
       return
     }
-
     if (stage === 'final-exam') {
-      const deck = buildExamPlan({
-        kind: 'final', lessonId, exercises, vocabulary, progress,
-        seed: sessionSeed + 9001,
-        targetSize: examSize('final', progress),
-      })
+      const deck = buildExamPlan({ kind: 'final', lessonId, exercises, vocabulary, progress, seed: sessionSeed + 9001, targetSize: examSize('final', progress) })
       setActiveSession(createExerciseSession('final-exam', deck, `lesson-${lessonId}:final:${sessionSeed}`))
     }
   }, [activeSession, block, blockIndex, currentVerb, lessonId, progress, sessionSeed, stage, verbRound])
@@ -132,28 +94,18 @@ export default function LessonFlow({
   if (!lesson) return null
 
   function markWord(id: string) {
-    setProgress(previous => ({
-      ...previous,
-      introducedWords: Array.from(new Set([...previous.introducedWords, id])),
-      updatedAt: Date.now(),
-    }))
+    setProgress(previous => ({ ...previous, introducedWords: Array.from(new Set([...previous.introducedWords, id])), updatedAt: Date.now() }))
   }
 
   function pendingVerbIndex(afterIndex: number) {
-    return blockVerbIntros.findIndex((verb, index) =>
-      index > afterIndex && verb.keys.some(key => !progress.introducedVerbForms.includes(key)),
-    )
+    return blockVerbIntros.findIndex((verb, index) => index > afterIndex && verb.keys.some(key => !progress.introducedVerbForms.includes(key)))
   }
 
   function nextAfterWordIntro() {
-    setWordIndex(0)
-    setVerbRound(0)
-    setActiveSession(null)
+    setWordIndex(0); setVerbRound(0); setActiveSession(null)
     const firstVerb = pendingVerbIndex(-1)
-    if (firstVerb >= 0) {
-      setVerbIndex(firstVerb)
-      setStage('verb-intro')
-    } else if (ruleCards.length) setStage('grammar-intro')
+    if (firstVerb >= 0) { setVerbIndex(firstVerb); setStage('verb-intro') }
+    else if (ruleCards.length) setStage('grammar-intro')
     else setStage('block-practice')
   }
 
@@ -166,66 +118,49 @@ export default function LessonFlow({
 
   function unlockCurrentVerb() {
     if (!currentVerb) return
-    setProgress(previous => ({
-      ...previous,
-      introducedVerbForms: Array.from(new Set([...previous.introducedVerbForms, ...currentVerb.keys])),
-      introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, 'verb-first-person'])),
-      updatedAt: Date.now(),
-    }))
-    setActiveSession(null)
-    setStage('verb-practice')
+    setProgress(previous => ({ ...previous, introducedVerbForms: Array.from(new Set([...previous.introducedVerbForms, ...currentVerb.keys])), introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, 'verb-first-person'])), updatedAt: Date.now() }))
+    setActiveSession(null); setStage('verb-practice')
   }
 
   function currentVerbRequirements(): VerbFormRequirement[] {
-    return currentVerb?.forms.map(form => ({
-      verbId: currentVerb.verbId,
-      person: form.person,
-      number: 'singular' as const,
-    })) || []
+    return currentVerb?.forms.map(form => ({ verbId: currentVerb.verbId, person: form.person, number: 'singular' as const })) || []
   }
 
   function finishVerbPractice() {
     if (!currentVerb) return
-    if (!allVerbFormsReady(progress, currentVerbRequirements())) {
-      setVerbRound(round => round + 1)
-      setActiveSession(null)
-      return
-    }
-
+    if (!allVerbFormsReady(progress, currentVerbRequirements())) { setVerbRound(round => round + 1); setActiveSession(null); return }
     setActiveSession(null)
     const nextVerb = pendingVerbIndex(verbIndex)
-    if (nextVerb >= 0) {
-      setVerbIndex(nextVerb)
-      setVerbRound(0)
-      setStage('verb-intro')
-    } else if (ruleCards.length) setStage('grammar-intro')
+    if (nextVerb >= 0) { setVerbIndex(nextVerb); setVerbRound(0); setStage('verb-intro') }
+    else if (ruleCards.length) setStage('grammar-intro')
     else setStage('block-practice')
   }
 
   function unlockGrammar() {
-    setProgress(previous => ({
-      ...previous,
-      introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, ...pendingRules])),
-      updatedAt: Date.now(),
-    }))
-    setActiveSession(null)
-    setStage('block-practice')
+    setProgress(previous => ({ ...previous, introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, ...pendingRules])), updatedAt: Date.now() }))
+    setActiveSession(null); setStage('block-practice')
   }
 
-  function finishBlockPractice() {
-    setActiveSession(null)
-    setStage('checkpoint')
+  function finishBlockPractice() { setActiveSession(null); setStage('checkpoint') }
+
+  function recordCurrentExam(kind: 'checkpoint' | 'final') {
+    if (!activeSession) return
+    const item = historyItemFromExercises(activeSession.sessionId, kind, lessonId, activeSession.exercises)
+    setProgress(previous => ({ ...previous, examHistory: appendExamHistory(previous.examHistory, item), updatedAt: Date.now() }))
   }
 
   function finishCheckpoint() {
+    recordCurrentExam('checkpoint')
     setActiveSession(null)
     if (blockIndex < blocks.length - 1) {
-      setBlockIndex(index => index + 1)
-      setWordIndex(0)
-      setVerbIndex(0)
-      setVerbRound(0)
-      setStage('word-intro')
+      setBlockIndex(index => index + 1); setWordIndex(0); setVerbIndex(0); setVerbRound(0); setStage('word-intro')
     } else setStage('final-exam')
+  }
+
+  function finishFinalExam() {
+    recordCurrentExam('final')
+    setActiveSession(null)
+    setStage('done')
   }
 
   return (
@@ -238,21 +173,13 @@ export default function LessonFlow({
       </div>
 
       {stage === 'lesson-intro' && <div className="card min-w-0"><h3 className="break-words text-xl font-black">Heute lernst du in kleinen Portionen</h3><p className="mt-2 break-words text-slate-600">Neue Wörter, Verben und Grammatik werden zuerst vorgestellt, danach geübt und erst anschließend geprüft.</p><button onClick={() => setStage('word-intro')} className="btn-primary mt-5 min-h-11 whitespace-normal">Los geht’s <ChevronRight size={18} /></button></div>}
-
       {stage === 'word-intro' && block && <div className="card min-w-0 overflow-hidden"><div className="break-words text-sm font-bold text-lime-700">Lernblock {blockIndex + 1} von {blocks.length} · Wort {wordIndex + 1} von {block.words.length}</div><div className="mt-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2"><div className="min-w-0"><AudioButton text={block.words[wordIndex].sl} /></div><div className="min-w-0"><div className="break-words text-3xl font-black [overflow-wrap:anywhere]">{block.words[wordIndex].sl}</div><div className="mt-1 break-words text-lg text-slate-600 [overflow-wrap:anywhere]">{block.words[wordIndex].de}</div><div className="mt-4 min-w-0 rounded-2xl bg-slate-50 p-4"><b className="break-words [overflow-wrap:anywhere]">{block.words[wordIndex].example}</b><div className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">{block.words[wordIndex].exampleDe}</div></div></div></div><button onClick={nextWord} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">{wordIndex === block.words.length - 1 ? 'Weiter' : 'Nächstes Wort'} <ChevronRight size={18} /></button></div>}
-
       {stage === 'verb-intro' && currentVerb && <div className="card min-w-0 overflow-hidden"><div className="break-words text-sm font-bold text-blue-700">Neues Verb</div><div className="mt-2 flex min-w-0 flex-wrap items-center gap-3"><h3 className="min-w-0 break-words text-2xl font-black sm:text-3xl [overflow-wrap:anywhere]">{currentVerb.infinitiveSl} – {currentVerb.infinitiveDe}</h3><AudioButton text={currentVerb.infinitiveSl} compact /></div><p className="mt-2 break-words text-slate-600">Dieses Verb lernst du zuerst im Singular. Dual und Plural werden später als eigene Stufen eingeführt.</p><div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-3">{currentVerb.forms.map(form => <div key={form.person} className="min-w-0 rounded-2xl bg-blue-50 p-4"><div className="flex min-w-0 flex-wrap items-center justify-between gap-2"><b className="min-w-0 break-words text-lg [overflow-wrap:anywhere]">{form.pronounSl} {form.formSl}</b><AudioButton text={`${form.pronounSl.split(' / ')[0]} ${form.formSl}`} compact /></div><div className="mt-1 break-words text-sm text-slate-600">{form.translationDe}</div></div>)}</div>{currentVerb.examples.length > 0 && <div className="mt-5 min-w-0 rounded-2xl bg-slate-50 p-4"><div className="font-black">Beispiele</div><div className="mt-2 space-y-2">{currentVerb.examples.map(example => <div key={example.sl} className="min-w-0"><b className="break-words [overflow-wrap:anywhere]">{example.sl}</b><div className="break-words text-sm text-slate-500 [overflow-wrap:anywhere]">{example.de}</div></div>)}</div></div>}<button onClick={unlockCurrentVerb} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">Konjugation üben <ChevronRight size={18} /></button></div>}
-
       {stage === 'verb-practice' && currentVerb && activeSession && <><StageHeader tone="blue" title={`Konjugationstraining · ${currentVerb.infinitiveSl}`} count={activeSession.exercises.length} text="Diese Verbformen werden hier gezielt trainiert. Erst danach dürfen normale Satzübungen sie verwenden." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishVerbPractice} /></>}
-
       {stage === 'grammar-intro' && <div className="card min-w-0 overflow-hidden"><div className="text-sm font-bold text-lime-700">Erst verstehen, dann anwenden</div><h3 className="mt-1 break-words text-2xl font-black">Neue Grammatik</h3>{ruleCards.map(rule => <div key={rule.id} className="mt-4 min-w-0 rounded-2xl bg-lime-50 p-4"><div className="break-words font-black">{rule.title}</div><p className="mt-1 break-words text-sm text-slate-600">{rule.body}</p><div className="mt-2 space-y-1 text-sm font-semibold">{rule.examples.map(example => <div key={example} className="break-words [overflow-wrap:anywhere]">{example}</div>)}</div></div>)}<button onClick={unlockGrammar} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">Jetzt anwenden <ChevronRight size={18} /></button></div>}
-
       {stage === 'block-practice' && activeSession && (activeSession.exercises.length ? <><StageHeader tone="lime" title="Übungsblock" count={activeSession.exercises.length} text="Hier wendest du den gerade eingeführten Stoff an. Fehler planen spätere Wiederholungen, verändern dieses Deck aber nicht." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishBlockPractice} /></> : <SkipCard title="Keine passende Übung nötig" text="Für diesen Lernblock ist aktuell keine saubere normale Übung freigeschaltet. Unbekannter Stoff wird nicht erzwungen." onNext={finishBlockPractice} />)}
-
       {stage === 'checkpoint' && activeSession && (activeSession.exercises.length ? <><StageHeader tone="lime" title="Zwischenprüfung" count={activeSession.exercises.length} text="Diese Prüfung ist ein eigenes, festes Deck. Die Aufgabenanzahl bleibt bis zum Abschluss unverändert." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishCheckpoint} /></> : <SkipCard title="Zwischenprüfung übersprungen" text="Es gibt noch nicht genug freigeschaltete Prüfungsaufgaben. Der Lernflow geht weiter, statt alte oder unbekannte Inhalte einzuschieben." onNext={finishCheckpoint} />)}
-
-      {stage === 'final-exam' && activeSession && <>{activeSession.exercises.length ? <><StageHeader tone="lime" title="Abschlussprüfung" count={activeSession.exercises.length} text="Breiter Test über bereits eingeführte und ausreichend trainierte Inhalte. Das Deck bleibt unverändert." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={() => { setActiveSession(null); setStage('done') }} /></> : <SkipCard title="Lektion bereit zum Abschluss" text="Es sind aktuell keine zusätzlichen sauberen Prüfungsaufgaben nötig." onNext={() => setStage('done')} />}</>}
-
+      {stage === 'final-exam' && activeSession && <>{activeSession.exercises.length ? <><StageHeader tone="lime" title="Abschlussprüfung" count={activeSession.exercises.length} text="Breiter Test über bereits eingeführte und ausreichend trainierte Inhalte. Das Deck bleibt unverändert." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishFinalExam} /></> : <SkipCard title="Lektion bereit zum Abschluss" text="Es sind aktuell keine zusätzlichen sauberen Prüfungsaufgaben nötig." onNext={() => setStage('done')} />}</>}
       {stage === 'done' && <div className="card min-w-0 text-center"><div className="text-sm font-bold text-lime-700">100 %</div><h3 className="mt-2 break-words text-3xl font-black">Lektion geschafft</h3><p className="mt-2 break-words text-slate-600">Wörter oder Regeln können trotzdem noch im Status „lernen“ sein und später wiederholt werden.</p><button onClick={onFinish} className="btn-primary mt-5 min-h-11 justify-center whitespace-normal">Lektion abschließen</button></div>}
     </div>
   )
