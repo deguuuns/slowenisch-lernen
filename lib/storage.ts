@@ -4,11 +4,11 @@ import { AttemptSignal, Exercise, LearnerPreferences, MasteryItem, Mistake, Revi
 
 const LEGACY_KEY='slovensko-progress-v1',KEY_PREFIX='slovensko-progress-v2'
 export const defaultPreferences:LearnerPreferences={onboardingCompleted:false,nativeLanguage:'de',targetLevel:'A1',dailyGoalMinutes:10,pace:'normal',audioSpeed:'normal'}
-export const defaultProgress:UserProgress={completedLessons:[],streak:1,introducedWords:[],wordsLearned:[],secureWords:[],mistakes:[],reviews:[],speakingMinutes:0,listeningMinutes:0,mastery:{},recentAttempts:[],transferQueue:[],preferences:defaultPreferences,updatedAt:0,preferencesUpdatedAt:0}
+export const defaultProgress:UserProgress={completedLessons:[],streak:1,introducedWords:[],introducedGrammarRules:[],introducedVerbForms:[],wordsLearned:[],secureWords:[],mistakes:[],reviews:[],speakingMinutes:0,listeningMinutes:0,mastery:{},recentAttempts:[],transferQueue:[],preferences:defaultPreferences,updatedAt:0,preferencesUpdatedAt:0}
 
 function key(ownerId?:string|null){return `${KEY_PREFIX}:${ownerId||'guest'}`}
-function hydrate(parsed:any):UserProgress{return {...defaultProgress,...parsed,mastery:{...(parsed?.mastery||{})},recentAttempts:parsed?.recentAttempts||[],transferQueue:parsed?.transferQueue||[],preferences:{...defaultPreferences,...(parsed?.preferences||{})},updatedAt:Number(parsed?.updatedAt||0),preferencesUpdatedAt:Number(parsed?.preferencesUpdatedAt||0)}}
-export function hasMeaningfulProgress(p:UserProgress){return Boolean(p.completedLessons.length||p.introducedWords.length||p.recentAttempts.length||Object.keys(p.mastery||{}).length)}
+function hydrate(parsed:any):UserProgress{return {...defaultProgress,...parsed,introducedWords:parsed?.introducedWords||[],introducedGrammarRules:parsed?.introducedGrammarRules||[],introducedVerbForms:parsed?.introducedVerbForms||[],mastery:{...(parsed?.mastery||{})},recentAttempts:parsed?.recentAttempts||[],transferQueue:parsed?.transferQueue||[],preferences:{...defaultPreferences,...(parsed?.preferences||{})},updatedAt:Number(parsed?.updatedAt||0),preferencesUpdatedAt:Number(parsed?.preferencesUpdatedAt||0),resetAt:Number(parsed?.resetAt||0)||undefined}}
+export function hasMeaningfulProgress(p:UserProgress){return Boolean(p.completedLessons.length||p.introducedWords.length||p.introducedGrammarRules.length||p.recentAttempts.length||Object.keys(p.mastery||{}).length)}
 export function loadProgress(ownerId?:string|null):UserProgress{
  if(typeof window==='undefined')return defaultProgress
  try{
@@ -20,6 +20,7 @@ export function loadProgress(ownerId?:string|null):UserProgress{
 }
 export function saveProgress(progress:UserProgress,ownerId?:string|null){if(typeof window==='undefined')return;const next={...progress,updatedAt:Date.now()};localStorage.setItem(key(ownerId),JSON.stringify(next))}
 export function clearGuestProgress(){if(typeof window!=='undefined')localStorage.removeItem(key(null))}
+export function resetLearningProgress(current:UserProgress):UserProgress{const now=Date.now();return {...defaultProgress,preferences:{...current.preferences},preferencesUpdatedAt:current.preferencesUpdatedAt||now,updatedAt:now,resetAt:now}}
 
 const intervals=[10*60_000,24*60*60_000,3*24*60*60_000,7*24*60*60_000,14*24*60*60_000,30*24*60*60_000]
 export function scheduleReview(items:ReviewItem[],keyValue:string,correct:boolean):ReviewItem[]{const now=Date.now(),current=items.find(i=>i.key===keyValue),nextIndex=correct?Math.min((current?.intervalIndex??-1)+1,intervals.length-1):0,status=nextIndex>=4?'sicher':nextIndex>=2?'gelernt':correct?'unsicher':'neu',next:ReviewItem={key:keyValue,intervalIndex:nextIndex,status,dueAt:now+intervals[nextIndex],updatedAt:now};return [...items.filter(i=>i.key!==keyValue),next]}
