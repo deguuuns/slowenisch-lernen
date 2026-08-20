@@ -80,7 +80,9 @@ function orderBlockExercises(
   limit: number,
 ) {
   const currentIds = new Set(currentWords.map(word => word.id))
-  const allAvailable = new Set([...priorAvailable, ...currentIds])
+  const allAvailable = new Set(
+    Array.from(priorAvailable).concat(Array.from(currentIds)),
+  )
 
   const knownWarmups = curated
     .filter(exercise => usesOnly(exercise, priorAvailable) && !containsAny(exercise, currentIds))
@@ -116,11 +118,10 @@ export function buildLearningBlocks(
   vocabulary: Vocabulary[],
   rawExercises: Exercise[],
   introducedWordIds: string[],
-  size = NEW_WORDS_PER_BLOCK,
+  size: number = NEW_WORDS_PER_BLOCK,
 ): LearningBlock[] {
   const lessonWords = vocabulary.filter(word => word.lesson === lessonId)
   const unseen = lessonWords.filter(word => !introducedWordIds.includes(word.id))
-  // Metadata is applied before lesson filtering so corrected legacy placement is respected.
   const curated = enrichExercises(rawExercises).filter(exercise => exercise.lesson === lessonId)
   const blocks: LearningBlock[] = []
   const available = new Set(introducedWordIds)
