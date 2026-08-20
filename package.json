@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "test:regression": "npx --yes tsx tests/regression-checks.ts && npx --yes tsx tests/curriculum-audit.ts",
+    "audit:curriculum": "npx --yes tsx tests/curriculum-audit.ts",
+    "test:regression": "npx --yes tsx tests/regression-checks.ts",
     "start": "next start",
     "lint": "next lint"
   },
