@@ -53,9 +53,7 @@ export function createExerciseSession(
 ): ExerciseSession {
   const copies = exercises.map(copyExercise)
   const issues = validateExerciseSet(copies)
-  if (issues.length) {
-    throw new Error(`Invalid exercise session ${sessionId}: ${JSON.stringify(issues)}`)
-  }
+  if (issues.length) throw new Error(`Invalid exercise session ${sessionId}: ${JSON.stringify(issues)}`)
 
   const seen = new Set<string>()
   const items = copies.map((exercise, index) => {
@@ -65,9 +63,7 @@ export function createExerciseSession(
       id: `${sessionId}:${index}:${exercise.id}`,
       sourceExerciseId: exercise.id,
       exercise: Object.freeze(exercise),
-      options: Object.freeze(
-        exercise.type === 'choice' ? stableChoiceOptions(exercise, sessionId) : [],
-      ) as unknown as ChoiceOption[],
+      options: Object.freeze(exercise.type === 'choice' ? stableChoiceOptions(exercise, sessionId) : []) as unknown as ChoiceOption[],
     })
   })
 
@@ -85,9 +81,8 @@ export function validateSessionResults(
 ): string[] {
   const validIds = new Set(session.exercises.map(item => item.id))
   const issues: string[] = []
-  if (results.length > session.exercises.length) {
-    issues.push(`results ${results.length} exceed exercises ${session.exercises.length}`)
-  }
+  if (results.length > session.exercises.length) issues.push(`results ${results.length} exceed exercises ${session.exercises.length}`)
+
   const seen = new Set<string>()
   for (const result of results) {
     if (!validIds.has(result.sessionExerciseId)) issues.push(`foreign result ${result.sessionExerciseId}`)
@@ -97,9 +92,20 @@ export function validateSessionResults(
   return issues
 }
 
-export function sessionSummary(session: ExerciseSession, results: ExerciseSessionResult[]) {
+export function validateCompletedSession(
+  session: ExerciseSession,
+  results: ExerciseSessionResult[],
+): string[] {
   const issues = validateSessionResults(session, results)
-  if (issues.length) throw new Error(`Invalid session results: ${issues.join(', ')}`)
+  if (results.length !== session.exercises.length) {
+    issues.push(`completed session has ${results.length} results for ${session.exercises.length} exercises`)
+  }
+  return issues
+}
+
+export function sessionSummary(session: ExerciseSession, results: ExerciseSessionResult[]) {
+  const issues = validateCompletedSession(session, results)
+  if (issues.length) throw new Error(`Invalid completed session: ${issues.join(', ')}`)
   const correct = results.filter(result => result.correct).length
   const total = results.length
   return { total, correct, wrong: total - correct }
