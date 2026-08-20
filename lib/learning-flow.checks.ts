@@ -20,13 +20,24 @@ export function runLearningFlowChecks() {
   assert(blocks.length===2,'four words should create two learning blocks')
   assert(blocks.every(b=>b.words.length<=NEW_WORDS_PER_BLOCK),'a block introduced more than the configured maximum')
   assert(blocks[0].exercises.some(e=>e.id==='custom'),'matching curated exercise was not attached to the first block')
-  assert(blocks[0].words.every(w=>blocks[0].exercises.some(e=>e.vocabularyIds?.includes(w.id))),'every introduced word needs an immediate exercise')
+  assert(blocks[0].words.every(w=>blocks[0].exercises.some(e=>e.vocabularyIds?.includes(w.id))),'every introduced word needs timely practice')
+
+  const first=blocks[0].exercises[0]
+  assert(!first.id.startsWith('gen-recognize-'),'a fresh block must not begin with a direct meaning-recognition question')
+  const firstRecognition=blocks[0].exercises.findIndex(e=>e.id.startsWith('gen-recognize-'))
+  assert(firstRecognition!==0,'direct recognition must be delayed behind contextual/productive work')
+
+  const second=blocks[1]
+  assert(second.exercises[0].id==='custom'||second.exercises[0].id.startsWith('gen-recognize-'),'later blocks should use known material as a buffer when available')
+  const dRecognition=second.exercises.findIndex(e=>e.id==='gen-recognize-d')
+  const dProduction=second.exercises.findIndex(e=>e.id==='gen-produce-d')
+  assert(dRecognition<0||dProduction<dRecognition,'active production should precede direct recognition for a freshly introduced word')
 
   const resumed=buildLearningBlocks(1,words,exercises,['a','b','c'])
   assert(resumed.length===1&&resumed[0].words[0].id==='d','already introduced words were presented again')
 
   const generatedIds=blocks.flatMap(b=>b.exercises.filter(e=>e.generated).map(e=>e.id))
-  assert(generatedIds.includes('gen-recognize-a')&&generatedIds.includes('gen-produce-a'),'recognition and active production should both be generated')
+  assert(generatedIds.includes('gen-recognize-a')&&generatedIds.includes('gen-produce-a'),'recognition and active production should both remain available')
 
   return true
 }
