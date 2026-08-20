@@ -5,22 +5,33 @@ import { ChevronRight } from 'lucide-react'
 import AudioButton from '@/components/AudioButton'
 import ExerciseDeck, { ExerciseResultMeta } from '@/components/ExerciseDeck'
 import { exercises, lessons, vocabulary } from '@/data/seed'
-import { grammarDefinitions, grammarPrerequisitesMet } from '@/lib/curriculum-access'
-import { buildLearningBlocks, lessonProgress } from '@/lib/learning-flow'
+import { grammarDefinitions, grammarPrerequisitesMet, isExerciseEligible } from '@/lib/curriculum-access'
 import { buildExamPlan, examSize } from '@/lib/exam-planner'
 import { createExerciseSession, ExerciseSession } from '@/lib/exercise-session'
+import { buildLearningBlocks } from '@/lib/learning-flow'
 import { allVerbFormsReady, buildVerbPracticeExercises, verbIntrosForVocabulary } from '@/lib/verb-learning'
 import { Exercise, UserProgress, VerbFormRequirement } from '@/types'
 
 type Stage =
-  | 'intro'
-  | 'learn'
+  | 'lesson-intro'
+  | 'word-intro'
   | 'verb-intro'
   | 'verb-practice'
   | 'grammar-intro'
+  | 'block-practice'
   | 'checkpoint'
-  | 'final'
+  | 'final-exam'
   | 'done'
+
+const STAGE_PROGRESS: Record<Exclude<Stage, 'final-exam' | 'done'>, number> = {
+  'lesson-intro': 0,
+  'word-intro': .08,
+  'verb-intro': .28,
+  'verb-practice': .42,
+  'grammar-intro': .55,
+  'block-practice': .72,
+  checkpoint: .94,
+}
 
 function blockSize(progress: UserProgress) {
   return progress.preferences.pace === 'ruhig' ? 2 : 3
@@ -39,12 +50,12 @@ export default function LessonFlow({
   onExerciseResult: (exercise: Exercise, correct: boolean, meta: ExerciseResultMeta) => void
   onFinish: () => void
 }) {
-  const lesson = lessons.find(item => item.id === lessonId)!
+  const lesson = lessons.find(item => item.id === lessonId)
   const [sessionSeed] = useState(() => Date.now())
   const [blocks] = useState(() =>
     buildLearningBlocks(lessonId, vocabulary, exercises, progress.introducedWords, blockSize(progress)),
   )
-  const [stage, setStage] = useState<Stage>(blocks.length ? 'intro' : 'final')
+  const [stage, setStage] = useState<Stage>(blocks.length ? 'lesson-intro' : 'final-exam')
   const [blockIndex, setBlockIndex] = useState(0)
   const [wordIndex, setWordIndex] = useState(0)
   const [verbIndex, setVerbIndex] = useState(0)
@@ -57,26 +68,42 @@ export default function LessonFlow({
     [block],
   )
   const pendingRules = blockRuleIds.filter(
-    id =>
-      !progress.introducedGrammarRules.includes(id) &&
-      grammarPrerequisitesMet(id, progress, blockRuleIds),
+    id => !progress.introducedGrammarRules.includes(id) && grammarPrerequisitesMet(id, progress, blockRuleIds),
   )
-  const ruleCards = grammarDefinitions(pendingRules)
-  const verbIntros = verbIntrosForVocabulary(block?.words.map(word => word.id) || [])
+  const ruleCards = grammarDefinitions(pendingRules).filter(rule => rule.id !== 'verb-first-person')
+  const verbIntros = verbIntrosForVocabulary(block?.words.map(word => word.id) || []).filter(verb =>
+    verb.keys.some(key => !progress.introducedVerbForms.includes(key)),
+  )
   const currentVerb = verbIntros[verbIndex]
+
+  const percent = useMemo(() => {
+    if (stage === 'done') return 100
+    if (stage === 'final-exam') return 96
+    if (!blocks.length) return 90
+    const within = STAGE_PROGRESS[stage]
+    return Math.min(95, Math.round(((blockIndex + within) / blocks.length) * 95))
+  }, [blockIndex, blocks.length, stage])
 
   useEffect(() => {
     if (activeSession) return
 
     if (stage === 'verb-practice' && currentVerb) {
       const deck = buildVerbPracticeExercises(lessonId, currentVerb)
-      setActiveSession(
-        createExerciseSession(
-          'verb-practice',
-          deck,
-          `lesson-${lessonId}:block-${blockIndex}:verb-${currentVerb.verbId}:round-${verbRound}`,
-        ),
-      )
+      setActiveSession(createExerciseSession(
+        'verb-practice',
+        deck,
+        `lesson-${lessonId}:block-${blockIndex}:verb-${currentVerb.verbId}:round-${verbRound}`,
+      ))
+      return
+    }
+
+    if (stage === 'block-practice' && block) {
+      const deck = block.exercises.filter(exercise => isExerciseEligible(exercise, progress))
+      setActiveSession(createExerciseSession(
+        'learning-block',
+        deck,
+        `lesson-${lessonId}:block-${blockIndex}:practice:${sessionSeed}`,
+      ))
       return
     }
 
@@ -84,23 +111,21 @@ export default function LessonFlow({
       const deck = buildExamPlan({
         kind: 'checkpoint',
         lessonId,
-        exercises: block.exercises,
+        exercises,
         vocabulary,
         progress,
         seed: sessionSeed + blockIndex * 101,
         targetSize: examSize('checkpoint', progress, block.words.length),
       })
-      setActiveSession(
-        createExerciseSession(
-          'checkpoint',
-          deck,
-          `lesson-${lessonId}:block-${blockIndex}:checkpoint:${sessionSeed}`,
-        ),
-      )
+      setActiveSession(createExerciseSession(
+        'checkpoint',
+        deck,
+        `lesson-${lessonId}:block-${blockIndex}:checkpoint:${sessionSeed}`,
+      ))
       return
     }
 
-    if (stage === 'final') {
+    if (stage === 'final-exam') {
       const deck = buildExamPlan({
         kind: 'final',
         lessonId,
@@ -110,28 +135,15 @@ export default function LessonFlow({
         seed: sessionSeed + 9001,
         targetSize: examSize('final', progress),
       })
-      setActiveSession(
-        createExerciseSession('final-exam', deck, `lesson-${lessonId}:final:${sessionSeed}`),
-      )
+      setActiveSession(createExerciseSession(
+        'final-exam',
+        deck,
+        `lesson-${lessonId}:final:${sessionSeed}`,
+      ))
     }
-  }, [
-    activeSession,
-    block,
-    blockIndex,
-    currentVerb,
-    lessonId,
-    progress,
-    sessionSeed,
-    stage,
-    verbRound,
-  ])
+  }, [activeSession, block, blockIndex, currentVerb, lessonId, progress, sessionSeed, stage, verbRound])
 
-  const percent =
-    stage === 'done'
-      ? 100
-      : blocks.length
-        ? lessonProgress(blockIndex, blocks.length, stage === 'checkpoint' ? 1 : 0, 2)
-        : 75
+  if (!lesson) return null
 
   function markWord(id: string) {
     setProgress(previous => ({
@@ -141,51 +153,46 @@ export default function LessonFlow({
     }))
   }
 
-  function afterWords() {
+  function nextAfterWordIntro() {
     setWordIndex(0)
     setVerbIndex(0)
+    setVerbRound(0)
     setActiveSession(null)
     if (verbIntros.length) setStage('verb-intro')
-    else if (pendingRules.length) setStage('grammar-intro')
-    else setStage('checkpoint')
+    else if (ruleCards.length) setStage('grammar-intro')
+    else setStage('block-practice')
   }
 
   function nextWord() {
     if (!block) return
     markWord(block.words[wordIndex].id)
-    if (wordIndex < block.words.length - 1) setWordIndex(wordIndex + 1)
-    else afterWords()
+    if (wordIndex < block.words.length - 1) setWordIndex(index => index + 1)
+    else nextAfterWordIntro()
   }
 
   function unlockCurrentVerb() {
     if (!currentVerb) return
     setProgress(previous => ({
       ...previous,
-      introducedVerbForms: Array.from(
-        new Set([...previous.introducedVerbForms, ...currentVerb.keys]),
-      ),
-      introducedGrammarRules: Array.from(
-        new Set([...previous.introducedGrammarRules, 'verb-first-person']),
-      ),
+      introducedVerbForms: Array.from(new Set([...previous.introducedVerbForms, ...currentVerb.keys])),
+      introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, 'verb-first-person'])),
       updatedAt: Date.now(),
     }))
     setActiveSession(null)
     setStage('verb-practice')
   }
 
-  function currentRequirements(): VerbFormRequirement[] {
-    return (
-      currentVerb?.forms.map(form => ({
-        verbId: currentVerb.verbId,
-        person: form.person,
-        number: 'singular' as const,
-      })) || []
-    )
+  function currentVerbRequirements(): VerbFormRequirement[] {
+    return currentVerb?.forms.map(form => ({
+      verbId: currentVerb.verbId,
+      person: form.person,
+      number: 'singular' as const,
+    })) || []
   }
 
   function finishVerbPractice() {
     if (!currentVerb) return
-    if (!allVerbFormsReady(progress, currentRequirements())) {
+    if (!allVerbFormsReady(progress, currentVerbRequirements())) {
       setVerbRound(round => round + 1)
       setActiveSession(null)
       return
@@ -195,39 +202,40 @@ export default function LessonFlow({
     if (verbIndex < verbIntros.length - 1) {
       setVerbIndex(index => index + 1)
       setStage('verb-intro')
-    } else if (pendingRules.filter(rule => rule !== 'verb-first-person').length) {
+    } else if (ruleCards.length) {
       setStage('grammar-intro')
     } else {
-      setStage('checkpoint')
+      setStage('block-practice')
     }
   }
 
   function unlockGrammar() {
     setProgress(previous => ({
       ...previous,
-      introducedGrammarRules: Array.from(
-        new Set([...previous.introducedGrammarRules, ...pendingRules]),
-      ),
+      introducedGrammarRules: Array.from(new Set([...previous.introducedGrammarRules, ...pendingRules])),
       updatedAt: Date.now(),
     }))
+    setActiveSession(null)
+    setStage('block-practice')
+  }
+
+  function finishBlockPractice() {
     setActiveSession(null)
     setStage('checkpoint')
   }
 
-  function nextBlock() {
+  function finishCheckpoint() {
     setActiveSession(null)
     if (blockIndex < blocks.length - 1) {
       setBlockIndex(index => index + 1)
       setWordIndex(0)
       setVerbIndex(0)
       setVerbRound(0)
-      setStage('learn')
+      setStage('word-intro')
     } else {
-      setStage('final')
+      setStage('final-exam')
     }
   }
-
-  if (!lesson) return null
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 overflow-x-hidden">
@@ -239,225 +247,74 @@ export default function LessonFlow({
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
           <div className="h-full bg-lime-400 transition-all" style={{ width: `${percent}%` }} />
         </div>
-        <h2 className="mt-4 min-w-0 break-words text-2xl font-black sm:text-3xl [overflow-wrap:anywhere]">
-          {lesson.title}
-        </h2>
+        <h2 className="mt-4 min-w-0 break-words text-2xl font-black sm:text-3xl [overflow-wrap:anywhere]">{lesson.title}</h2>
         <p className="mt-2 break-words text-slate-600 [overflow-wrap:anywhere]">{lesson.subtitle}</p>
       </div>
 
-      {stage === 'intro' && (
+      {stage === 'lesson-intro' && (
         <div className="card min-w-0">
           <h3 className="break-words text-xl font-black">Heute lernst du in kleinen Portionen</h3>
-          <p className="mt-2 break-words text-slate-600">
-            Neue Wörter, Verben und Grammatik werden zuerst vollständig vorgestellt. Erst danach werden sie
-            in normalen Sätzen abgefragt.
-          </p>
-          <button onClick={() => setStage('learn')} className="btn-primary mt-5 min-h-11 whitespace-normal">
-            Los geht’s <ChevronRight size={18} />
-          </button>
+          <p className="mt-2 break-words text-slate-600">Neue Wörter, Verben und Grammatik werden zuerst vorgestellt, danach geübt und erst anschließend geprüft.</p>
+          <button onClick={() => setStage('word-intro')} className="btn-primary mt-5 min-h-11 whitespace-normal">Los geht’s <ChevronRight size={18} /></button>
         </div>
       )}
 
-      {stage === 'learn' && block && (
+      {stage === 'word-intro' && block && (
         <div className="card min-w-0 overflow-hidden">
-          <div className="break-words text-sm font-bold text-lime-700">
-            Lernblock {blockIndex + 1} von {blocks.length} · Wort {wordIndex + 1} von {block.words.length}
-          </div>
+          <div className="break-words text-sm font-bold text-lime-700">Lernblock {blockIndex + 1} von {blocks.length} · Wort {wordIndex + 1} von {block.words.length}</div>
           <div className="mt-5 grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="min-w-0"><AudioButton text={block.words[wordIndex].sl} /></div>
             <div className="min-w-0">
-              <AudioButton text={block.words[wordIndex].sl} />
-            </div>
-            <div className="min-w-0">
-              <div className="break-words text-3xl font-black [overflow-wrap:anywhere]">
-                {block.words[wordIndex].sl}
-              </div>
-              <div className="mt-1 break-words text-lg text-slate-600 [overflow-wrap:anywhere]">
-                {block.words[wordIndex].de}
-              </div>
-              <div className="mt-4 min-w-0 rounded-2xl bg-slate-50 p-4">
-                <b className="break-words [overflow-wrap:anywhere]">{block.words[wordIndex].example}</b>
-                <div className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-                  {block.words[wordIndex].exampleDe}
-                </div>
-              </div>
+              <div className="break-words text-3xl font-black [overflow-wrap:anywhere]">{block.words[wordIndex].sl}</div>
+              <div className="mt-1 break-words text-lg text-slate-600 [overflow-wrap:anywhere]">{block.words[wordIndex].de}</div>
+              <div className="mt-4 min-w-0 rounded-2xl bg-slate-50 p-4"><b className="break-words [overflow-wrap:anywhere]">{block.words[wordIndex].example}</b><div className="mt-1 break-words text-sm text-slate-500 [overflow-wrap:anywhere]">{block.words[wordIndex].exampleDe}</div></div>
             </div>
           </div>
-          <button onClick={nextWord} className="btn-primary mt-5 w-full min-h-11 justify-center whitespace-normal">
-            {wordIndex === block.words.length - 1 ? 'Weiter' : 'Nächstes Wort'} <ChevronRight size={18} />
-          </button>
+          <button onClick={nextWord} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">{wordIndex === block.words.length - 1 ? 'Weiter' : 'Nächstes Wort'} <ChevronRight size={18} /></button>
         </div>
       )}
 
       {stage === 'verb-intro' && currentVerb && (
         <div className="card min-w-0 overflow-hidden">
-          <div className="break-words text-sm font-bold text-blue-700">
-            Neues Verb · {verbIndex + 1} von {verbIntros.length}
-          </div>
-          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-3">
-            <h3 className="min-w-0 break-words text-2xl font-black sm:text-3xl [overflow-wrap:anywhere]">
-              {currentVerb.infinitiveSl} – {currentVerb.infinitiveDe}
-            </h3>
-            <AudioButton text={currentVerb.infinitiveSl} compact />
-          </div>
-          <p className="mt-2 break-words text-slate-600">
-            Dieses Verb lernst du zuerst vollständig im Singular. Dual und Plural kommen später als eigene
-            Lernstufen.
-          </p>
-          <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-3">
-            {currentVerb.forms.map(form => (
-              <div key={form.person} className="min-w-0 rounded-2xl bg-blue-50 p-4">
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                  <b className="min-w-0 break-words text-lg [overflow-wrap:anywhere]">
-                    {form.pronounSl} {form.formSl}
-                  </b>
-                  <AudioButton text={`${form.pronounSl.split(' / ')[0]} ${form.formSl}`} compact />
-                </div>
-                <div className="mt-1 break-words text-sm text-slate-600">{form.translationDe}</div>
-              </div>
-            ))}
-          </div>
-          {currentVerb.examples.length > 0 && (
-            <div className="mt-5 min-w-0 rounded-2xl bg-slate-50 p-4">
-              <div className="font-black">Beispiele</div>
-              <div className="mt-2 space-y-2">
-                {currentVerb.examples.map(example => (
-                  <div key={example.sl} className="min-w-0">
-                    <b className="break-words [overflow-wrap:anywhere]">{example.sl}</b>
-                    <div className="break-words text-sm text-slate-500 [overflow-wrap:anywhere]">
-                      {example.de}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <button
-            onClick={unlockCurrentVerb}
-            className="btn-primary mt-5 w-full min-h-11 justify-center whitespace-normal"
-          >
-            Konjugation üben <ChevronRight size={18} />
-          </button>
+          <div className="break-words text-sm font-bold text-blue-700">Neues Verb · {verbIndex + 1} von {verbIntros.length}</div>
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-3"><h3 className="min-w-0 break-words text-2xl font-black sm:text-3xl [overflow-wrap:anywhere]">{currentVerb.infinitiveSl} – {currentVerb.infinitiveDe}</h3><AudioButton text={currentVerb.infinitiveSl} compact /></div>
+          <p className="mt-2 break-words text-slate-600">Dieses Verb lernst du zuerst im Singular. Dual und Plural werden später als eigene Stufen eingeführt.</p>
+          <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-3">{currentVerb.forms.map(form => <div key={form.person} className="min-w-0 rounded-2xl bg-blue-50 p-4"><div className="flex min-w-0 flex-wrap items-center justify-between gap-2"><b className="min-w-0 break-words text-lg [overflow-wrap:anywhere]">{form.pronounSl} {form.formSl}</b><AudioButton text={`${form.pronounSl.split(' / ')[0]} ${form.formSl}`} compact /></div><div className="mt-1 break-words text-sm text-slate-600">{form.translationDe}</div></div>)}</div>
+          {currentVerb.examples.length > 0 && <div className="mt-5 min-w-0 rounded-2xl bg-slate-50 p-4"><div className="font-black">Beispiele</div><div className="mt-2 space-y-2">{currentVerb.examples.map(example => <div key={example.sl} className="min-w-0"><b className="break-words [overflow-wrap:anywhere]">{example.sl}</b><div className="break-words text-sm text-slate-500 [overflow-wrap:anywhere]">{example.de}</div></div>)}</div></div>}
+          <button onClick={unlockCurrentVerb} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">Konjugation üben <ChevronRight size={18} /></button>
         </div>
       )}
 
-      {stage === 'verb-practice' && currentVerb && activeSession && (
-        <>
-          <div className="card min-w-0">
-            <div className="break-words text-sm font-bold text-blue-700">
-              Konjugationstraining · {currentVerb.infinitiveSl} · {activeSession.exercises.length} Aufgaben
-            </div>
-            <h3 className="mt-1 break-words text-2xl font-black">Erst sicher anwenden, dann in Sätzen benutzen</h3>
-            <p className="mt-2 break-words text-slate-600">
-              Jede Singularform wird erkannt und aktiv produziert. Bei Fehlern folgt eine weitere Runde, bevor
-              das Verb für normale Aufgaben freigegeben wird.
-            </p>
-          </div>
-          <ExerciseDeck
-            key={activeSession.sessionId}
-            session={activeSession}
-            onResult={onExerciseResult}
-            onComplete={finishVerbPractice}
-          />
-        </>
-      )}
+      {stage === 'verb-practice' && currentVerb && activeSession && <><StageHeader tone="blue" title={`Konjugationstraining · ${currentVerb.infinitiveSl}`} count={activeSession.exercises.length} text="Diese Verbformen werden hier gezielt trainiert. Erst danach dürfen normale Satzübungen sie verwenden." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishVerbPractice} /></>}
 
       {stage === 'grammar-intro' && (
         <div className="card min-w-0 overflow-hidden">
-          <div className="text-sm font-bold text-lime-700">Erst verstehen, dann üben</div>
-          <h3 className="mt-1 break-words text-2xl font-black">Neue Grammatik in diesem Lernblock</h3>
-          {ruleCards
-            .filter(rule => rule.id !== 'verb-first-person')
-            .map(rule => (
-              <div key={rule.id} className="mt-4 min-w-0 rounded-2xl bg-lime-50 p-4">
-                <div className="break-words font-black">{rule.title}</div>
-                <p className="mt-1 break-words text-sm text-slate-600">{rule.body}</p>
-                <div className="mt-2 space-y-1 text-sm font-semibold">
-                  {rule.examples.map(example => (
-                    <div key={example} className="break-words [overflow-wrap:anywhere]">
-                      {example}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          <button onClick={unlockGrammar} className="btn-primary mt-5 w-full min-h-11 justify-center whitespace-normal">
-            Jetzt üben <ChevronRight size={18} />
-          </button>
+          <div className="text-sm font-bold text-lime-700">Erst verstehen, dann anwenden</div>
+          <h3 className="mt-1 break-words text-2xl font-black">Neue Grammatik</h3>
+          {ruleCards.map(rule => <div key={rule.id} className="mt-4 min-w-0 rounded-2xl bg-lime-50 p-4"><div className="break-words font-black">{rule.title}</div><p className="mt-1 break-words text-sm text-slate-600">{rule.body}</p><div className="mt-2 space-y-1 text-sm font-semibold">{rule.examples.map(example => <div key={example} className="break-words [overflow-wrap:anywhere]">{example}</div>)}</div></div>)}
+          <button onClick={unlockGrammar} className="btn-primary mt-5 min-h-11 w-full justify-center whitespace-normal">Jetzt anwenden <ChevronRight size={18} /></button>
         </div>
       )}
 
-      {stage === 'checkpoint' && activeSession && block && (
-        activeSession.exercises.length ? (
-          <>
-            <div className="card min-w-0">
-              <div className="break-words text-sm font-bold text-lime-700">
-                Zwischenprüfung · {activeSession.exercises.length} Aufgaben
-              </div>
-              <p className="mt-1 break-words text-sm text-slate-600">
-                Dieser Prüfungsplan ist jetzt fest und verändert sich während der Prüfung nicht mehr.
-              </p>
-            </div>
-            <ExerciseDeck
-              key={activeSession.sessionId}
-              session={activeSession}
-              onResult={onExerciseResult}
-              onComplete={nextBlock}
-            />
-          </>
-        ) : (
-          <div className="card min-w-0">
-            <h3 className="break-words text-xl font-black">Dieser Block ist vorbereitet</h3>
-            <p className="mt-2 break-words text-slate-600">
-              Noch keine passende normale Übung ist freigeschaltet. Wir gehen weiter, statt unsichere oder
-              unbekannte Formen abzufragen.
-            </p>
-            <button onClick={nextBlock} className="btn-primary mt-4 min-h-11 whitespace-normal">Weiter</button>
-          </div>
-        )
+      {stage === 'block-practice' && activeSession && (
+        activeSession.exercises.length ? <><StageHeader tone="lime" title="Übungsblock" count={activeSession.exercises.length} text="Hier darfst du den gerade eingeführten Stoff anwenden. Fehler erzeugen spätere Wiederholungen, verändern aber dieses Deck nicht." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishBlockPractice} /></> : <SkipCard title="Keine passende Übung nötig" text="Für diesen Lernblock ist aktuell keine saubere normale Übung freigeschaltet. Unbekannter Stoff wird nicht erzwungen." onNext={finishBlockPractice} />
       )}
 
-      {stage === 'final' && activeSession && (
-        <>
-          <div className="card min-w-0">
-            <div className="break-words text-sm font-bold text-lime-700">
-              Abschlussprüfung · {activeSession.exercises.length} Aufgaben
-            </div>
-            <h3 className="mt-1 break-words text-2xl font-black">Breiter Test über die ganze Lektion</h3>
-            <p className="mt-2 break-words text-slate-600">
-              Nur bereits eingeführte und ausreichend trainierte Inhalte werden geprüft. Der Plan bleibt bis
-              zum Abschluss unverändert.
-            </p>
-          </div>
-          {activeSession.exercises.length ? (
-            <ExerciseDeck
-              key={activeSession.sessionId}
-              session={activeSession}
-              onResult={onExerciseResult}
-              onComplete={() => {
-                setActiveSession(null)
-                setStage('done')
-              }}
-            />
-          ) : (
-            <button onClick={() => setStage('done')} className="btn-primary min-h-11 whitespace-normal">
-              Lektion abschließen
-            </button>
-          )}
-        </>
+      {stage === 'checkpoint' && activeSession && (
+        activeSession.exercises.length ? <><StageHeader tone="lime" title="Zwischenprüfung" count={activeSession.exercises.length} text="Diese Prüfung ist ein eigenes, festes Deck. Die Aufgabenanzahl bleibt bis zum Abschluss unverändert." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={finishCheckpoint} /></> : <SkipCard title="Zwischenprüfung übersprungen" text="Es gibt noch nicht genug freigeschaltete Prüfungsaufgaben. Der Lernflow geht weiter, statt alte oder unbekannte Inhalte einzuschieben." onNext={finishCheckpoint} />
       )}
 
-      {stage === 'done' && (
-        <div className="card min-w-0 text-center">
-          <div className="text-sm font-bold text-lime-700">100 %</div>
-          <h3 className="mt-2 break-words text-3xl font-black">Lektion geschafft</h3>
-          <p className="mt-2 break-words text-slate-600">
-            Einzelne Wörter oder Regeln können trotzdem noch im Status „lernen“ sein.
-          </p>
-          <button onClick={onFinish} className="btn-primary mt-5 min-h-11 justify-center whitespace-normal">
-            Lektion abschließen
-          </button>
-        </div>
-      )}
+      {stage === 'final-exam' && activeSession && <>{activeSession.exercises.length ? <><StageHeader tone="lime" title="Abschlussprüfung" count={activeSession.exercises.length} text="Breiter Test über bereits eingeführte und ausreichend trainierte Inhalte. Das Deck bleibt unverändert." /><ExerciseDeck key={activeSession.sessionId} session={activeSession} onResult={onExerciseResult} onComplete={() => { setActiveSession(null); setStage('done') }} /></> : <SkipCard title="Lektion bereit zum Abschluss" text="Es sind aktuell keine zusätzlichen sauberen Prüfungsaufgaben nötig." onNext={() => setStage('done')} />}</>}
+
+      {stage === 'done' && <div className="card min-w-0 text-center"><div className="text-sm font-bold text-lime-700">100 %</div><h3 className="mt-2 break-words text-3xl font-black">Lektion geschafft</h3><p className="mt-2 break-words text-slate-600">Wörter oder Regeln können trotzdem noch im Status „lernen“ sein und später wiederholt werden.</p><button onClick={onFinish} className="btn-primary mt-5 min-h-11 justify-center whitespace-normal">Lektion abschließen</button></div>}
     </div>
   )
+}
+
+function StageHeader({ tone, title, count, text }: { tone: 'blue' | 'lime'; title: string; count: number; text: string }) {
+  return <div className="card min-w-0"><div className={`break-words text-sm font-bold ${tone === 'blue' ? 'text-blue-700' : 'text-lime-700'}`}>{title} · {count} Aufgaben</div><p className="mt-2 break-words text-sm text-slate-600">{text}</p></div>
+}
+
+function SkipCard({ title, text, onNext }: { title: string; text: string; onNext: () => void }) {
+  return <div className="card min-w-0"><h3 className="break-words text-xl font-black">{title}</h3><p className="mt-2 break-words text-slate-600">{text}</p><button onClick={onNext} className="btn-primary mt-4 min-h-11 whitespace-normal">Weiter</button></div>
 }
