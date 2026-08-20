@@ -3,6 +3,9 @@ export type VocabularyStatus = 'neu' | 'eingeführt' | 'lernen' | 'gelernt' | 's
 export type EvaluationMode = 'exact' | 'acceptedVariants' | 'grammar' | 'semantic' | 'open'
 export type SkillTarget = 'recognition' | 'production' | 'grammar-application' | 'listening' | 'speaking'
 export type HintType = 'translation' | 'firstLetter' | 'grammarHint' | 'slowAudio' | 'replayAudio' | 'generic'
+export type ExerciseDifficulty = 'intro' | 'easy' | 'normal' | 'challenge'
+export type VerbNumber = 'singular' | 'dual' | 'plural'
+export type VerbFormRequirement = { verbId:string; person:1|2|3; number:VerbNumber }
 
 export type Vocabulary = {
   id: string
@@ -36,6 +39,8 @@ export type Exercise = {
   grammarRuleIds?:string[]
   evaluationMode?:EvaluationMode
   skillTargets?:SkillTarget[]
+  difficulty?:ExerciseDifficulty
+  requiredVerbForms?:VerbFormRequirement[]
   generated?:boolean
   transferSourceExerciseId?:string
   transferRuleId?:string
@@ -93,6 +98,8 @@ export type UserProgress = {
   completedLessons:number[]
   streak:number
   introducedWords:string[]
+  introducedGrammarRules:string[]
+  introducedVerbForms:string[]
   wordsLearned:string[]
   secureWords:string[]
   mistakes:Mistake[]
@@ -105,5 +112,6 @@ export type UserProgress = {
   preferences:LearnerPreferences
   updatedAt:number
   preferencesUpdatedAt:number
+  resetAt?:number
   lastSyncedAt?:number
 }
