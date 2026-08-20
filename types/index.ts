@@ -7,111 +7,17 @@ export type ExerciseDifficulty = 'intro' | 'easy' | 'normal' | 'challenge'
 export type VerbNumber = 'singular' | 'dual' | 'plural'
 export type VerbFormRequirement = { verbId:string; person:1|2|3; number:VerbNumber }
 
-export type Vocabulary = {
-  id: string
-  sl: string
-  de: string
-  partOfSpeech: string
-  category: string
-  example: string
-  exampleDe: string
-  lesson: number
-  lemma?: string
-  gender?: 'masculine' | 'feminine' | 'neuter'
-  cefrLevel?: 'A1' | 'A2' | 'B1' | 'B2' | 'C1'
-  pronunciation?: string
-  tags?: string[]
-}
-
+export type Vocabulary = { id:string; sl:string; de:string; partOfSpeech:string; category:string; example:string; exampleDe:string; lesson:number; lemma?:string; gender?:'masculine'|'feminine'|'neuter'; cefrLevel?:'A1'|'A2'|'B1'|'B2'|'C1'; pronunciation?:string; tags?:string[] }
 export type Sentence = { id:string; sl:string; de:string; lesson:number; note?:string }
 export type ExerciseType = 'translate-de-sl' | 'fill' | 'choice' | 'free' | 'ending'
-export type Exercise = {
-  id:string
-  lesson:number
-  type:ExerciseType
-  prompt:string
-  answer:string
-  alternatives?:string[]
-  acceptedAnswers?:string[]
-  hint?:string
-  explanation?:string
-  vocabularyIds?:string[]
-  grammarRuleIds?:string[]
-  evaluationMode?:EvaluationMode
-  skillTargets?:SkillTarget[]
-  difficulty?:ExerciseDifficulty
-  requiredVerbForms?:VerbFormRequirement[]
-  generated?:boolean
-  transferSourceExerciseId?:string
-  transferRuleId?:string
-}
+export type Exercise = { id:string; lesson:number; type:ExerciseType; prompt:string; answer:string; alternatives?:string[]; acceptedAnswers?:string[]; hint?:string; explanation?:string; vocabularyIds?:string[]; grammarRuleIds?:string[]; evaluationMode?:EvaluationMode; skillTargets?:SkillTarget[]; difficulty?:ExerciseDifficulty; requiredVerbForms?:VerbFormRequirement[]; generated?:boolean; verbPractice?:boolean; transferSourceExerciseId?:string; transferRuleId?:string }
 export type Lesson = { id:number; title:string; subtitle:string; minutes:number; focus:string[]; grammar:{title:string;body:string;examples:string[]} }
 export type ConversationTurn = { speaker:'Tutor'|'Nutzer'; sl:string; de?:string }
 export type Conversation = { id:string; title:string; lesson:number; turns:ConversationTurn[] }
 export type Mistake = { key:string; count:number; lastSeen:number }
 export type ReviewItem = { key:string; status:LearningStatus; dueAt:number; intervalIndex:number; updatedAt?:number }
-
-export type AttemptSignal = {
-  exerciseId:string
-  correct:boolean
-  responseMs:number
-  hintsUsed:number
-  hintTypes?:HintType[]
-  occurredAt:number
-  vocabularyIds?:string[]
-  grammarRuleIds?:string[]
-  skillTargets?:SkillTarget[]
-  activeProduction?:boolean
-}
-
-export type TransferItem = {
-  sourceExerciseId:string
-  grammarRuleId:string
-  dueAfter:number
-  createdAt:number
-  failedTransfers?:number
-}
-
-export type MasteryItem = {
-  key:string
-  kind:'vocabulary'|'grammar'|'skill'
-  score:number
-  attempts:number
-  correct:number
-  activeCorrect?:number
-  passiveCorrect?:number
-  hintsUsed?:number
-  slowCorrect?:number
-  lastSeen:number
-}
-
-export type LearnerPreferences = {
-  onboardingCompleted:boolean
-  nativeLanguage:'de'
-  targetLevel:'A1'|'A2'|'B1'|'B2'
-  dailyGoalMinutes:5|10|15|20|30
-  pace:'ruhig'|'normal'|'intensiv'
-  audioSpeed:'langsam'|'normal'
-}
-
-export type UserProgress = {
-  completedLessons:number[]
-  streak:number
-  introducedWords:string[]
-  introducedGrammarRules:string[]
-  introducedVerbForms:string[]
-  wordsLearned:string[]
-  secureWords:string[]
-  mistakes:Mistake[]
-  reviews:ReviewItem[]
-  speakingMinutes:number
-  listeningMinutes:number
-  mastery:Record<string,MasteryItem>
-  recentAttempts:AttemptSignal[]
-  transferQueue:TransferItem[]
-  preferences:LearnerPreferences
-  updatedAt:number
-  preferencesUpdatedAt:number
-  resetAt?:number
-  lastSyncedAt?:number
-}
+export type AttemptSignal = { exerciseId:string; correct:boolean; responseMs:number; hintsUsed:number; hintTypes?:HintType[]; occurredAt:number; vocabularyIds?:string[]; grammarRuleIds?:string[]; skillTargets?:SkillTarget[]; activeProduction?:boolean }
+export type TransferItem = { sourceExerciseId:string; grammarRuleId:string; dueAfter:number; createdAt:number; failedTransfers?:number }
+export type MasteryItem = { key:string; kind:'vocabulary'|'grammar'|'skill'|'verb'; score:number; attempts:number; correct:number; activeCorrect?:number; passiveCorrect?:number; hintsUsed?:number; slowCorrect?:number; lastSeen:number }
+export type LearnerPreferences = { onboardingCompleted:boolean; nativeLanguage:'de'; targetLevel:'A1'|'A2'|'B1'|'B2'; dailyGoalMinutes:5|10|15|20|30; pace:'ruhig'|'normal'|'intensiv'; audioSpeed:'langsam'|'normal' }
+export type UserProgress = { completedLessons:number[]; streak:number; introducedWords:string[]; introducedGrammarRules:string[]; introducedVerbForms:string[]; wordsLearned:string[]; secureWords:string[]; mistakes:Mistake[]; reviews:ReviewItem[]; speakingMinutes:number; listeningMinutes:number; mastery:Record<string,MasteryItem>; recentAttempts:AttemptSignal[]; transferQueue:TransferItem[]; preferences:LearnerPreferences; updatedAt:number; preferencesUpdatedAt:number; resetAt?:number; lastSyncedAt?:number }
