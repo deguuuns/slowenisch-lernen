@@ -5,8 +5,9 @@ import { buildAdaptiveRecommendation,buildAdaptiveReviewDeck } from '../lib/adap
 import { getVocabularyStatus } from '../lib/learner-status'
 import { defaultProgress,queueTransfers,resetLearningProgress,scheduleReview,updateMastery } from '../lib/storage'
 import { mergeProgress } from '../lib/cloud-sync'
-import { isExerciseEligible,verbFormKey } from '../lib/curriculum-access'
-import type { Exercise,UserProgress } from '../types'
+import { isExerciseEligible,singularVerbIntroForVocabulary,verbFormKey } from '../lib/curriculum-access'
+import { buildExamPlan,EXAM_CONFIG } from '../lib/exam-planner'
+import type { Exercise,UserProgress,Vocabulary } from '../types'
 
 function fresh(overrides:Partial<UserProgress>={}):UserProgress{return {...structuredClone(defaultProgress),preferences:{...defaultProgress.preferences},...overrides}}
 const enriched=enrichExercises(exercises)
@@ -51,28 +52,23 @@ const local=fresh({mastery:{'grammar:dual-masculine-numeral':{key:'grammar:dual-
 const cloud=fresh({mastery:{'grammar:dual-masculine-numeral':{key:'grammar:dual-masculine-numeral',kind:'grammar',score:.58,attempts:4,correct:3,lastSeen:now-10000}},updatedAt:now-10000,preferencesUpdatedAt:now-10000})
 assert.equal(mergeProgress(local,cloud).mastery['grammar:dual-masculine-numeral'].score,.72)
 
-// Locked vocabulary and grammar are not eligible.
 const e08=enriched.find(e=>e.id==='e08')!
 assert.equal(isExerciseEligible(e08,fresh()),false)
 const e08Words=e08.vocabularyIds||[]
 const grammarUnlocked=fresh({introducedWords:e08Words,introducedGrammarRules:['number-basics','dual-masculine-numeral','accusative-family','verb-first-person'],introducedVerbForms:[verbFormKey({verbId:'imeti',person:1,number:'singular'})]})
 assert.equal(isExerciseEligible(e08,grammarUnlocked),true)
 
-// Due review beats new content only when the reviewed material is fully unlocked.
 const due=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},introducedWords:['v001','v012'],introducedGrammarRules:['greeting-basic','verb-first-person'],introducedVerbForms:[verbFormKey({verbId:'biti',person:2,number:'singular'})],reviews:[{key:'vocab:v001',status:'unsicher',intervalIndex:0,dueAt:0,updatedAt:1}]})
 assert.equal(buildAdaptiveRecommendation(due,enriched,vocabulary,1,now).kind,'review')
 
-// Locked weak grammar must never be drilled before introduction.
 const lockedWeak=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},mastery:{'grammar:dual-masculine-numeral':{key:'grammar:dual-masculine-numeral',kind:'grammar',score:.3,attempts:3,correct:1,lastSeen:now}}})
 assert.equal(buildAdaptiveRecommendation(lockedWeak,enriched,vocabulary,1,now).kind,'new-content')
 const unlockedWeak=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},introducedWords:e08Words,introducedGrammarRules:['number-basics','dual-masculine-numeral','accusative-family','verb-first-person'],introducedVerbForms:[verbFormKey({verbId:'imeti',person:1,number:'singular'})],mastery:{'grammar:dual-masculine-numeral':{key:'grammar:dual-masculine-numeral',kind:'grammar',score:.3,attempts:3,correct:1,lastSeen:now}}})
 assert.equal(buildAdaptiveRecommendation(unlockedWeak,enriched,vocabulary,2,now).title,'Grammatik gezielt festigen')
 
-// Review deck must contain only eligible content and avoid recent duplicates where alternatives exist.
 const reviewDeck=buildAdaptiveReviewDeck(unlockedWeak,enriched,8,now)
 assert.ok(reviewDeck.every(ex=>isExerciseEligible(ex,unlockedWeak)))
 
-// Reset clears learning state but keeps preferences, and a newer reset defeats stale cloud data.
 const learned=fresh({introducedWords:['v001'],introducedGrammarRules:['greeting-basic'],wordsLearned:['v001'],completedLessons:[1],preferences:{...defaultProgress.preferences,dailyGoalMinutes:20},updatedAt:now-100})
 const reset=resetLearningProgress(learned)
 assert.equal(reset.introducedWords.length,0)
@@ -84,8 +80,30 @@ assert.equal(mergeProgress(reset,staleCloud).introducedWords.length,0)
 
 const imbalance=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},mastery:{'skill:recognition':{key:'skill:recognition',kind:'skill',score:.9,attempts:4,correct:4,lastSeen:now},'skill:production':{key:'skill:production',kind:'skill',score:.4,attempts:3,correct:1,lastSeen:now}}})
 assert.equal(buildAdaptiveRecommendation(imbalance,enriched,vocabulary,1,now).kind,'new-content')
-
 const stable=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true}})
 assert.equal(buildAdaptiveRecommendation(stable,enriched,vocabulary,1,now).kind,'new-content')
+
+// Progressive verb introductions keep singular-first but now explain every form in German.
+const imetiIntro=singularVerbIntroForVocabulary(['v032','v033'])[0]
+assert.equal(imetiIntro.infinitiveDe,'haben')
+assert.deepEqual(imetiIntro.forms.map(f=>f.person),[1,2,3])
+assert.deepEqual(imetiIntro.forms.map(f=>f.translationDe),['ich habe','du hast','er / sie hat'])
+assert.equal(imetiIntro.keys.length,3)
+
+// Exams are configurable, stable for one seed, diverse, duplicate-free and finals are longer.
+const examVocab:Vocabulary[]=[{id:'tv1',sl:'test',de:'Test',partOfSpeech:'Substantiv',category:'Test',example:'Test.',exampleDe:'Test.',lesson:99}]
+const examExercises:Exercise[]=Array.from({length:14},(_,i)=>({id:`exam-${i}`,lesson:99,type:i%3===0?'choice':'translate-de-sl',prompt:`Prüfungsfrage ${i}`,answer:`odgovor ${i}`,alternatives:i%3===0?['x','y']:undefined,vocabularyIds:['tv1'],grammarRuleIds:[],skillTargets:[i%3===0?'recognition':'production']}))
+const examProgress=fresh({introducedWords:['tv1'],preferences:{...defaultProgress.preferences,onboardingCompleted:true,pace:'normal',dailyGoalMinutes:10}})
+const checkpoint=buildExamPlan({kind:'checkpoint',lessonId:99,exercises:examExercises,vocabulary:examVocab,progress:examProgress,seed:11,targetSize:EXAM_CONFIG.checkpoint.default})
+const finalA=buildExamPlan({kind:'final',lessonId:99,exercises:examExercises,vocabulary:examVocab,progress:examProgress,seed:11,targetSize:EXAM_CONFIG.final.default})
+const finalB=buildExamPlan({kind:'final',lessonId:99,exercises:examExercises,vocabulary:examVocab,progress:examProgress,seed:29,targetSize:EXAM_CONFIG.final.default})
+assert.equal(checkpoint.length,EXAM_CONFIG.checkpoint.default)
+assert.equal(finalA.length,EXAM_CONFIG.final.default)
+assert.ok(finalA.length>checkpoint.length)
+assert.equal(new Set(finalA.map(e=>e.id)).size,finalA.length)
+assert.ok(new Set(finalA.map(e=>e.type)).size>=2)
+assert.ok(finalA.every(e=>isExerciseEligible(e,examProgress)))
+assert.deepEqual(buildExamPlan({kind:'final',lessonId:99,exercises:examExercises,vocabulary:examVocab,progress:examProgress,seed:11,targetSize:EXAM_CONFIG.final.default}).map(e=>e.id),finalA.map(e=>e.id))
+assert.notDeepEqual(finalA.slice(0,2).map(e=>e.id),finalB.slice(0,2).map(e=>e.id))
 
 console.log('Regression checks passed')
