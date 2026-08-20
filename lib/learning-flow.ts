@@ -26,13 +26,12 @@ function distractors(word: Vocabulary, lessonWords: Vocabulary[]) {
     .slice(0, 3)
 }
 
-/** Deterministic, structured vocabulary recall generated only from verified vocabulary data. */
+/** Deterministic recall generated only from structured vocabulary data. */
 export function generatedExercisesForWord(
   word: Vocabulary,
   lessonWords: Vocabulary[],
 ): Exercise[] {
-  const choices = distractors(word, lessonWords)
-  return [
+  const generated: Exercise[] = [
     {
       id: `gen-produce-${word.id}`,
       lesson: word.lesson,
@@ -46,7 +45,11 @@ export function generatedExercisesForWord(
       difficulty: 'easy',
       generated: true,
     },
-    {
+  ]
+
+  const choices = distractors(word, lessonWords)
+  if (choices.length >= 2) {
+    generated.push({
       id: `gen-recognize-${word.id}`,
       lesson: word.lesson,
       type: 'choice',
@@ -59,8 +62,13 @@ export function generatedExercisesForWord(
       skillTargets: ['recognition'],
       difficulty: 'easy',
       generated: true,
-    },
-  ]
+    })
+  }
+  return generated
+}
+
+function generatedByType(word: Vocabulary, lessonWords: Vocabulary[], type: Exercise['type']) {
+  return generatedExercisesForWord(word, lessonWords).find(exercise => exercise.type === type)
 }
 
 function usesOnly(exercise: Exercise, ids: Set<string>) {
@@ -80,9 +88,7 @@ function orderBlockExercises(
   limit: number,
 ) {
   const currentIds = new Set(currentWords.map(word => word.id))
-  const allAvailable = new Set(
-    Array.from(priorAvailable).concat(Array.from(currentIds)),
-  )
+  const allAvailable = new Set(Array.from(priorAvailable).concat(Array.from(currentIds)))
 
   const knownWarmups = curated
     .filter(exercise => usesOnly(exercise, priorAvailable) && !containsAny(exercise, currentIds))
@@ -90,12 +96,17 @@ function orderBlockExercises(
   const contextual = curated.filter(
     exercise => usesOnly(exercise, allAvailable) && containsAny(exercise, currentIds),
   )
-  const productive = currentWords.map(word => generatedExercisesForWord(word, lessonWords)[0])
-  const recognition = currentWords.map(word => generatedExercisesForWord(word, lessonWords)[1])
+  const productive = currentWords
+    .map(word => generatedByType(word, lessonWords, 'translate-de-sl'))
+    .filter((exercise): exercise is Exercise => Boolean(exercise))
+  const recognition = currentWords
+    .map(word => generatedByType(word, lessonWords, 'choice'))
+    .filter((exercise): exercise is Exercise => Boolean(exercise))
   const earlierWords = lessonWords.filter(word => priorAvailable.has(word.id))
   const delayedRecognition = earlierWords
     .slice(-2)
-    .map(word => generatedExercisesForWord(word, lessonWords)[1])
+    .map(word => generatedByType(word, lessonWords, 'choice'))
+    .filter((exercise): exercise is Exercise => Boolean(exercise))
 
   const pool = [...knownWarmups, ...delayedRecognition, ...contextual, ...productive, ...recognition]
   const deduped = unique(pool.map(exercise => exercise.id)).map(
