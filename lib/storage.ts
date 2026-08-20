@@ -1,50 +1,26 @@
 'use client'
 
 import { AttemptSignal, Exercise, LearnerPreferences, MasteryItem, Mistake, ReviewItem, SkillTarget, TransferItem, UserProgress } from '@/types'
+import { verbFormKey } from '@/lib/curriculum-access'
 
 const LEGACY_KEY='slovensko-progress-v1',KEY_PREFIX='slovensko-progress-v2'
 export const defaultPreferences:LearnerPreferences={onboardingCompleted:false,nativeLanguage:'de',targetLevel:'A1',dailyGoalMinutes:10,pace:'normal',audioSpeed:'normal'}
 export const defaultProgress:UserProgress={completedLessons:[],streak:1,introducedWords:[],introducedGrammarRules:[],introducedVerbForms:[],wordsLearned:[],secureWords:[],mistakes:[],reviews:[],speakingMinutes:0,listeningMinutes:0,mastery:{},recentAttempts:[],transferQueue:[],preferences:defaultPreferences,updatedAt:0,preferencesUpdatedAt:0}
-
 function key(ownerId?:string|null){return `${KEY_PREFIX}:${ownerId||'guest'}`}
 function hydrate(parsed:any):UserProgress{return {...defaultProgress,...parsed,introducedWords:parsed?.introducedWords||[],introducedGrammarRules:parsed?.introducedGrammarRules||[],introducedVerbForms:parsed?.introducedVerbForms||[],mastery:{...(parsed?.mastery||{})},recentAttempts:parsed?.recentAttempts||[],transferQueue:parsed?.transferQueue||[],preferences:{...defaultPreferences,...(parsed?.preferences||{})},updatedAt:Number(parsed?.updatedAt||0),preferencesUpdatedAt:Number(parsed?.preferencesUpdatedAt||0),resetAt:Number(parsed?.resetAt||0)||undefined}}
 export function hasMeaningfulProgress(p:UserProgress){return Boolean(p.completedLessons.length||p.introducedWords.length||p.introducedGrammarRules.length||p.recentAttempts.length||Object.keys(p.mastery||{}).length)}
-export function loadProgress(ownerId?:string|null):UserProgress{
- if(typeof window==='undefined')return defaultProgress
- try{
-  const scoped=localStorage.getItem(key(ownerId))
-  if(scoped)return hydrate(JSON.parse(scoped))
-  if(!ownerId){const legacy=localStorage.getItem(LEGACY_KEY);if(legacy){const migrated=hydrate(JSON.parse(legacy));localStorage.setItem(key(null),JSON.stringify(migrated));return migrated}}
-  return {...defaultProgress,preferences:{...defaultPreferences}}
- }catch{return {...defaultProgress,preferences:{...defaultPreferences}}}
-}
+export function loadProgress(ownerId?:string|null):UserProgress{if(typeof window==='undefined')return defaultProgress;try{const scoped=localStorage.getItem(key(ownerId));if(scoped)return hydrate(JSON.parse(scoped));if(!ownerId){const legacy=localStorage.getItem(LEGACY_KEY);if(legacy){const migrated=hydrate(JSON.parse(legacy));localStorage.setItem(key(null),JSON.stringify(migrated));return migrated}}return {...defaultProgress,preferences:{...defaultPreferences}}}catch{return {...defaultProgress,preferences:{...defaultPreferences}}}}
 export function saveProgress(progress:UserProgress,ownerId?:string|null){if(typeof window==='undefined')return;const next={...progress,updatedAt:Date.now()};localStorage.setItem(key(ownerId),JSON.stringify(next))}
 export function clearGuestProgress(){if(typeof window!=='undefined')localStorage.removeItem(key(null))}
 export function resetLearningProgress(current:UserProgress):UserProgress{const now=Date.now();return {...defaultProgress,preferences:{...current.preferences},preferencesUpdatedAt:current.preferencesUpdatedAt||now,updatedAt:now,resetAt:now}}
-
 const intervals=[10*60_000,24*60*60_000,3*24*60*60_000,7*24*60*60_000,14*24*60*60_000,30*24*60*60_000]
 export function scheduleReview(items:ReviewItem[],keyValue:string,correct:boolean):ReviewItem[]{const now=Date.now(),current=items.find(i=>i.key===keyValue),nextIndex=correct?Math.min((current?.intervalIndex??-1)+1,intervals.length-1):0,status=nextIndex>=4?'sicher':nextIndex>=2?'gelernt':correct?'unsicher':'neu',next:ReviewItem={key:keyValue,intervalIndex:nextIndex,status,dueAt:now+intervals[nextIndex],updatedAt:now};return [...items.filter(i=>i.key!==keyValue),next]}
 export function registerMistake(mistakes:Mistake[],keyValue:string):Mistake[]{const current=mistakes.find(m=>m.key===keyValue),next:Mistake={key:keyValue,count:(current?.count??0)+1,lastSeen:Date.now()};return [...mistakes.filter(m=>m.key!==keyValue),next].sort((a,b)=>b.count-a.count)}
-
 function quality(correct:boolean,responseMs:number,hintsUsed:number,active:boolean){if(!correct)return 0;const speed=responseMs<=8_000?1:responseMs<=20_000?.9:responseMs<=45_000?.78:.65;const mode=active?1:.88;return Math.max(.4,(speed-(hintsUsed*.18))*mode)}
-function updateItem(old:MasteryItem|undefined,keyValue:string,kind:MasteryItem['kind'],correct:boolean,responseMs=0,hintsUsed=0,active=false):MasteryItem{
- const attempts=(old?.attempts||0)+1,hits=(old?.correct||0)+(correct?1:0),observed=quality(correct,responseMs,hintsUsed,active),previous=old?.score??0.25,score=Math.max(0,Math.min(1,previous*.72+observed*.28))
- return {key:keyValue,kind,score:+score.toFixed(3),attempts,correct:hits,activeCorrect:(old?.activeCorrect||0)+(correct&&active?1:0),passiveCorrect:(old?.passiveCorrect||0)+(correct&&!active?1:0),hintsUsed:(old?.hintsUsed||0)+hintsUsed,slowCorrect:(old?.slowCorrect||0)+(correct&&responseMs>30_000?1:0),lastSeen:Date.now()}
-}
+function updateItem(old:MasteryItem|undefined,keyValue:string,kind:MasteryItem['kind'],correct:boolean,responseMs=0,hintsUsed=0,active=false):MasteryItem{const attempts=(old?.attempts||0)+1,hits=(old?.correct||0)+(correct?1:0),observed=quality(correct,responseMs,hintsUsed,active),previous=old?.score??0.25,score=Math.max(0,Math.min(1,previous*.72+observed*.28));return {key:keyValue,kind,score:+score.toFixed(3),attempts,correct:hits,activeCorrect:(old?.activeCorrect||0)+(correct&&active?1:0),passiveCorrect:(old?.passiveCorrect||0)+(correct&&!active?1:0),hintsUsed:(old?.hintsUsed||0)+hintsUsed,slowCorrect:(old?.slowCorrect||0)+(correct&&responseMs>30_000?1:0),lastSeen:Date.now()}}
 function inferredSkills(ex:Exercise):SkillTarget[]{if(ex.skillTargets?.length)return ex.skillTargets;if(ex.type==='choice')return ['recognition'];if(ex.type==='translate-de-sl'||ex.type==='free')return ['production'];return ['grammar-application']}
 export function isActiveProduction(ex:Exercise){const skills=inferredSkills(ex);return skills.includes('production')||skills.includes('speaking')||ex.type==='translate-de-sl'||ex.type==='free'||ex.type==='fill'||ex.type==='ending'}
-export function updateMastery(mastery:Record<string,MasteryItem>,ex:Exercise,correct:boolean,responseMs=0,hintsUsed=0){
- const next={...mastery},active=isActiveProduction(ex)
- for(const id of ex.vocabularyIds||[])next[`vocab:${id}`]=updateItem(next[`vocab:${id}`],`vocab:${id}`,'vocabulary',correct,responseMs,hintsUsed,active)
- for(const id of ex.grammarRuleIds||[])next[`grammar:${id}`]=updateItem(next[`grammar:${id}`],`grammar:${id}`,'grammar',correct,responseMs,hintsUsed,active)
- for(const skill of inferredSkills(ex))next[`skill:${skill}`]=updateItem(next[`skill:${skill}`],`skill:${skill}`,'skill',correct,responseMs,hintsUsed,skill==='production'||skill==='speaking')
- return next
-}
+export function updateMastery(mastery:Record<string,MasteryItem>,ex:Exercise,correct:boolean,responseMs=0,hintsUsed=0){const next={...mastery},active=isActiveProduction(ex);for(const id of ex.vocabularyIds||[])next[`vocab:${id}`]=updateItem(next[`vocab:${id}`],`vocab:${id}`,'vocabulary',correct,responseMs,hintsUsed,active);for(const id of ex.grammarRuleIds||[])next[`grammar:${id}`]=updateItem(next[`grammar:${id}`],`grammar:${id}`,'grammar',correct,responseMs,hintsUsed,active);for(const req of ex.requiredVerbForms||[]){const k=`verb:${verbFormKey(req)}`;next[k]=updateItem(next[k],k,'verb',correct,responseMs,hintsUsed,active)}for(const skill of inferredSkills(ex))next[`skill:${skill}`]=updateItem(next[`skill:${skill}`],`skill:${skill}`,'skill',correct,responseMs,hintsUsed,skill==='production'||skill==='speaking');return next}
 export function updateSkillMastery(mastery:Record<string,MasteryItem>,skill:SkillTarget,correct:boolean,responseMs=0,hintsUsed=0){const keyValue=`skill:${skill}`;return {...mastery,[keyValue]:updateItem(mastery[keyValue],keyValue,'skill',correct,responseMs,hintsUsed,skill==='speaking'||skill==='production')}}
 export function recordAttempt(items:AttemptSignal[],signal:AttemptSignal){return [...items,signal].slice(-150)}
-export function queueTransfers(items:TransferItem[],ex:Exercise,correct:boolean,attemptCount:number){
- if(correct&&ex.transferSourceExerciseId&&ex.transferRuleId)return items.filter(x=>!(x.sourceExerciseId===ex.transferSourceExerciseId&&x.grammarRuleId===ex.transferRuleId))
- if(!correct&&ex.transferSourceExerciseId&&ex.transferRuleId)return items.map(x=>x.sourceExerciseId===ex.transferSourceExerciseId&&x.grammarRuleId===ex.transferRuleId?{...x,failedTransfers:(x.failedTransfers||0)+1,dueAfter:attemptCount+3+Math.floor(Math.random()*3)}:x)
- if(correct||!ex.grammarRuleIds?.length)return items
- const created=ex.grammarRuleIds.map(grammarRuleId=>({sourceExerciseId:ex.id,grammarRuleId,dueAfter:attemptCount+2+Math.floor(Math.random()*2),createdAt:Date.now(),failedTransfers:0})),map=new Map(items.map(x=>[`${x.sourceExerciseId}:${x.grammarRuleId}`,x]));created.forEach(x=>map.set(`${x.sourceExerciseId}:${x.grammarRuleId}`,x));return Array.from(map.values())
-}
+export function queueTransfers(items:TransferItem[],ex:Exercise,correct:boolean,attemptCount:number){if(correct&&ex.transferSourceExerciseId&&ex.transferRuleId)return items.filter(x=>!(x.sourceExerciseId===ex.transferSourceExerciseId&&x.grammarRuleId===ex.transferRuleId));if(!correct&&ex.transferSourceExerciseId&&ex.transferRuleId)return items.map(x=>x.sourceExerciseId===ex.transferSourceExerciseId&&x.grammarRuleId===ex.transferRuleId?{...x,failedTransfers:(x.failedTransfers||0)+1,dueAfter:attemptCount+3+Math.floor(Math.random()*3)}:x);if(correct||!ex.grammarRuleIds?.length)return items;const created=ex.grammarRuleIds.map(grammarRuleId=>({sourceExerciseId:ex.id,grammarRuleId,dueAfter:attemptCount+2+Math.floor(Math.random()*2),createdAt:Date.now(),failedTransfers:0})),map=new Map(items.map(x=>[`${x.sourceExerciseId}:${x.grammarRuleId}`,x]));created.forEach(x=>map.set(`${x.sourceExerciseId}:${x.grammarRuleId}`,x));return Array.from(map.values())}
