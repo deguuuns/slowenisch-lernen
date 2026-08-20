@@ -1,5 +1,8 @@
 export type LearningStatus = 'neu' | 'unsicher' | 'gelernt' | 'sicher'
+export type VocabularyStatus = 'neu' | 'eingeführt' | 'lernen' | 'gelernt' | 'sicher'
 export type EvaluationMode = 'exact' | 'acceptedVariants' | 'grammar' | 'semantic' | 'open'
+export type SkillTarget = 'recognition' | 'production' | 'grammar-application' | 'listening' | 'speaking'
+export type HintType = 'translation' | 'firstLetter' | 'grammarHint' | 'slowAudio' | 'replayAudio' | 'generic'
 
 export type Vocabulary = {
   id: string
@@ -32,6 +35,7 @@ export type Exercise = {
   vocabularyIds?:string[]
   grammarRuleIds?:string[]
   evaluationMode?:EvaluationMode
+  skillTargets?:SkillTarget[]
   generated?:boolean
   transferSourceExerciseId?:string
   transferRuleId?:string
@@ -40,14 +44,19 @@ export type Lesson = { id:number; title:string; subtitle:string; minutes:number;
 export type ConversationTurn = { speaker:'Tutor'|'Nutzer'; sl:string; de?:string }
 export type Conversation = { id:string; title:string; lesson:number; turns:ConversationTurn[] }
 export type Mistake = { key:string; count:number; lastSeen:number }
-export type ReviewItem = { key:string; status:LearningStatus; dueAt:number; intervalIndex:number }
+export type ReviewItem = { key:string; status:LearningStatus; dueAt:number; intervalIndex:number; updatedAt?:number }
 
 export type AttemptSignal = {
   exerciseId:string
   correct:boolean
   responseMs:number
   hintsUsed:number
+  hintTypes?:HintType[]
   occurredAt:number
+  vocabularyIds?:string[]
+  grammarRuleIds?:string[]
+  skillTargets?:SkillTarget[]
+  activeProduction?:boolean
 }
 
 export type TransferItem = {
@@ -55,6 +64,7 @@ export type TransferItem = {
   grammarRuleId:string
   dueAfter:number
   createdAt:number
+  failedTransfers?:number
 }
 
 export type MasteryItem = {
@@ -63,6 +73,10 @@ export type MasteryItem = {
   score:number
   attempts:number
   correct:number
+  activeCorrect?:number
+  passiveCorrect?:number
+  hintsUsed?:number
+  slowCorrect?:number
   lastSeen:number
 }
 
@@ -89,4 +103,7 @@ export type UserProgress = {
   recentAttempts:AttemptSignal[]
   transferQueue:TransferItem[]
   preferences:LearnerPreferences
+  updatedAt:number
+  preferencesUpdatedAt:number
+  lastSyncedAt?:number
 }
