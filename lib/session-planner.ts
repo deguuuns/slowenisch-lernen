@@ -11,11 +11,7 @@ export type SessionPlan = {
   weakVocabulary: number
   production: number
   newContent: number
-}
-
-export type AdaptiveSessionSelection = {
-  plan: SessionPlan
-  exercises: Exercise[]
+  exerciseItems: Exercise[]
 }
 
 function targetSize(progress: UserProgress) {
@@ -47,11 +43,11 @@ function diversify(exercises: Exercise[], recentIds: Set<string>, limit: number)
   return selected
 }
 
-export function buildAdaptiveSessionSelection(
+export function buildSessionPlan(
   progress: UserProgress,
   rawExercises: Exercise[],
-  activeLesson: number,
-): AdaptiveSessionSelection {
+  _activeLesson: number,
+): SessionPlan {
   const eligible = enrichExercises(rawExercises).filter(exercise => isExerciseEligible(exercise, progress))
   const requested = targetSize(progress)
   const due = progress.reviews.filter(review => review.dueAt <= Date.now()).length
@@ -60,43 +56,33 @@ export function buildAdaptiveSessionSelection(
     2,
   )
   const weakGrammar = Object.values(progress.mastery || {}).filter(item =>
-    item.kind === 'grammar' &&
-    item.attempts >= 2 &&
-    item.score < .58 &&
+    item.kind === 'grammar' && item.attempts >= 2 && item.score < .58 &&
     progress.introducedGrammarRules.includes(item.key.replace('grammar:', '')),
   ).length
   const weakVocabulary = Object.values(progress.mastery || {}).filter(item =>
-    item.kind === 'vocabulary' &&
-    item.attempts >= 2 &&
-    item.score < .58 &&
+    item.kind === 'vocabulary' && item.attempts >= 2 && item.score < .58 &&
     progress.introducedWords.includes(item.key.replace('vocab:', '')),
   ).length
 
   const deck = buildAdaptiveReviewDeck(progress, eligible, requested)
   const recentIds = new Set((progress.recentAttempts || []).slice(-6).map(attempt => attempt.exerciseId))
-  const selected = diversify(deck, recentIds, requested)
+  const selected = diversify(deck, recentIds, requested).map(exercise => ({ ...exercise }))
   const review = Math.min(selected.length, Math.max(due, Math.ceil(requested * .3)))
 
   return {
-    plan: {
-      total: selected.length,
-      review,
-      transfer,
-      weakGrammar: Math.min(2, weakGrammar),
-      weakVocabulary: Math.min(2, weakVocabulary),
-      production: Math.min(2, Math.max(1, Math.round(requested * .15))),
-      newContent: 0,
-    },
-    // Keep the actual selected Exercise objects. Generated transfer exercises must not be
-    // reconstructed later from seed IDs because that silently drops runtime variants.
-    exercises: selected.map(exercise => ({ ...exercise })),
+    total: selected.length,
+    review,
+    transfer,
+    weakGrammar: Math.min(2, weakGrammar),
+    weakVocabulary: Math.min(2, weakVocabulary),
+    production: Math.min(2, Math.max(1, Math.round(requested * .15))),
+    newContent: 0,
+    // This is the exact runtime deck. Generated transfer exercises are retained here
+    // instead of being reconstructed from seed IDs later.
+    exerciseItems: selected,
   }
 }
 
-export function buildSessionPlan(
-  progress: UserProgress,
-  rawExercises: Exercise[],
-  activeLesson: number,
-): SessionPlan {
-  return buildAdaptiveSessionSelection(progress, rawExercises, activeLesson).plan
+export function exercisesForPlan(plan: SessionPlan, _rawExercises?: Exercise[]) {
+  return plan.exerciseItems.map(exercise => ({ ...exercise }))
 }
