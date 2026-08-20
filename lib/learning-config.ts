@@ -11,6 +11,14 @@ export const EXAM_CONFIG = {
   final: { min: 10, default: 12, max: 15 },
 } as const
 
+export const EXAM_REPEAT_CONFIG = {
+  historyLimit: 8,
+  exerciseCooldownExams: 2,
+  openingCooldownExams: 3,
+  promptCooldownExams: 2,
+  maxTopicShare: 0.25,
+} as const
+
 export const LEARNING_FLOW_CONFIG = {
   newWordsPerBlock: 3,
   exercisesPerBlock: 4,
