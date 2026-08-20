@@ -1,0 +1,38 @@
+name: Update Next.js 14 security patch
+
+on:
+  push:
+    branches:
+      - agent/adaptive-cloud-foundation
+    paths:
+      - .github/workflows/update-next14.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/adaptive-cloud-foundation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install patched Next.js 14
+        run: npm install next@14.2.35 --save-exact
+      - name: Verify dependency tree
+        run: npm ls next
+      - name: Commit generated package metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit"
+          else
+            git commit -m "Upgrade Next.js to patched 14.2.35"
+            git push origin HEAD:agent/adaptive-cloud-foundation
+          fi
