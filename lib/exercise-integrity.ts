@@ -1,13 +1,95 @@
-import { Exercise, Vocabulary } from '@/types'
 import { GRAMMAR_RULES } from '@/lib/curriculum-access'
+import { Exercise, Vocabulary } from '@/types'
 
-export type IntegrityIssue={exerciseId:string;message:string}
+export type IntegrityIssue = { exerciseId: string; message: string }
 
-export function validateExerciseIntegrity(ex:Exercise,vocabulary:Vocabulary[]=[]):IntegrityIssue[]{const issues:IntegrityIssue[]=[];const add=(m:string)=>issues.push({exerciseId:ex.id,message:m});if(!ex.id?.trim())add('exercise id missing');if(!ex.prompt?.trim())add('prompt missing');if(!ex.answer?.trim())add('answer missing');if(ex.type==='choice'){const options=[ex.answer,...(ex.alternatives||[])].map(x=>x.trim()).filter(Boolean),normalized=options.map(x=>x.toLocaleLowerCase('sl'));if(!ex.alternatives?.length)add('choice alternatives missing');if(normalized.filter(x=>x===ex.answer.trim().toLocaleLowerCase('sl')).length!==1)add('correct choice must occur exactly once');if(new Set(normalized).size!==normalized.length)add('duplicate choice options')}
- if(ex.acceptedAnswers?.some(x=>!x.trim()))add('empty accepted answer');if(vocabulary.length){const ids=new Set(vocabulary.map(v=>v.id));for(const id of ex.vocabularyIds||[])if(!ids.has(id))add(`unknown vocabulary id ${id}`)}for(const id of ex.grammarRuleIds||[])if(!GRAMMAR_RULES[id])add(`unknown grammar rule ${id}`);for(const r of ex.requiredVerbForms||[]){if(!r.verbId||![1,2,3].includes(r.person)||!['singular','dual','plural'].includes(r.number))add('invalid required verb form')}return issues}
+export function validateExerciseIntegrity(
+  exercise: Exercise,
+  vocabulary: Vocabulary[] = [],
+): IntegrityIssue[] {
+  const issues: IntegrityIssue[] = []
+  const add = (message: string) => issues.push({ exerciseId: exercise.id, message })
 
-export function validateExerciseSet(exercises:Exercise[],vocabulary:Vocabulary[]=[]):IntegrityIssue[]{const issues=exercises.flatMap(ex=>validateExerciseIntegrity(ex,vocabulary)),seen=new Set<string>();for(const ex of exercises){if(seen.has(ex.id))issues.push({exerciseId:ex.id,message:'duplicate exercise id'});seen.add(ex.id)}return issues}
+  if (!exercise.id?.trim()) add('exercise id missing')
+  if (!exercise.prompt?.trim()) add('prompt missing')
+  if (!exercise.answer?.trim()) add('answer missing')
 
-export type ChoiceOption={id:string;text:string;correct:boolean}
-function hash(s:string){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
-export function stableChoiceOptions(ex:Exercise,sessionSeed:string):ChoiceOption[]{const raw=[{id:`${ex.id}:correct`,text:ex.answer,correct:true},...(ex.alternatives||[]).filter(a=>a.trim().toLocaleLowerCase('sl')!==ex.answer.trim().toLocaleLowerCase('sl')).map((text,i)=>({id:`${ex.id}:alt:${i}`,text,correct:false}))];return [...raw].sort((a,b)=>hash(`${sessionSeed}:${a.id}`)-hash(`${sessionSeed}:${b.id}`))}
+  if (exercise.type === 'choice') {
+    const options = [exercise.answer, ...(exercise.alternatives || [])]
+      .map(value => value.trim())
+      .filter(Boolean)
+    const normalized = options.map(value => value.toLocaleLowerCase('sl'))
+    if (!exercise.alternatives?.length) add('choice alternatives missing')
+    if (
+      normalized.filter(value => value === exercise.answer.trim().toLocaleLowerCase('sl')).length !== 1
+    ) add('correct choice must occur exactly once')
+    if (new Set(normalized).size !== normalized.length) add('duplicate choice options')
+  }
+
+  if (exercise.acceptedAnswers?.some(value => !value.trim())) add('empty accepted answer')
+
+  if (vocabulary.length) {
+    const byId = new Map(vocabulary.map(word => [word.id, word]))
+    for (const id of exercise.vocabularyIds || []) {
+      const word = byId.get(id)
+      if (!word) add(`unknown vocabulary id ${id}`)
+      else if (!exercise.generated && word.lesson > exercise.lesson) {
+        add(`uses future vocabulary ${id} from lesson ${word.lesson}`)
+      }
+    }
+  }
+
+  for (const id of exercise.grammarRuleIds || []) {
+    if (!GRAMMAR_RULES[id]) add(`unknown grammar rule ${id}`)
+  }
+
+  for (const requirement of exercise.requiredVerbForms || []) {
+    if (
+      !requirement.verbId ||
+      ![1, 2, 3].includes(requirement.person) ||
+      !['singular', 'dual', 'plural'].includes(requirement.number)
+    ) add('invalid required verb form')
+  }
+
+  return issues
+}
+
+export function validateExerciseSet(
+  exercises: Exercise[],
+  vocabulary: Vocabulary[] = [],
+): IntegrityIssue[] {
+  const issues = exercises.flatMap(exercise => validateExerciseIntegrity(exercise, vocabulary))
+  const seen = new Set<string>()
+  for (const exercise of exercises) {
+    if (seen.has(exercise.id)) issues.push({ exerciseId: exercise.id, message: 'duplicate exercise id' })
+    seen.add(exercise.id)
+  }
+  return issues
+}
+
+export type ChoiceOption = { id: string; text: string; correct: boolean }
+
+function hash(value: string) {
+  let output = 2166136261
+  for (let index = 0; index < value.length; index++) {
+    output ^= value.charCodeAt(index)
+    output = Math.imul(output, 16777619)
+  }
+  return output >>> 0
+}
+
+export function stableChoiceOptions(
+  exercise: Exercise,
+  sessionSeed: string,
+): ChoiceOption[] {
+  const answer = exercise.answer.trim().toLocaleLowerCase('sl')
+  const raw: ChoiceOption[] = [
+    { id: `${exercise.id}:correct`, text: exercise.answer, correct: true },
+    ...(exercise.alternatives || [])
+      .filter(value => value.trim().toLocaleLowerCase('sl') !== answer)
+      .map((text, index) => ({ id: `${exercise.id}:alt:${index}`, text, correct: false })),
+  ]
+  return [...raw].sort(
+    (a, b) => hash(`${sessionSeed}:${a.id}`) - hash(`${sessionSeed}:${b.id}`),
+  )
+}
