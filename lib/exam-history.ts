@@ -1,6 +1,12 @@
 import { EXAM_REPEAT_CONFIG } from '@/lib/learning-config'
 import { ExamHistoryItem, Exercise } from '@/types'
 
+type ExerciseLike = Exercise | { exercise: Exercise }
+
+function unwrap(item: ExerciseLike): Exercise {
+  return 'exercise' in item ? item.exercise : item
+}
+
 export function promptSignature(prompt: string) {
   return prompt
     .toLocaleLowerCase('sl')
@@ -11,10 +17,7 @@ export function promptSignature(prompt: string) {
     .trim()
 }
 
-export function appendExamHistory(
-  history: ExamHistoryItem[] | undefined,
-  item: ExamHistoryItem,
-) {
+export function appendExamHistory(history: ExamHistoryItem[] | undefined, item: ExamHistoryItem) {
   const deduped = [...(history || []).filter(entry => entry.sessionId !== item.sessionId), item]
     .sort((a, b) => a.completedAt - b.completedAt)
   return deduped.slice(-EXAM_REPEAT_CONFIG.historyLimit)
@@ -35,8 +38,9 @@ export function historyItemFromExercises(
   sessionId: string,
   kind: 'checkpoint' | 'final',
   lessonId: number,
-  exercises: Exercise[],
+  items: readonly ExerciseLike[],
 ): ExamHistoryItem {
+  const exercises = items.map(unwrap)
   return {
     sessionId,
     kind,
