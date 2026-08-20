@@ -7,7 +7,7 @@ import { enrichExercises } from '../lib/curriculum-metadata'
 import { buildExamPlan, EXAM_CONFIG, majorTestDue } from '../lib/exam-planner'
 import { stableChoiceOptions, validateExerciseSet } from '../lib/exercise-integrity'
 import { createExerciseSession, ExerciseSessionResult, sessionSummary, validateSessionResults } from '../lib/exercise-session'
-import { dedupeExercisesByTarget, inferTargetContentKeys, isReviewDue } from '../lib/learning-targets'
+import { dedupeExercisesByTarget, inferTargetContentKeys, inferSupportingContentKeys, isReviewDue } from '../lib/learning-targets'
 import { REVIEW_INTERVALS_DAYS } from '../lib/learning-config'
 import { buildSessionPlan } from '../lib/session-planner'
 import { defaultProgress, hydrateProgress, resetLearningProgress, scheduleReview, updateMastery } from '../lib/storage'
@@ -26,13 +26,11 @@ const now = Date.now()
 const day = 24 * 60 * 60_000
 const enriched = enrichExercises(exercises)
 
-// Migration removes obsolete exercise-id reviews and keeps old learner data safe.
 const migrated = hydrateProgress({ completedLessons:[1], introducedWords:['v001'], reviews:[{ key:'e01', status:'unsicher', intervalIndex:0, dueAt:0 }, { key:'vocab:v001', status:'unsicher', intervalIndex:0, dueAt:0, updatedAt:now }] } as Partial<UserProgress>)
 assert.deepEqual(migrated.completedLessons, [1])
 assert.equal(migrated.reviews.some(review => review.key === 'e01'), false)
 assert.equal(migrated.reviews.some(review => review.key === 'vocab:v001'), true)
 
-// New SRS starts at one day, then 3/5/7/... days. Wrong cards return early but do not advance a box.
 let reviews = scheduleReview([], 'vocab:v001', true, now)
 assert.equal(reviews[0].intervalIndex, 0)
 assert.equal(reviews[0].dueAt, now + REVIEW_INTERVALS_DAYS[0] * day)
@@ -44,7 +42,6 @@ reviews = scheduleReview(reviews, 'vocab:v001', false, now + 2 * day)
 assert.equal(reviews[0].intervalIndex, -1)
 assert.equal(reviews[0].consecutiveCorrect, 0)
 
-// Different exercise ids that target the same content collapse to one targeted contact per session.
 const sameTarget: Exercise[] = [
   { id:'a', lesson:1, type:'translate-de-sl', prompt:'Bruder', answer:'brat', vocabularyIds:['v001'], targetContentKeys:['vocab:v001'] },
   { id:'b', lesson:1, type:'choice', prompt:'brat?', answer:'Bruder', alternatives:['Schwester','Vater'], vocabularyIds:['v001'], targetContentKeys:['vocab:v001'] },
@@ -52,7 +49,10 @@ const sameTarget: Exercise[] = [
 assert.equal(dedupeExercisesByTarget(sameTarget).length, 1)
 assert.deepEqual(inferTargetContentKeys(sameTarget[0]), ['vocab:v001'])
 
-// Verb practice: one active full-person-form per singular form, not 3 drill variants.
+const metadataExample: Exercise = { id:'meta', lesson:1, type:'translate-de-sl', prompt:'x', answer:'y', vocabularyIds:['v001','v002'], grammarRuleIds:['greeting-basic','verb-first-person'] }
+assert.deepEqual(inferTargetContentKeys(metadataExample), ['grammar:greeting-basic'])
+assert.ok(inferSupportingContentKeys(metadataExample).includes('vocab:v002'))
+
 const imetiIntro = singularVerbIntroForVocabulary(['v032', 'v033'])[0]
 const verbDeck = buildVerbPracticeExercises(1, imetiIntro)
 assert.equal(verbDeck.length, 3)
@@ -66,25 +66,23 @@ verbProgress = { ...verbProgress, mastery:updateMastery(verbProgress.mastery, ve
 assert.equal(verbFormStatus(verbProgress, { verbId:'imeti', person:1, number:'singular' }), 'KNOWN')
 assert.equal(verbFormStatus(verbProgress, { verbId:'imeti', person:2, number:'dual' }), 'LOCKED')
 
-// Biti full pronoun answers are explicitly accepted, including third-person variants.
 const bitiIntro = singularVerbIntroForVocabulary(['v011', 'v012', 'v013'])[0]
 const bitiDeck = buildVerbPracticeExercises(1, bitiIntro)
 assert.equal(bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 1)?.answer, 'jaz sem')
 assert.ok(bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 2)?.acceptedAnswers?.includes('ti si'))
 
-// Non-due content must not be padded into an adaptive review session.
 const introduced = fresh({ introducedWords:['v001'], introducedGrammarRules:['greeting-basic'], preferences:{ ...defaultProgress.preferences, onboardingCompleted:true } })
-assert.equal(buildAdaptiveReviewDeck(introduced, enriched, 8, now).length, 0)
-assert.equal(buildSessionPlan(introduced, enriched, 1).total, 0)
+assert.equal(buildAdaptiveReviewDeck(introduced, enriched, 8, now, vocabulary).length, 0)
+assert.equal(buildSessionPlan(introduced, enriched, 1, vocabulary).total, 0)
 const dueProgress = fresh({ ...introduced, reviews:[{ key:'vocab:v001', status:'unsicher', intervalIndex:0, dueAt:now - 1, updatedAt:now - day }] })
 assert.equal(buildAdaptiveRecommendation(dueProgress, enriched, vocabulary, 1, now).kind, 'review')
-assert.ok(buildAdaptiveReviewDeck(dueProgress, enriched, 8, now).length >= 1)
+const dueDeck = buildAdaptiveReviewDeck(dueProgress, enriched, 8, now, vocabulary)
+assert.ok(dueDeck.length >= 1)
+assert.ok(dueDeck.some(exercise => inferTargetContentKeys(exercise).includes('vocab:v001')))
 
-// Weak but not-due content no longer overrides new content merely because mastery is low.
 const weakNotDue = fresh({ ...introduced, mastery:{ 'vocab:v001':{ key:'vocab:v001', kind:'vocabulary', score:.2, attempts:5, correct:1, lastSeen:now } }, reviews:[{ key:'vocab:v001', status:'unsicher', intervalIndex:1, dueAt:now + 3 * day, updatedAt:now }] })
 assert.notEqual(buildAdaptiveRecommendation(weakNotDue, enriched, vocabulary, 1, now).kind, 'review')
 
-// Eligibility still blocks normal verb usage until the form was actively learned.
 const e08 = enriched.find(exercise => exercise.id === 'e08')!
 const imetiKey = verbFormKey({ verbId:'imeti', person:1, number:'singular' })
 const locked = fresh({ introducedWords:e08.vocabularyIds || [], introducedGrammarRules:['number-basics','dual-masculine-numeral','accusative-family','verb-first-person'], introducedVerbForms:[imetiKey] })
@@ -92,13 +90,11 @@ assert.equal(isExerciseEligible(e08, locked), false)
 const unlocked = { ...locked, mastery:{ [`verb:${imetiKey}`]:{ key:`verb:${imetiKey}`, kind:'verb' as const, score:.5, attempts:1, correct:1, activeCorrect:1, lastSeen:now } } }
 assert.equal(isExerciseEligible(e08, unlocked), true)
 
-// Choice answer identity stays stable after shuffling.
 const choice: Exercise = { id:'choice', lesson:1, type:'choice', prompt:'ti + imeti', answer:'imaš', alternatives:['imam','ima','imamo'] }
 const options = stableChoiceOptions(choice, 'session-a')
 assert.equal(options.filter(option => option.correct).length, 1)
 assert.equal(options.find(option => option.correct)?.text, 'imaš')
 
-// Exams use different target contents rather than filling with many variants of the same word.
 const examVocab: Vocabulary[] = Array.from({ length:30 }, (_, index) => ({ id:`tv${index}`, sl:`sl${index}`, de:`de${index}`, partOfSpeech:'Substantiv', category:'Test', example:`sl${index}.`, exampleDe:`de${index}.`, lesson:99 }))
 const examExercises: Exercise[] = examVocab.map((word, index) => ({ id:`exam-${index}`, lesson:99, type:index % 3 === 0 ? 'choice' : 'translate-de-sl', prompt:`Prüfungsfrage ${index}`, answer:`odgovor ${index}`, alternatives:index % 3 === 0 ? ['x','y'] : undefined, vocabularyIds:[word.id], targetContentKeys:[`vocab:${word.id}`], skillTargets:[index % 3 === 0 ? 'recognition' : 'production'] }))
 const examProgress = fresh({ introducedWords:examVocab.map(word => word.id), preferences:{ ...defaultProgress.preferences, onboardingCompleted:true } })
@@ -108,7 +104,6 @@ assert.equal(checkpoint.length, 6)
 assert.equal(final.length, 12)
 assert.equal(new Set(final.flatMap(exercise => inferTargetContentKeys(exercise))).size, final.length)
 
-// Session invariants remain strict.
 const checkpointSession = createExerciseSession('checkpoint', checkpoint, 'checkpoint-test')
 const checkpointResults = checkpointSession.exercises.map(item => resultFor(item.id, item.sourceExerciseId))
 assert.deepEqual(validateSessionResults(checkpointSession, checkpointResults), [])
@@ -119,19 +114,16 @@ const verbSession = createExerciseSession('verb-practice', verbDeck, 'verb-test'
 assert.equal(verbSession.exercises.length, 3)
 assert.deepEqual(sessionSummary(verbSession, verbSession.exercises.map(item => resultFor(item.id, item.sourceExerciseId))), { total:3, correct:3, wrong:0 })
 
-// Major test becomes due after every complete five-lesson block and history can mark it completed.
 const fiveLessons = fresh({ completedLessons:[1,2,3,4,5] })
 assert.equal(majorTestDue(fiveLessons), true)
 const afterMajor = fresh({ completedLessons:[1,2,3,4,5], examHistory:[{ sessionId:'major-5', kind:'major', lessonId:5, exerciseIds:[], firstExerciseIds:[], promptSignatures:[], vocabularyIds:[], grammarRuleIds:[], completedAt:now }] })
 assert.equal(majorTestDue(afterMajor), false)
 
-// Reset clears SRS and exam history but keeps preferences.
 const reset = resetLearningProgress(fresh({ reviews:[{ key:'vocab:v001', status:'gelernt', intervalIndex:2, dueAt:now }], examHistory:afterMajor.examHistory, preferences:{ ...defaultProgress.preferences, dailyGoalMinutes:20 } }))
 assert.equal(reset.reviews.length, 0)
 assert.equal(reset.examHistory?.length, 0)
 assert.equal(reset.preferences.dailyGoalMinutes, 20)
 
-// Cloud merge keeps the newer mastery while remaining backwards compatible with new review fields.
 const local = fresh({ mastery:{ 'vocab:v001':{ key:'vocab:v001', kind:'vocabulary', score:.8, attempts:4, correct:4, lastSeen:now } }, updatedAt:now })
 const cloud = fresh({ mastery:{ 'vocab:v001':{ key:'vocab:v001', kind:'vocabulary', score:.5, attempts:2, correct:1, lastSeen:now - 1000 } }, updatedAt:now - 1000 })
 assert.equal(mergeProgress(local, cloud).mastery['vocab:v001'].score, .8)

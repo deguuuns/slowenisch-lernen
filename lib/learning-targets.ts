@@ -9,19 +9,19 @@ export function inferTargetContentKeys(exercise: Exercise): TargetContentKey[] {
   if (exercise.targetContentKeys?.length) return unique(exercise.targetContentKeys)
 
   if (exercise.verbPractice && exercise.requiredVerbForms?.length) {
-    return unique(exercise.requiredVerbForms.map(requirement => `verb:${verbFormKey(requirement)}` as TargetContentKey))
+    return [`verb:${verbFormKey(exercise.requiredVerbForms[0])}` as TargetContentKey]
   }
 
   if (exercise.grammarRuleIds?.length) {
-    return unique(exercise.grammarRuleIds.map(id => `grammar:${id}` as TargetContentKey))
+    return [`grammar:${exercise.grammarRuleIds[0]}` as TargetContentKey]
   }
 
   if (exercise.vocabularyIds?.length) {
-    return unique(exercise.vocabularyIds.map(id => `vocab:${id}` as TargetContentKey))
+    return [`vocab:${exercise.vocabularyIds[0]}` as TargetContentKey]
   }
 
   if (exercise.requiredVerbForms?.length) {
-    return unique(exercise.requiredVerbForms.map(requirement => `verb:${verbFormKey(requirement)}` as TargetContentKey))
+    return [`verb:${verbFormKey(exercise.requiredVerbForms[0])}` as TargetContentKey]
   }
 
   return []
@@ -61,7 +61,6 @@ export function exerciseHasDueTarget(exercise: Exercise, progress: UserProgress,
 export function dedupeExercisesByTarget(exercises: Exercise[], limit = Number.POSITIVE_INFINITY) {
   const usedTargets = new Set<string>()
   const selected: Exercise[] = []
-
   for (const exercise of exercises) {
     const targets = inferTargetContentKeys(exercise)
     if (targets.length && targets.some(target => usedTargets.has(target))) continue

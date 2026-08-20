@@ -1,9 +1,11 @@
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isExerciseEligible } from '@/lib/curriculum-access'
 import { MASTERY_THRESHOLDS } from '@/lib/learner-status'
-import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys } from '@/lib/learning-targets'
+import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys, isReviewDue } from '@/lib/learning-targets'
+import { generatedExercisesForWord } from '@/lib/learning-flow'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 import { buildTransferExercise, injectDueTransfer } from '@/lib/transfer-practice'
+import { buildVerbPracticeExercises, verbIntrosForVocabulary } from '@/lib/verb-learning'
 
 export type AdaptiveActionKind = 'review' | 'strengthen' | 'new-content' | 'speaking'
 export type AdaptiveRecommendation = { kind:AdaptiveActionKind; title:string; reason:string; priority:number; lessonId?:number; focusKeys:string[]; exerciseIds:string[] }
@@ -33,11 +35,38 @@ function newWordBudget(progress: UserProgress) {
   return base
 }
 
+function generatedDueReviews(progress: UserProgress, vocabulary: Vocabulary[], now: number): Exercise[] {
+  const generated: Exercise[] = []
+  const introducedWords = vocabulary.filter(word => progress.introducedWords.includes(word.id))
+
+  for (const review of progress.reviews || []) {
+    if (review.dueAt > now) continue
+    if (review.key.startsWith('vocab:')) {
+      const wordId = review.key.slice('vocab:'.length)
+      const word = vocabulary.find(item => item.id === wordId)
+      if (!word || !progress.introducedWords.includes(word.id)) continue
+      const lessonWords = introducedWords.filter(item => item.lesson === word.lesson)
+      const production = generatedExercisesForWord(word, lessonWords).find(exercise => exercise.type === 'translate-de-sl')
+      if (production) generated.push({ ...production, id:`review-${production.id}` })
+    }
+  }
+
+  const verbIntros = verbIntrosForVocabulary(progress.introducedWords)
+  for (const intro of verbIntros) {
+    for (const exercise of buildVerbPracticeExercises(0, intro)) {
+      const target = inferTargetContentKeys(exercise)[0]
+      if (target && isReviewDue(progress, target, now)) generated.push({ ...exercise, id:`review-${exercise.id}` })
+    }
+  }
+
+  return generated
+}
+
 export function buildAdaptiveRecommendation(progress: UserProgress, rawExercises: Exercise[], vocabulary: Vocabulary[], activeLesson: number, now = Date.now()): AdaptiveRecommendation {
   const exercises = eligible(progress, enrichExercises(rawExercises))
   const dueKeys = (progress.reviews || []).filter(review => review.dueAt <= now).map(review => review.key)
   if (dueKeys.length) {
-    const matching = dedupeExercisesByTarget(exercises.filter(exercise => exerciseHasDueTarget(exercise, progress, now)), 10)
+    const matching = buildAdaptiveReviewDeck(progress, rawExercises, 10, now, vocabulary)
     if (matching.length) return { kind:'review', title:'Fällige Wiederholungen', reason:`${dueKeys.length} Lernziele sind jetzt wirklich fällig.`, priority:100, focusKeys:dueKeys, exerciseIds:matching.map(exercise => exercise.id) }
   }
 
@@ -62,26 +91,20 @@ export function buildAdaptiveRecommendation(progress: UserProgress, rawExercises
   const budget = newWordBudget(progress)
   const lessonWords = vocabulary.filter(word => word.lesson === activeLesson)
   const unseen = lessonWords.filter(word => !progress.introducedWords.includes(word.id))
-  return {
-    kind:'new-content',
-    title:`Weiter mit Lektion ${activeLesson}`,
-    reason: unseen.length ? `${Math.min(budget, unseen.length)} neue Wörter statt unnötiger Wiederholungen.` : 'Es ist aktuell nichts regulär fällig; weiter geht es mit dem Kurs statt mit künstlichem Drill.',
-    priority:50,
-    lessonId:activeLesson,
-    focusKeys:unseen.slice(0,budget).map(word => `vocab:${word.id}`),
-    exerciseIds:dedupeExercisesByTarget(exercises.filter(exercise => exercise.lesson === activeLesson), 8).map(exercise => exercise.id),
-  }
+  return { kind:'new-content', title:`Weiter mit Lektion ${activeLesson}`, reason: unseen.length ? `${Math.min(budget, unseen.length)} neue Wörter statt unnötiger Wiederholungen.` : 'Es ist aktuell nichts regulär fällig; weiter geht es mit dem Kurs statt mit künstlichem Drill.', priority:50, lessonId:activeLesson, focusKeys:unseen.slice(0,budget).map(word => `vocab:${word.id}`), exerciseIds:dedupeExercisesByTarget(exercises.filter(exercise => exercise.lesson === activeLesson), 8).map(exercise => exercise.id) }
 }
 
-export function buildAdaptiveReviewDeck(progress: UserProgress, rawExercises: Exercise[], limit = 10, now = Date.now()): Exercise[] {
+export function buildAdaptiveReviewDeck(progress: UserProgress, rawExercises: Exercise[], limit = 10, now = Date.now(), vocabulary: Vocabulary[] = []): Exercise[] {
   const exercises = eligible(progress, enrichExercises(rawExercises))
-  const due = exercises.filter(exercise => exerciseHasDueTarget(exercise, progress, now))
+  const dueCurated = exercises.filter(exercise => exerciseHasDueTarget(exercise, progress, now))
+  const dueGenerated = generatedDueReviews(progress, vocabulary, now)
   const recentIds = new Set((progress.recentAttempts || []).slice(-8).map(attempt => attempt.exerciseId))
-  const duePreferred = [...due.filter(exercise => !recentIds.has(exercise.id)), ...due.filter(exercise => recentIds.has(exercise.id))]
+  const pool = [...dueGenerated, ...dueCurated]
+  const duePreferred = [...pool.filter(exercise => !recentIds.has(exercise.id)), ...pool.filter(exercise => recentIds.has(exercise.id))]
   let chosen = dedupeExercisesByTarget(duePreferred, limit)
 
   const transfer = injectDueTransfer(chosen, progress.transferQueue || [], exercises, progress.recentAttempts?.length || 0)
-  chosen = dedupeExercisesByTarget(transfer.exercises.filter(exercise => isExerciseEligible(exercise, progress)), limit)
+  chosen = dedupeExercisesByTarget(transfer.exercises.filter(exercise => exercise.generated || isExerciseEligible(exercise, progress)), limit)
   return chosen.slice(0, limit)
 }
 
