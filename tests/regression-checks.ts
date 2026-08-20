@@ -58,8 +58,8 @@ const e08Words=e08.vocabularyIds||[]
 const grammarUnlocked=fresh({introducedWords:e08Words,introducedGrammarRules:['number-basics','dual-masculine-numeral','accusative-family','verb-first-person'],introducedVerbForms:[verbFormKey({verbId:'imeti',person:1,number:'singular'})]})
 assert.equal(isExerciseEligible(e08,grammarUnlocked),true)
 
-// Due review beats new content only when the reviewed material is unlocked.
-const due=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},introducedWords:['v001'],introducedGrammarRules:['greeting-basic'],reviews:[{key:'vocab:v001',status:'unsicher',intervalIndex:0,dueAt:0,updatedAt:1}]})
+// Due review beats new content only when the reviewed material is fully unlocked.
+const due=fresh({preferences:{...defaultProgress.preferences,onboardingCompleted:true},introducedWords:['v001','v012'],introducedGrammarRules:['greeting-basic','verb-first-person'],introducedVerbForms:[verbFormKey({verbId:'biti',person:2,number:'singular'})],reviews:[{key:'vocab:v001',status:'unsicher',intervalIndex:0,dueAt:0,updatedAt:1}]})
 assert.equal(buildAdaptiveRecommendation(due,enriched,vocabulary,1,now).kind,'review')
 
 // Locked weak grammar must never be drilled before introduction.
