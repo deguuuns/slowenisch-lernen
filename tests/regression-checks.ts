@@ -15,6 +15,7 @@ import {
 import { getVocabularyStatus } from '../lib/learner-status'
 import {
   defaultProgress,
+  hydrateProgress,
   queueTransfers,
   resetLearningProgress,
   scheduleReview,
@@ -35,6 +36,15 @@ const enriched = enrichExercises(exercises)
 const now = Date.now()
 const choice: Exercise = { id: 't-choice', lesson: 1, type: 'choice', prompt: 'x', answer: 'A', alternatives: ['B'], vocabularyIds: ['v001'], grammarRuleIds: [], skillTargets: ['recognition'] }
 const produce: Exercise = { id: 't-produce', lesson: 1, type: 'translate-de-sl', prompt: 'x', answer: 'Živjo', vocabularyIds: ['v001'], grammarRuleIds: ['greeting-basic'], skillTargets: ['production'] }
+
+// Old local progress must hydrate safely without losing fields that existed before newer schema additions.
+const migrated = hydrateProgress({ completedLessons: [1], introducedWords: ['v001'], wordsLearned: ['v001'], streak: 4 } as Partial<UserProgress>)
+assert.deepEqual(migrated.completedLessons, [1])
+assert.deepEqual(migrated.introducedWords, ['v001'])
+assert.deepEqual(migrated.introducedGrammarRules, [])
+assert.deepEqual(migrated.introducedVerbForms, [])
+assert.equal(migrated.preferences.dailyGoalMinutes, defaultProgress.preferences.dailyGoalMinutes)
+assert.equal(migrated.streak, 4)
 
 let progress = fresh({ introducedWords: ['v001'] })
 assert.equal(getVocabularyStatus('v001', progress), 'eingeführt')
@@ -65,6 +75,8 @@ assert.equal(reviews[0].intervalIndex, 0)
 const local = fresh({ mastery: { 'grammar:dual-masculine-numeral': { key: 'grammar:dual-masculine-numeral', kind: 'grammar', score: .72, attempts: 5, correct: 4, lastSeen: now } }, updatedAt: now, preferencesUpdatedAt: now })
 const cloud = fresh({ mastery: { 'grammar:dual-masculine-numeral': { key: 'grammar:dual-masculine-numeral', kind: 'grammar', score: .58, attempts: 4, correct: 3, lastSeen: now - 10000 } }, updatedAt: now - 10000, preferencesUpdatedAt: now - 10000 })
 assert.equal(mergeProgress(local, cloud).mastery['grammar:dual-masculine-numeral'].score, .72)
+const cloudNewer = fresh({ mastery: { 'grammar:dual-masculine-numeral': { key: 'grammar:dual-masculine-numeral', kind: 'grammar', score: .91, attempts: 8, correct: 7, lastSeen: now + 10000 } }, updatedAt: now + 10000, preferencesUpdatedAt: now + 10000 })
+assert.equal(mergeProgress(local, cloudNewer).mastery['grammar:dual-masculine-numeral'].score, .91)
 
 assert.deepEqual(validateExerciseSet(exercises, vocabulary), [])
 const shuffled: Exercise = { id: 'shuffle', lesson: 1, type: 'choice', prompt: 'ti + imeti', answer: 'imaš', alternatives: ['imam', 'ima', 'imamo'] }
@@ -89,10 +101,15 @@ const unlockedWeak = fresh({ ...grammarUnlocked, preferences: { ...defaultProgre
 assert.equal(buildAdaptiveRecommendation(unlockedWeak, enriched, vocabulary, 2, now).title, 'Grammatik gezielt festigen')
 assert.ok(buildAdaptiveReviewDeck(unlockedWeak, enriched, 8, now).every(exercise => isExerciseEligible(exercise, unlockedWeak)))
 
-const learned = fresh({ introducedWords: ['v001'], introducedGrammarRules: ['greeting-basic'], wordsLearned: ['v001'], completedLessons: [1], preferences: { ...defaultProgress.preferences, dailyGoalMinutes: 20 }, updatedAt: now - 100 })
+const learned = fresh({ introducedWords: ['v001'], introducedGrammarRules: ['greeting-basic'], introducedVerbForms: ['imeti:singular:1'], wordsLearned: ['v001'], secureWords: ['v001'], completedLessons: [1], reviews: [{key:'vocab:v001',status:'gelernt',intervalIndex:2,dueAt:now,updatedAt:now}], recentAttempts: [{exerciseId:'e01',correct:true,responseMs:1000,hintsUsed:0,occurredAt:now}], preferences: { ...defaultProgress.preferences, dailyGoalMinutes: 20 }, updatedAt: now - 100 })
 const reset = resetLearningProgress(learned)
 assert.equal(reset.introducedWords.length, 0)
 assert.equal(reset.introducedGrammarRules.length, 0)
+assert.equal(reset.introducedVerbForms.length, 0)
+assert.equal(reset.wordsLearned.length, 0)
+assert.equal(reset.secureWords.length, 0)
+assert.equal(reset.reviews.length, 0)
+assert.equal(reset.recentAttempts.length, 0)
 assert.equal(reset.preferences.dailyGoalMinutes, 20)
 assert.equal(mergeProgress(reset, fresh({ introducedWords: ['v001'], completedLessons: [1], updatedAt: (reset.resetAt || now) - 1000 })).introducedWords.length, 0)
 
@@ -138,6 +155,7 @@ const checkpointResults = checkpointSession.exercises.map(item => resultFor(item
 assert.deepEqual(validateSessionResults(checkpointSession, checkpointResults), [])
 assert.deepEqual(sessionSummary(checkpointSession, checkpointResults), { total: 6, correct: 6, wrong: 0 })
 assert.throws(() => sessionSummary(checkpointSession, [...checkpointResults, checkpointResults[0]]))
+assert.throws(() => sessionSummary(checkpointSession, checkpointResults.slice(0, 5)))
 
 const finalSession = createExerciseSession('final-exam', finalA, 'final-test')
 assert.equal(finalSession.exercises.length, 12)
@@ -152,6 +170,8 @@ assert.ok(validateSessionResults(replacementSession, checkpointResults).length >
 
 const verbSession = createExerciseSession('verb-practice', verbDeck, 'verb-test')
 assert.equal(verbSession.exercises.length, 9)
+const verbResults = verbSession.exercises.map(item => resultFor(item.id, item.sourceExerciseId))
+assert.deepEqual(sessionSummary(verbSession, verbResults), { total: 9, correct: 9, wrong: 0 })
 assert.equal(verbSession.exercises[0].options.filter(option => option.correct).length, verbSession.exercises[0].exercise.type === 'choice' ? 1 : 0)
 
 console.log('Regression checks passed')
