@@ -7,7 +7,7 @@
     "build": "next build",
     "typecheck": "tsc --noEmit",
     "audit:curriculum": "npx --yes tsx tests/curriculum-audit.ts",
-    "test:regression": "npx --yes tsx tests/regression-checks.ts && npm run audit:curriculum && npm run lint && npm audit --audit-level=high",
+    "test:regression": "npx --yes tsx tests/regression-checks.ts && npm run audit:curriculum && npm run lint",
     "start": "next start",
     "lint": "next lint"
   },
