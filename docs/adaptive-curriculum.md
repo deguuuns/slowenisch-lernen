@@ -38,6 +38,8 @@ Zusätzliche Lernsignale sind Antwortzeit und Hilfenutzung. Eine richtige, aber 
 
 Preview-Builds müssen immer vom aktuellen Branch-Head erzeugt werden. Das erneute Deployen eines älteren fehlgeschlagenen Deployments baut denselben alten Commit erneut und validiert neue Fixes nicht.
 
+Der aktuelle Teststand wurde vor dem Preview über GitHub Actions mit Typecheck, Regressionstests und Production-Build validiert. Ein neuer Branch-Commit darf als Trigger für einen frischen Preview-Build verwendet werden, wenn Vercel zuvor noch einen veralteten Commit gebaut hat.
+
 ## Nächste Ausbaustufe
 
 - skill-spezifische Hör- und Sprech-Mastery
