@@ -1,32 +1,90 @@
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isExerciseEligible } from '@/lib/curriculum-access'
 import { MASTERY_THRESHOLDS } from '@/lib/learner-status'
-import { Exercise, MasteryItem, UserProgress, Vocabulary } from '@/types'
+import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys } from '@/lib/learning-targets'
+import { Exercise, UserProgress, Vocabulary } from '@/types'
 import { buildTransferExercise, injectDueTransfer } from '@/lib/transfer-practice'
 
-export type AdaptiveActionKind='review'|'strengthen'|'new-content'|'speaking'
-export type AdaptiveRecommendation={kind:AdaptiveActionKind;title:string;reason:string;priority:number;lessonId?:number;focusKeys:string[];exerciseIds:string[]}
-const WEAK_THRESHOLD=.58,MIN_ATTEMPTS_FOR_WEAK=2
-function weakItems(progress:UserProgress){return Object.values(progress.mastery||{}).filter(m=>m.attempts>=MIN_ATTEMPTS_FOR_WEAK&&m.score<WEAK_THRESHOLD).filter(m=>m.kind!=='grammar'||progress.introducedGrammarRules.includes(m.key.replace('grammar:',''))).sort((a,b)=>a.score-b.score||b.attempts-a.attempts)}
-function exerciseKeys(ex:Exercise){return [...(ex.vocabularyIds||[]).map(id=>`vocab:${id}`),...(ex.grammarRuleIds||[]).map(id=>`grammar:${id}`),...(ex.skillTargets||[]).map(id=>`skill:${id}`),ex.id]}
-function eligible(progress:UserProgress,exercises:Exercise[]){return exercises.filter(ex=>isExerciseEligible(ex,progress))}
-function exercisesForMastery(items:MasteryItem[],exercises:Exercise[]){const keys=new Set(items.map(x=>x.key));return exercises.filter(ex=>exerciseKeys(ex).some(k=>keys.has(k)))}
-function unique<T>(items:T[]){return Array.from(new Set(items))}
-function fluencyConcern(progress:UserProgress){const recent=(progress.recentAttempts||[]).slice(-12);if(recent.length<4)return false;const correct=recent.filter(x=>x.correct);if(correct.length<3)return false;const slow=correct.filter(x=>x.responseMs>30_000).length,helped=correct.filter(x=>x.hintsUsed>0).length;return slow+helped>=Math.ceil(correct.length/2)}
-function newWordBudget(progress:UserProgress){const pace=progress.preferences?.pace||'normal';return pace==='ruhig'?2:pace==='intensiv'?4:3}
+export type AdaptiveActionKind = 'review' | 'strengthen' | 'new-content' | 'speaking'
+export type AdaptiveRecommendation = { kind:AdaptiveActionKind; title:string; reason:string; priority:number; lessonId?:number; focusKeys:string[]; exerciseIds:string[] }
 
-export function buildAdaptiveRecommendation(progress:UserProgress,rawExercises:Exercise[],vocabulary:Vocabulary[],activeLesson:number,now=Date.now()):AdaptiveRecommendation{
- const all=enrichExercises(rawExercises),exercises=eligible(progress,all),dueIds=progress.reviews.filter(r=>r.dueAt<=now).map(r=>r.key)
- if(dueIds.length){const dueSet=new Set(dueIds),matching=exercises.filter(e=>exerciseKeys(e).some(k=>dueSet.has(k)));if(matching.length)return {kind:'review',title:'Fällige Wiederholungen',reason:`${dueIds.length} bereits eingeführte Lernziele sind fällig.`,priority:100,focusKeys:dueIds,exerciseIds:matching.map(e=>e.id).slice(0,10)}}
- const attemptCount=progress.recentAttempts?.length||0,viableTransfer=(progress.transferQueue||[]).find(item=>progress.introducedGrammarRules.includes(item.grammarRuleId)&&buildTransferExercise(item,exercises,attemptCount))
- if(viableTransfer)return {kind:'strengthen',title:'Grammatik auf neue Beispiele übertragen',reason:'Eine bereits erklärte Regel wird mit einem anderen Satz gefestigt.',priority:90,focusKeys:[`grammar:${viableTransfer.grammarRuleId}`],exerciseIds:[]}
- const weakGrammar=weakItems(progress).filter(x=>x.kind==='grammar');if(weakGrammar.length){const top=weakGrammar.slice(0,3),deck=exercisesForMastery(top,exercises),w=top[0];if(deck.length)return {kind:'strengthen',title:'Grammatik gezielt festigen',reason:`Diese bereits eingeführte Grammatik ist noch unsicher (${Math.round(w.score*100)} %).`,priority:85,focusKeys:top.map(x=>x.key),exerciseIds:unique(deck.map(e=>e.id)).slice(0,10)}}
- const weakVocab=weakItems(progress).filter(x=>x.kind==='vocabulary'&&progress.introducedWords.includes(x.key.replace('vocab:','')));if(weakVocab.length){const top=weakVocab.slice(0,3),deck=exercisesForMastery(top,exercises),w=top[0];if(deck.length)return {kind:'strengthen',title:'Wortschatz gezielt festigen',reason:`Einige bekannte Wörter sind noch nicht stabil (${Math.round(w.score*100)} %).`,priority:80,focusKeys:top.map(x=>x.key),exerciseIds:unique(deck.map(e=>e.id)).slice(0,10)}}
- const production=progress.mastery?.['skill:production'],recognition=progress.mastery?.['skill:recognition'];if((recognition?.attempts||0)>=3&&(!production||production.score+0.12<(recognition.score||0))&&exercises.some(e=>e.skillTargets?.includes('production')))return {kind:'speaking',title:'Mehr selbst produzieren',reason:'Erkennen klappt besser als selbst formulieren.',priority:75,focusKeys:['skill:production'],exerciseIds:exercises.filter(e=>e.skillTargets?.includes('production')).map(e=>e.id).slice(0,8)}
- const listening=progress.mastery?.['skill:listening'];if((listening?.attempts||0)>=2&&listening.score<MASTERY_THRESHOLDS.learning)return {kind:'strengthen',title:'Hörverständnis festigen',reason:'Beim Hören brauchst du noch etwas Unterstützung.',priority:70,focusKeys:['skill:listening'],exerciseIds:exercises.filter(e=>e.skillTargets?.includes('listening')).map(e=>e.id).slice(0,8)}
- const speaking=progress.mastery?.['skill:speaking'];if((speaking?.attempts||0)>=2&&speaking.score<MASTERY_THRESHOLDS.learning)return {kind:'speaking',title:'Sprechen festigen',reason:'Aktives Sprechen ist aktuell noch unsicher.',priority:68,focusKeys:['skill:speaking'],exerciseIds:[]}
- if(fluencyConcern(progress)&&exercises.length)return {kind:'strengthen',title:'Sicherer und flüssiger antworten',reason:'Mehrere richtige Antworten brauchten zuletzt viel Zeit oder einen Hinweis.',priority:65,focusKeys:['skill:fluency'],exerciseIds:exercises.filter(e=>e.type!=='choice').map(e=>e.id).slice(0,8)}
- const budget=newWordBudget(progress),lessonWords=vocabulary.filter(v=>v.lesson===activeLesson),unseen=lessonWords.filter(v=>!progress.introducedWords.includes(v.id));return {kind:'new-content',title:`Weiter mit Lektion ${activeLesson}`,reason:unseen.length?`${Math.min(budget,unseen.length)} neue Wörter werden zuerst vorgestellt und danach passend geübt.`:'Die eingeführten Inhalte werden jetzt im Lektionenablauf gefestigt.',priority:50,lessonId:activeLesson,focusKeys:unseen.slice(0,budget).map(v=>`vocab:${v.id}`),exerciseIds:exercises.filter(e=>e.lesson===activeLesson).map(e=>e.id).slice(0,8)}
+function eligible(progress: UserProgress, exercises: Exercise[]) {
+  return exercises.filter(exercise => isExerciseEligible(exercise, progress))
 }
 
-export function buildAdaptiveReviewDeck(progress:UserProgress,rawExercises:Exercise[],limit=10,now=Date.now()):Exercise[]{const exercises=eligible(progress,enrichExercises(rawExercises)),due=new Set(progress.reviews.filter(r=>r.dueAt<=now).map(r=>r.key)),mistakes=new Set([...progress.mistakes].sort((a,b)=>b.count-a.count).map(m=>m.key)),weak=weakItems(progress).slice(0,5),weakExercises=exercisesForMastery(weak,exercises),recentIds=new Set((progress.recentAttempts||[]).slice(-6).map(a=>a.exerciseId));const scored=exercises.map((ex,index)=>{let score=0;if(exerciseKeys(ex).some(k=>due.has(k)))score+=100;if(mistakes.has(ex.id))score+=60;if(weakExercises.some(w=>w.id===ex.id))score+=45;if((ex.vocabularyIds||[]).some(id=>(progress.mastery?.[`vocab:${id}`]?.score??1)<WEAK_THRESHOLD))score+=20;if((ex.grammarRuleIds||[]).some(id=>(progress.mastery?.[`grammar:${id}`]?.score??1)<WEAK_THRESHOLD))score+=25;if(recentIds.has(ex.id))score-=80;return {ex,score,index}}).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.index-b.index);let chosen:Exercise[]=[];const usedPrompts=new Set<string>();for(const item of scored){const signature=item.ex.prompt.toLowerCase().replace(/[^a-zčšž0-9 ]/gi,'').trim();if(usedPrompts.has(signature))continue;chosen.push(item.ex);usedPrompts.add(signature);if(chosen.length>=limit)break}if(chosen.length<Math.min(4,limit)){for(const ex of exercises){if(chosen.some(c=>c.id===ex.id)||recentIds.has(ex.id))continue;chosen.push(ex);if(chosen.length>=limit)break}}const transfer=injectDueTransfer(chosen,progress.transferQueue||[],exercises,progress.recentAttempts?.length||0);return transfer.exercises.filter(ex=>isExerciseEligible(ex,progress)).slice(0,limit)}
+function fluencyConcern(progress: UserProgress) {
+  const recent = (progress.recentAttempts || []).slice(-12)
+  if (recent.length < 4) return false
+  const correct = recent.filter(attempt => attempt.correct)
+  if (correct.length < 3) return false
+  const slow = correct.filter(attempt => attempt.responseMs > 30_000).length
+  const helped = correct.filter(attempt => attempt.hintsUsed > 0).length
+  return slow + helped >= Math.ceil(correct.length / 2)
+}
+
+function newWordBudget(progress: UserProgress) {
+  const pace = progress.preferences?.pace || 'normal'
+  const recent = (progress.recentAttempts || []).slice(-12)
+  const accuracy = recent.length ? recent.filter(attempt => attempt.correct).length / recent.length : .75
+  const fastCorrect = recent.filter(attempt => attempt.correct && attempt.responseMs <= 12_000 && attempt.hintsUsed === 0).length
+  const base = pace === 'ruhig' ? 2 : pace === 'intensiv' ? 4 : 3
+  if (recent.length >= 6 && accuracy >= .85 && fastCorrect >= Math.ceil(recent.length * .6)) return Math.min(5, base + 1)
+  if (recent.length >= 6 && accuracy < .6) return Math.max(1, base - 1)
+  return base
+}
+
+export function buildAdaptiveRecommendation(progress: UserProgress, rawExercises: Exercise[], vocabulary: Vocabulary[], activeLesson: number, now = Date.now()): AdaptiveRecommendation {
+  const exercises = eligible(progress, enrichExercises(rawExercises))
+  const dueKeys = (progress.reviews || []).filter(review => review.dueAt <= now).map(review => review.key)
+  if (dueKeys.length) {
+    const matching = dedupeExercisesByTarget(exercises.filter(exercise => exerciseHasDueTarget(exercise, progress, now)), 10)
+    if (matching.length) return { kind:'review', title:'Fällige Wiederholungen', reason:`${dueKeys.length} Lernziele sind jetzt wirklich fällig.`, priority:100, focusKeys:dueKeys, exerciseIds:matching.map(exercise => exercise.id) }
+  }
+
+  const attemptCount = progress.recentAttempts?.length || 0
+  const viableTransfer = (progress.transferQueue || []).find(item => progress.introducedGrammarRules.includes(item.grammarRuleId) && buildTransferExercise(item, exercises, attemptCount))
+  if (viableTransfer) return { kind:'strengthen', title:'Fehler gezielt übertragen', reason:'Eine zuletzt unsichere Regel wird mit einem anderen Satz geprüft.', priority:90, focusKeys:[`grammar:${viableTransfer.grammarRuleId}`], exerciseIds:[] }
+
+  const production = progress.mastery?.['skill:production']
+  const recognition = progress.mastery?.['skill:recognition']
+  if ((recognition?.attempts || 0) >= 3 && (!production || production.score + .12 < (recognition.score || 0)) && exercises.some(exercise => exercise.skillTargets?.includes('production'))) {
+    return { kind:'speaking', title:'Mehr selbst produzieren', reason:'Erkennen klappt besser als selbst formulieren.', priority:75, focusKeys:['skill:production'], exerciseIds:exercises.filter(exercise => exercise.skillTargets?.includes('production')).map(exercise => exercise.id).slice(0,8) }
+  }
+
+  const listening = progress.mastery?.['skill:listening']
+  if ((listening?.attempts || 0) >= 2 && listening.score < MASTERY_THRESHOLDS.learning) return { kind:'strengthen', title:'Hörverständnis festigen', reason:'Beim Hören brauchst du noch Unterstützung.', priority:70, focusKeys:['skill:listening'], exerciseIds:exercises.filter(exercise => exercise.skillTargets?.includes('listening')).map(exercise => exercise.id).slice(0,8) }
+
+  const speaking = progress.mastery?.['skill:speaking']
+  if ((speaking?.attempts || 0) >= 2 && speaking.score < MASTERY_THRESHOLDS.learning) return { kind:'speaking', title:'Sprechen festigen', reason:'Aktives Sprechen ist aktuell noch unsicher.', priority:68, focusKeys:['skill:speaking'], exerciseIds:[] }
+
+  if (fluencyConcern(progress) && exercises.length) return { kind:'strengthen', title:'Sicherer und flüssiger antworten', reason:'Richtige Antworten brauchten zuletzt viel Zeit oder Hilfe; bereits fällige Inhalte werden bevorzugt.', priority:65, focusKeys:['skill:fluency'], exerciseIds:dedupeExercisesByTarget(exercises.filter(exercise => exercise.type !== 'choice'), 8).map(exercise => exercise.id) }
+
+  const budget = newWordBudget(progress)
+  const lessonWords = vocabulary.filter(word => word.lesson === activeLesson)
+  const unseen = lessonWords.filter(word => !progress.introducedWords.includes(word.id))
+  return {
+    kind:'new-content',
+    title:`Weiter mit Lektion ${activeLesson}`,
+    reason: unseen.length ? `${Math.min(budget, unseen.length)} neue Wörter statt unnötiger Wiederholungen.` : 'Es ist aktuell nichts regulär fällig; weiter geht es mit dem Kurs statt mit künstlichem Drill.',
+    priority:50,
+    lessonId:activeLesson,
+    focusKeys:unseen.slice(0,budget).map(word => `vocab:${word.id}`),
+    exerciseIds:dedupeExercisesByTarget(exercises.filter(exercise => exercise.lesson === activeLesson), 8).map(exercise => exercise.id),
+  }
+}
+
+export function buildAdaptiveReviewDeck(progress: UserProgress, rawExercises: Exercise[], limit = 10, now = Date.now()): Exercise[] {
+  const exercises = eligible(progress, enrichExercises(rawExercises))
+  const due = exercises.filter(exercise => exerciseHasDueTarget(exercise, progress, now))
+  const recentIds = new Set((progress.recentAttempts || []).slice(-8).map(attempt => attempt.exerciseId))
+  const duePreferred = [...due.filter(exercise => !recentIds.has(exercise.id)), ...due.filter(exercise => recentIds.has(exercise.id))]
+  let chosen = dedupeExercisesByTarget(duePreferred, limit)
+
+  const transfer = injectDueTransfer(chosen, progress.transferQueue || [], exercises, progress.recentAttempts?.length || 0)
+  chosen = dedupeExercisesByTarget(transfer.exercises.filter(exercise => isExerciseEligible(exercise, progress)), limit)
+  return chosen.slice(0, limit)
+}
+
+export function targetKeysForExercise(exercise: Exercise) {
+  return inferTargetContentKeys(exercise)
+}

@@ -1,6 +1,6 @@
 import { singularVerbIntroForVocabulary, verbFormKey } from '@/lib/curriculum-access'
 import { VERB_UNLOCK_THRESHOLDS } from '@/lib/learning-config'
-import { Exercise, UserProgress, VerbFormRequirement } from '@/types'
+import { Exercise, TargetContentKey, UserProgress, VerbFormRequirement } from '@/types'
 
 export { VERB_UNLOCK_THRESHOLDS } from '@/lib/learning-config'
 
@@ -10,41 +10,33 @@ export function verbFormMasteryKey(requirement: VerbFormRequirement) {
   return `verb:${verbFormKey(requirement)}`
 }
 
-export function verbFormStatus(
-  progress: UserProgress,
-  requirement: VerbFormRequirement,
-): VerbLearningStatus {
+export function verbFormStatus(progress: UserProgress, requirement: VerbFormRequirement): VerbLearningStatus {
   const key = verbFormKey(requirement)
   const mastery = progress.mastery?.[verbFormMasteryKey(requirement)]
   if (!progress.introducedVerbForms.includes(key)) return 'LOCKED'
   if (!mastery || mastery.attempts === 0) return 'INTRODUCED'
 
-  const ready =
-    mastery.attempts >= VERB_UNLOCK_THRESHOLDS.minAttemptsPerForm &&
+  const ready = mastery.attempts >= VERB_UNLOCK_THRESHOLDS.minAttemptsPerForm &&
     (mastery.activeCorrect || 0) >= VERB_UNLOCK_THRESHOLDS.minActiveCorrectPerForm &&
     mastery.score >= VERB_UNLOCK_THRESHOLDS.minimumScore
 
   if (!ready) return 'LEARNING'
-  if (
-    mastery.score >= VERB_UNLOCK_THRESHOLDS.masteredScore &&
-    mastery.attempts >= VERB_UNLOCK_THRESHOLDS.masteredAttempts
-  ) return 'MASTERED'
+  if (mastery.score >= VERB_UNLOCK_THRESHOLDS.masteredScore && mastery.attempts >= VERB_UNLOCK_THRESHOLDS.masteredAttempts) return 'MASTERED'
   return 'KNOWN'
 }
 
-export function verbFormReadyForNormalPractice(
-  progress: UserProgress,
-  requirement: VerbFormRequirement,
-) {
+export function verbFormReadyForNormalPractice(progress: UserProgress, requirement: VerbFormRequirement) {
   const status = verbFormStatus(progress, requirement)
   return status === 'KNOWN' || status === 'MASTERED'
 }
 
 export function verbIntrosForVocabulary(ids: string[]) {
-  return singularVerbIntroForVocabulary(ids).map(verb => ({
-    ...verb,
-    examples: verbExamples(verb.verbId),
-  }))
+  return singularVerbIntroForVocabulary(ids).map(verb => {
+    const forms = verb.verbId === 'biti'
+      ? verb.forms.map(form => form.person === 3 ? { ...form, pronounSl:'on / ona / ono', translationDe:'er / sie / es ist' } : form)
+      : verb.forms
+    return { ...verb, forms, examples: verbExamples(verb.verbId) }
+  })
 }
 
 function verbExamples(verbId: string) {
@@ -88,6 +80,10 @@ function verbExamples(verbId: string) {
   return examples[verbId] || []
 }
 
+function pronounVariants(pronounSl: string) {
+  return pronounSl.split(' / ').map(value => value.trim()).filter(Boolean)
+}
+
 export function buildVerbPracticeExercises(
   lessonId: number,
   verb: {
@@ -95,68 +91,29 @@ export function buildVerbPracticeExercises(
     forms: { person: 1 | 2 | 3; pronounSl: string; formSl: string; translationDe: string }[]
   },
 ): Exercise[] {
-  const allForms = verb.forms.map(form => form.formSl)
-  const exercises: Exercise[] = []
-
-  for (const form of verb.forms) {
-    const requirement: VerbFormRequirement = {
-      verbId: verb.verbId,
-      person: form.person,
-      number: 'singular',
+  return verb.forms.map(form => {
+    const requirement: VerbFormRequirement = { verbId: verb.verbId, person: form.person, number: 'singular' }
+    const pronouns = pronounVariants(form.pronounSl)
+    const primary = `${pronouns[0]} ${form.formSl}`
+    const target = `verb:${verbFormKey(requirement)}` as TargetContentKey
+    return {
+      id: `verb-${verb.verbId}-${form.person}-produce`,
+      lesson: lessonId,
+      type: 'translate-de-sl',
+      prompt: `Übersetze: ${form.translationDe}`,
+      answer: primary,
+      acceptedAnswers: Array.from(new Set([form.formSl, ...pronouns.map(pronoun => `${pronoun} ${form.formSl}`)])),
+      skillTargets: ['production'],
+      requiredVerbForms: [requirement],
+      evaluationMode: 'acceptedVariants',
+      generated: true,
+      verbPractice: true,
+      verbAnswerMode: 'full-person-form',
+      targetContentKeys: [target],
     }
-    const alternatives = allForms.filter(value => value !== form.formSl)
-    const pronoun = form.pronounSl.split(' / ')[0]
-
-    exercises.push(
-      {
-        id: `verb-${verb.verbId}-${form.person}-choice`,
-        lesson: lessonId,
-        type: 'choice',
-        prompt: `Welche Form passt zu „${form.pronounSl}“?`,
-        answer: form.formSl,
-        alternatives,
-        skillTargets: ['recognition'],
-        requiredVerbForms: [requirement],
-        evaluationMode: 'exact',
-        generated: true,
-        verbPractice: true,
-      },
-      {
-        id: `verb-${verb.verbId}-${form.person}-produce`,
-        lesson: lessonId,
-        type: 'translate-de-sl',
-        prompt: form.translationDe,
-        answer: `${pronoun} ${form.formSl}`,
-        acceptedAnswers: [form.formSl, `${pronoun} ${form.formSl}`],
-        skillTargets: ['production'],
-        requiredVerbForms: [requirement],
-        evaluationMode: 'acceptedVariants',
-        generated: true,
-        verbPractice: true,
-      },
-      {
-        id: `verb-${verb.verbId}-${form.person}-fill`,
-        lesson: lessonId,
-        type: 'fill',
-        prompt: `${pronoun} ___  (${verb.verbId})`,
-        answer: form.formSl,
-        acceptedAnswers: [form.formSl],
-        skillTargets: ['production'],
-        requiredVerbForms: [requirement],
-        evaluationMode: 'acceptedVariants',
-        generated: true,
-        verbPractice: true,
-      },
-    )
-  }
-  return exercises
+  })
 }
 
-export function allVerbFormsReady(
-  progress: UserProgress,
-  requirements: VerbFormRequirement[],
-) {
-  return requirements.every(requirement =>
-    verbFormReadyForNormalPractice(progress, requirement),
-  )
+export function allVerbFormsReady(progress: UserProgress, requirements: VerbFormRequirement[]) {
+  return requirements.every(requirement => verbFormReadyForNormalPractice(progress, requirement))
 }

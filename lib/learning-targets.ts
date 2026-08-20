@@ -1,0 +1,77 @@
+import { verbFormKey } from '@/lib/curriculum-access'
+import { Exercise, TargetContentKey, UserProgress } from '@/types'
+
+function unique<T>(items: T[]) {
+  return Array.from(new Set(items))
+}
+
+export function inferTargetContentKeys(exercise: Exercise): TargetContentKey[] {
+  if (exercise.targetContentKeys?.length) return unique(exercise.targetContentKeys)
+
+  if (exercise.verbPractice && exercise.requiredVerbForms?.length) {
+    return unique(exercise.requiredVerbForms.map(requirement => `verb:${verbFormKey(requirement)}` as TargetContentKey))
+  }
+
+  if (exercise.grammarRuleIds?.length) {
+    return unique(exercise.grammarRuleIds.map(id => `grammar:${id}` as TargetContentKey))
+  }
+
+  if (exercise.vocabularyIds?.length) {
+    return unique(exercise.vocabularyIds.map(id => `vocab:${id}` as TargetContentKey))
+  }
+
+  if (exercise.requiredVerbForms?.length) {
+    return unique(exercise.requiredVerbForms.map(requirement => `verb:${verbFormKey(requirement)}` as TargetContentKey))
+  }
+
+  return []
+}
+
+export function inferSupportingContentKeys(exercise: Exercise): TargetContentKey[] {
+  if (exercise.supportingContentKeys?.length) return unique(exercise.supportingContentKeys)
+  const targets = new Set(inferTargetContentKeys(exercise))
+  return unique([
+    ...(exercise.vocabularyIds || []).map(id => `vocab:${id}` as TargetContentKey),
+    ...(exercise.grammarRuleIds || []).map(id => `grammar:${id}` as TargetContentKey),
+    ...(exercise.requiredVerbForms || []).map(requirement => `verb:${verbFormKey(requirement)}` as TargetContentKey),
+  ].filter(key => !targets.has(key)))
+}
+
+export function withTargetMetadata(exercise: Exercise): Exercise {
+  return {
+    ...exercise,
+    targetContentKeys: inferTargetContentKeys(exercise),
+    supportingContentKeys: inferSupportingContentKeys(exercise),
+  }
+}
+
+export function reviewForKey(progress: UserProgress, key: string) {
+  return (progress.reviews || []).find(review => review.key === key)
+}
+
+export function isReviewDue(progress: UserProgress, key: string, now = Date.now()) {
+  const review = reviewForKey(progress, key)
+  return Boolean(review && review.dueAt <= now)
+}
+
+export function exerciseHasDueTarget(exercise: Exercise, progress: UserProgress, now = Date.now()) {
+  return inferTargetContentKeys(exercise).some(key => isReviewDue(progress, key, now))
+}
+
+export function dedupeExercisesByTarget(exercises: Exercise[], limit = Number.POSITIVE_INFINITY) {
+  const usedTargets = new Set<string>()
+  const selected: Exercise[] = []
+
+  for (const exercise of exercises) {
+    const targets = inferTargetContentKeys(exercise)
+    if (targets.length && targets.some(target => usedTargets.has(target))) continue
+    selected.push(withTargetMetadata(exercise))
+    targets.forEach(target => usedTargets.add(target))
+    if (selected.length >= limit) break
+  }
+  return selected
+}
+
+export function isCanonicalReviewKey(key: string) {
+  return /^(vocab|grammar|verb|skill):/.test(key)
+}

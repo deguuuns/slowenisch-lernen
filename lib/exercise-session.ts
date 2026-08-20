@@ -1,4 +1,5 @@
 import { ChoiceOption, stableChoiceOptions, validateExerciseSet } from '@/lib/exercise-integrity'
+import { withTargetMetadata } from '@/lib/learning-targets'
 import { Exercise } from '@/types'
 
 export type ExerciseSessionKind =
@@ -6,7 +7,9 @@ export type ExerciseSessionKind =
   | 'verb-practice'
   | 'checkpoint'
   | 'final-exam'
+  | 'major-test'
   | 'review'
+  | 'error-review'
   | 'transfer'
 
 export type SessionExercise = {
@@ -33,24 +36,21 @@ export type ExerciseSessionResult = {
 }
 
 function copyExercise(exercise: Exercise): Exercise {
+  const enriched = withTargetMetadata(exercise)
   return {
-    ...exercise,
-    alternatives: exercise.alternatives ? [...exercise.alternatives] : undefined,
-    acceptedAnswers: exercise.acceptedAnswers ? [...exercise.acceptedAnswers] : undefined,
-    vocabularyIds: exercise.vocabularyIds ? [...exercise.vocabularyIds] : undefined,
-    grammarRuleIds: exercise.grammarRuleIds ? [...exercise.grammarRuleIds] : undefined,
-    skillTargets: exercise.skillTargets ? [...exercise.skillTargets] : undefined,
-    requiredVerbForms: exercise.requiredVerbForms
-      ? exercise.requiredVerbForms.map(requirement => ({ ...requirement }))
-      : undefined,
+    ...enriched,
+    alternatives: enriched.alternatives ? [...enriched.alternatives] : undefined,
+    acceptedAnswers: enriched.acceptedAnswers ? [...enriched.acceptedAnswers] : undefined,
+    vocabularyIds: enriched.vocabularyIds ? [...enriched.vocabularyIds] : undefined,
+    grammarRuleIds: enriched.grammarRuleIds ? [...enriched.grammarRuleIds] : undefined,
+    skillTargets: enriched.skillTargets ? [...enriched.skillTargets] : undefined,
+    targetContentKeys: enriched.targetContentKeys ? [...enriched.targetContentKeys] : undefined,
+    supportingContentKeys: enriched.supportingContentKeys ? [...enriched.supportingContentKeys] : undefined,
+    requiredVerbForms: enriched.requiredVerbForms ? enriched.requiredVerbForms.map(requirement => ({ ...requirement })) : undefined,
   }
 }
 
-export function createExerciseSession(
-  kind: ExerciseSessionKind,
-  exercises: Exercise[],
-  sessionId: string,
-): ExerciseSession {
+export function createExerciseSession(kind: ExerciseSessionKind, exercises: Exercise[], sessionId: string): ExerciseSession {
   const copies = exercises.map(copyExercise)
   const issues = validateExerciseSet(copies)
   if (issues.length) throw new Error(`Invalid exercise session ${sessionId}: ${JSON.stringify(issues)}`)
@@ -67,22 +67,13 @@ export function createExerciseSession(
     })
   })
 
-  return Object.freeze({
-    sessionId,
-    kind,
-    exercises: Object.freeze(items),
-    startedAt: Date.now(),
-  })
+  return Object.freeze({ sessionId, kind, exercises: Object.freeze(items), startedAt: Date.now() })
 }
 
-export function validateSessionResults(
-  session: ExerciseSession,
-  results: ExerciseSessionResult[],
-): string[] {
+export function validateSessionResults(session: ExerciseSession, results: ExerciseSessionResult[]): string[] {
   const validIds = new Set(session.exercises.map(item => item.id))
   const issues: string[] = []
   if (results.length > session.exercises.length) issues.push(`results ${results.length} exceed exercises ${session.exercises.length}`)
-
   const seen = new Set<string>()
   for (const result of results) {
     if (!validIds.has(result.sessionExerciseId)) issues.push(`foreign result ${result.sessionExerciseId}`)
@@ -92,14 +83,9 @@ export function validateSessionResults(
   return issues
 }
 
-export function validateCompletedSession(
-  session: ExerciseSession,
-  results: ExerciseSessionResult[],
-): string[] {
+export function validateCompletedSession(session: ExerciseSession, results: ExerciseSessionResult[]): string[] {
   const issues = validateSessionResults(session, results)
-  if (results.length !== session.exercises.length) {
-    issues.push(`completed session has ${results.length} results for ${session.exercises.length} exercises`)
-  }
+  if (results.length !== session.exercises.length) issues.push(`completed session has ${results.length} results for ${session.exercises.length} exercises`)
   return issues
 }
 

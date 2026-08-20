@@ -1,4 +1,5 @@
 import { EXAM_REPEAT_CONFIG } from '@/lib/learning-config'
+import { inferTargetContentKeys } from '@/lib/learning-targets'
 import { ExamHistoryItem, Exercise } from '@/types'
 
 type ExerciseLike = Exercise | { exercise: Exercise }
@@ -18,8 +19,7 @@ export function promptSignature(prompt: string) {
 }
 
 export function appendExamHistory(history: ExamHistoryItem[] | undefined, item: ExamHistoryItem) {
-  const deduped = [...(history || []).filter(entry => entry.sessionId !== item.sessionId), item]
-    .sort((a, b) => a.completedAt - b.completedAt)
+  const deduped = [...(history || []).filter(entry => entry.sessionId !== item.sessionId), item].sort((a, b) => a.completedAt - b.completedAt)
   return deduped.slice(-EXAM_REPEAT_CONFIG.historyLimit)
 }
 
@@ -29,17 +29,10 @@ export function mergeExamHistory(a: ExamHistoryItem[] | undefined, b: ExamHistor
     const existing = map.get(item.sessionId)
     if (!existing || item.completedAt > existing.completedAt) map.set(item.sessionId, item)
   }
-  return Array.from(map.values())
-    .sort((x, y) => x.completedAt - y.completedAt)
-    .slice(-EXAM_REPEAT_CONFIG.historyLimit)
+  return Array.from(map.values()).sort((x, y) => x.completedAt - y.completedAt).slice(-EXAM_REPEAT_CONFIG.historyLimit)
 }
 
-export function historyItemFromExercises(
-  sessionId: string,
-  kind: 'checkpoint' | 'final',
-  lessonId: number,
-  items: readonly ExerciseLike[],
-): ExamHistoryItem {
+export function historyItemFromExercises(sessionId: string, kind: 'checkpoint' | 'final' | 'major', lessonId: number, items: readonly ExerciseLike[]): ExamHistoryItem {
   const exercises = items.map(unwrap)
   return {
     sessionId,
@@ -50,6 +43,7 @@ export function historyItemFromExercises(
     promptSignatures: exercises.map(exercise => promptSignature(exercise.prompt)),
     vocabularyIds: Array.from(new Set(exercises.flatMap(exercise => exercise.vocabularyIds || []))),
     grammarRuleIds: Array.from(new Set(exercises.flatMap(exercise => exercise.grammarRuleIds || []))),
+    targetContentKeys: Array.from(new Set(exercises.flatMap(exercise => inferTargetContentKeys(exercise)))),
     completedAt: Date.now(),
   }
 }
