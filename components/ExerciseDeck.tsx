@@ -6,7 +6,7 @@ import {
   ExerciseSession,
   ExerciseSessionResult,
   sessionSummary,
-  validateSessionResults,
+  validateCompletedSession,
 } from '@/lib/exercise-session'
 import { Exercise } from '@/types'
 
@@ -28,6 +28,7 @@ export default function ExerciseDeck({
   const [showHint, setShowHint] = useState(false)
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null)
   const [results, setResults] = useState<ExerciseSessionResult[]>([])
+  const resultsRef = useRef<ExerciseSessionResult[]>([])
   const startedAt = useRef(Date.now())
 
   const item = session.exercises[index]
@@ -41,6 +42,7 @@ export default function ExerciseDeck({
     setShowHint(false)
     setEvaluation(null)
     setResults([])
+    resultsRef.current = []
     startedAt.current = Date.now()
   }, [session.sessionId])
 
@@ -57,23 +59,21 @@ export default function ExerciseDeck({
   }
 
   if (finished) {
-    const issues = validateSessionResults(session, results)
+    const issues = validateCompletedSession(session, results)
     if (issues.length) {
       return (
-        <div className="card border border-red-200 bg-red-50">
-          <h3 className="text-xl font-black">Sitzung konnte nicht sauber abgeschlossen werden</h3>
-          <p className="mt-2 text-sm text-slate-700">
-            Die Ergebniszählung war inkonsistent. Dein Lernfortschritt wurde bereits pro Aufgabe gespeichert,
-            aber diese Zusammenfassung wird nicht verfälscht angezeigt.
+        <div className="card min-w-0 border border-red-200 bg-red-50">
+          <h3 className="break-words text-xl font-black [overflow-wrap:anywhere]">Diese Sitzung konnte nicht korrekt abgeschlossen werden.</h3>
+          <p className="mt-2 break-words text-sm text-slate-700 [overflow-wrap:anywhere]">
+            Die Ergebniszählung war inkonsistent. Dein Lernfortschritt wurde pro beantworteter Aufgabe gespeichert,
+            aber es wird bewusst keine falsche Abschlussstatistik angezeigt.
           </p>
         </div>
       )
     }
 
     const summary = sessionSummary(session, results)
-    const average = results.length
-      ? Math.round(results.reduce((sum, result) => sum + result.responseMs, 0) / results.length / 1000)
-      : 0
+    const average = Math.round(results.reduce((sum, result) => sum + result.responseMs, 0) / results.length / 1000)
     const words = new Set(results.filter(result => result.correct).flatMap(result => result.vocabularyIds)).size
     const grammarErrors = new Set(
       results.filter(result => !result.correct).flatMap(result => result.grammarRuleIds),
@@ -87,7 +87,7 @@ export default function ExerciseDeck({
           <Metric value={summary.total} label="Aufgaben" className="bg-lime-50" />
           <Metric value={summary.correct} label="richtig" className="bg-lime-50" />
           <Metric value={summary.wrong} label="Fehler" className="bg-amber-50" />
-          <Metric value={average ? `${average} s` : '–'} label="Ø Antwort" className="bg-slate-50" />
+          <Metric value={`${average} s`} label="Ø Antwort" className="bg-slate-50" />
         </div>
         <p className="mt-4 break-words text-sm text-slate-600">
           {words} Wörter aktiv geübt
@@ -138,22 +138,28 @@ export default function ExerciseDeck({
       grammarRuleIds: exercise.grammarRuleIds || [],
     }
 
+    const previous = resultsRef.current
+    if (previous.some(row => row.sessionExerciseId === item.id)) return
+    const nextResults = [...previous, nextResult]
+    if (nextResults.length > session.exercises.length) {
+      throw new Error(`Session ${session.sessionId} received too many results`)
+    }
+    resultsRef.current = nextResults
+    setResults(nextResults)
+
     setValue(answer)
     setEvaluation(result)
     setChecked(true)
-    setResults(previous => {
-      if (previous.some(row => row.sessionExerciseId === item.id)) return previous
-      const next = [...previous, nextResult]
-      if (next.length > session.exercises.length) {
-        throw new Error(`Session ${session.sessionId} received too many results`)
-      }
-      return next
-    })
     onResult(exercise, result.isCorrect, { responseMs, hintsUsed })
   }
 
   function next() {
+    if (!checked) return
     if (index >= session.exercises.length - 1) {
+      const issues = validateCompletedSession(session, resultsRef.current)
+      if (issues.length) {
+        setResults([...resultsRef.current])
+      }
       setFinished(true)
       return
     }
