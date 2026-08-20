@@ -24,34 +24,17 @@ import { buildVerbPracticeExercises, verbFormStatus } from '../lib/verb-learning
 import type { Exercise, UserProgress, Vocabulary } from '../types'
 
 function fresh(overrides: Partial<UserProgress> = {}): UserProgress {
-  return {
-    ...structuredClone(defaultProgress),
-    preferences: { ...defaultProgress.preferences },
-    ...overrides,
-  }
+  return { ...structuredClone(defaultProgress), preferences: { ...defaultProgress.preferences }, ...overrides }
 }
 
 function resultFor(sessionExerciseId: string, sourceExerciseId: string, correct = true): ExerciseSessionResult {
-  return {
-    sessionExerciseId,
-    sourceExerciseId,
-    correct,
-    responseMs: 1000,
-    vocabularyIds: [],
-    grammarRuleIds: [],
-  }
+  return { sessionExerciseId, sourceExerciseId, correct, responseMs: 1000, vocabularyIds: [], grammarRuleIds: [] }
 }
 
 const enriched = enrichExercises(exercises)
 const now = Date.now()
-const choice: Exercise = {
-  id: 't-choice', lesson: 1, type: 'choice', prompt: 'x', answer: 'A', alternatives: ['B'],
-  vocabularyIds: ['v001'], grammarRuleIds: [], skillTargets: ['recognition'],
-}
-const produce: Exercise = {
-  id: 't-produce', lesson: 1, type: 'translate-de-sl', prompt: 'x', answer: 'Živjo',
-  vocabularyIds: ['v001'], grammarRuleIds: ['greeting-basic'], skillTargets: ['production'],
-}
+const choice: Exercise = { id: 't-choice', lesson: 1, type: 'choice', prompt: 'x', answer: 'A', alternatives: ['B'], vocabularyIds: ['v001'], grammarRuleIds: [], skillTargets: ['recognition'] }
+const produce: Exercise = { id: 't-produce', lesson: 1, type: 'translate-de-sl', prompt: 'x', answer: 'Živjo', vocabularyIds: ['v001'], grammarRuleIds: ['greeting-basic'], skillTargets: ['production'] }
 
 let progress = fresh({ introducedWords: ['v001'] })
 assert.equal(getVocabularyStatus('v001', progress), 'eingeführt')
@@ -59,7 +42,6 @@ let mastery = updateMastery({}, choice, true, 3000, 0)
 progress = { ...progress, mastery }
 assert.notEqual(getVocabularyStatus('v001', progress), 'sicher')
 assert.equal(mastery['vocab:v001'].activeCorrect, 0)
-
 const passive = updateMastery({}, choice, true, 3000, 0)['vocab:v001']
 const active = updateMastery({}, produce, true, 3000, 0)['vocab:v001']
 assert.equal(active.activeCorrect, 1)
@@ -150,10 +132,9 @@ for (const planned of finalA) {
   }
 }
 
-// Core session invariants: advertised task count and summary can never diverge.
 const checkpointSession = createExerciseSession('checkpoint', checkpoint, 'checkpoint-test')
 assert.equal(checkpointSession.exercises.length, 6)
-let checkpointResults = checkpointSession.exercises.map(item => resultFor(item.id, item.sourceExerciseId))
+const checkpointResults = checkpointSession.exercises.map(item => resultFor(item.id, item.sourceExerciseId))
 assert.deepEqual(validateSessionResults(checkpointSession, checkpointResults), [])
 assert.deepEqual(sessionSummary(checkpointSession, checkpointResults), { total: 6, correct: 6, wrong: 0 })
 assert.throws(() => sessionSummary(checkpointSession, [...checkpointResults, checkpointResults[0]]))
@@ -165,7 +146,8 @@ assert.deepEqual(sessionSummary(finalSession, finalResults), { total: 12, correc
 
 const replacementSession = createExerciseSession('checkpoint', checkpoint.slice(0, 5), 'replacement-test')
 assert.equal(replacementSession.exercises.length, 5)
-assert.deepEqual(sessionSummary(replacementSession, []), { total: 0, correct: 0, wrong: 0 })
+assert.deepEqual(validateSessionResults(replacementSession, []), [])
+assert.throws(() => sessionSummary(replacementSession, []))
 assert.ok(validateSessionResults(replacementSession, checkpointResults).length > 0)
 
 const verbSession = createExerciseSession('verb-practice', verbDeck, 'verb-test')
