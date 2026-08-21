@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
-import { exercises, vocabulary } from '../data/seed'
+import { conversations, exercises, sentences, vocabulary } from '../data/seed'
 import { buildAdaptiveRecommendation, buildAdaptiveReviewDeck } from '../lib/adaptive-curriculum'
+import { evaluateAnswer } from '../lib/answer-evaluation'
 import { mergeProgress } from '../lib/cloud-sync'
-import { isExerciseEligible, singularVerbIntroForVocabulary, verbFormKey } from '../lib/curriculum-access'
+import { GRAMMAR_RULES, isExerciseEligible, singularVerbIntroForVocabulary, verbFormKey } from '../lib/curriculum-access'
 import { enrichExercises } from '../lib/curriculum-metadata'
 import { buildExamPlan, EXAM_CONFIG, majorTestDue } from '../lib/exam-planner'
 import { stableChoiceOptions, validateExerciseSet } from '../lib/exercise-integrity'
 import { createExerciseSession, ExerciseSessionResult, sessionSummary, validateSessionResults } from '../lib/exercise-session'
+import { generatedExercisesForWord, isConjugatedVerbVocabulary } from '../lib/learning-flow'
 import { dedupeExercisesByTarget, inferTargetContentKeys, inferSupportingContentKeys, isReviewDue } from '../lib/learning-targets'
 import { REVIEW_INTERVALS_DAYS } from '../lib/learning-config'
 import { buildSessionPlan } from '../lib/session-planner'
@@ -20,6 +22,10 @@ function fresh(overrides: Partial<UserProgress> = {}): UserProgress {
 
 function resultFor(sessionExerciseId: string, sourceExerciseId: string, correct = true): ExerciseSessionResult {
   return { sessionExerciseId, sourceExerciseId, correct, responseMs: 1000, vocabularyIds: [], grammarRuleIds: [] }
+}
+
+function evaluateExercise(exercise: Exercise, input: string) {
+  return evaluateAnswer({ input, expected: exercise.answer, alternatives: exercise.acceptedAnswers })
 }
 
 const now = Date.now()
@@ -61,6 +67,9 @@ assert.equal(verbDeck[0].answer, 'jaz imam')
 assert.ok(verbDeck[0].acceptedAnswers?.includes('imam'))
 assert.ok(verbDeck[0].acceptedAnswers?.includes('jaz imam'))
 assert.deepEqual(validateExerciseSet(verbDeck), [])
+assert.equal(evaluateExercise(verbDeck[0], 'Jaz imam').isCorrect, true)
+assert.equal(evaluateExercise(verbDeck[1], 'Ti imaš').isCorrect, true)
+assert.equal(evaluateExercise(verbDeck[1], 'jaz imam').isCorrect, false)
 let verbProgress = fresh({ introducedVerbForms: imetiIntro.keys })
 verbProgress = { ...verbProgress, mastery:updateMastery(verbProgress.mastery, verbDeck[0], true, 3000, 0) }
 assert.equal(verbFormStatus(verbProgress, { verbId:'imeti', person:1, number:'singular' }), 'KNOWN')
@@ -68,8 +77,61 @@ assert.equal(verbFormStatus(verbProgress, { verbId:'imeti', person:2, number:'du
 
 const bitiIntro = singularVerbIntroForVocabulary(['v011', 'v012', 'v013'])[0]
 const bitiDeck = buildVerbPracticeExercises(1, bitiIntro)
-assert.equal(bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 1)?.answer, 'jaz sem')
-assert.ok(bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 2)?.acceptedAnswers?.includes('ti si'))
+const bitiFirst = bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 1)!
+const bitiSecond = bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 2)!
+const bitiThird = bitiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 3)!
+assert.equal(bitiFirst.answer, 'jaz sem')
+assert.ok(bitiSecond.acceptedAnswers?.includes('ti si'))
+assert.equal(evaluateExercise(bitiFirst, 'jaz sem').isCorrect, true)
+assert.equal(evaluateExercise(bitiSecond, 'Ti si').isCorrect, true)
+assert.equal(evaluateExercise(bitiThird, 'On je').isCorrect, true)
+assert.equal(evaluateExercise(bitiThird, 'Ona je').isCorrect, true)
+assert.equal(evaluateExercise(bitiThird, 'Ono je').isCorrect, true)
+assert.equal(evaluateExercise(bitiSecond, 'jaz sem').isCorrect, false)
+
+const itiIntro = singularVerbIntroForVocabulary(['v024', 'v025'])[0]
+const itiDeck = buildVerbPracticeExercises(1, itiIntro)
+const itiSecond = itiDeck.find(exercise => exercise.requiredVerbForms?.[0].person === 2)!
+assert.equal(itiSecond.answer, 'ti greš')
+assert.equal(evaluateExercise(itiSecond, 'Ti greš').isCorrect, true)
+assert.equal(evaluateExercise(itiSecond, 'ti grem').isCorrect, false)
+
+const formOnly: Exercise = { id:'form-only', lesson:1, type:'fill', prompt:'Ti ___', answer:'si', verbAnswerMode:'form-only' }
+const gapFill: Exercise = { id:'gap-fill', lesson:1, type:'fill', prompt:'Jaz ___ doma.', answer:'sem', verbAnswerMode:'gap-fill' }
+assert.equal(evaluateExercise(formOnly, 'si').isCorrect, true)
+assert.equal(evaluateExercise(gapFill, 'sem').isCorrect, true)
+
+const lessonOneWords = vocabulary.filter(word => word.lesson === 1)
+for (const id of ['v012','v025']) {
+  const word = vocabulary.find(item => item.id === id)!
+  assert.equal(isConjugatedVerbVocabulary(word), true)
+  assert.deepEqual(generatedExercisesForWord(word, lessonOneWords), [])
+}
+const imasWord = vocabulary.find(item => item.id === 'v033')!
+assert.equal(isConjugatedVerbVocabulary(imasWord), true)
+assert.deepEqual(generatedExercisesForWord(imasWord, vocabulary.filter(word => word.lesson === 2)), [])
+const itiWord = vocabulary.find(item => item.id === 'v023')!
+assert.equal(isConjugatedVerbVocabulary(itiWord), false)
+assert.ok(generatedExercisesForWord(itiWord, lessonOneWords).length > 0)
+
+const verbSessionCopy = createExerciseSession('verb-practice', bitiDeck, 'verb-answer-mode-copy')
+const copiedSecond = verbSessionCopy.exercises.find(item => item.exercise.requiredVerbForms?.[0].person === 2)!.exercise
+assert.equal(copiedSecond.verbAnswerMode, 'full-person-form')
+assert.ok(copiedSecond.acceptedAnswers?.includes('ti si'))
+assert.equal(evaluateExercise(copiedSecond, 'Ti si').isCorrect, true)
+
+const userFacingContent = [
+  ...vocabulary.flatMap(word => [word.sl, word.de, word.example, word.exampleDe]),
+  ...sentences.flatMap(sentence => [sentence.sl, sentence.de]),
+  ...exercises.flatMap(exercise => [exercise.prompt, exercise.answer, ...(exercise.acceptedAnswers || [])]),
+  ...conversations.flatMap(conversation => conversation.turns.flatMap(turn => [turn.sl, turn.de || ''])),
+  ...Object.values(GRAMMAR_RULES).flatMap(rule => [rule.title, rule.body, ...rule.examples]),
+].join(' ')
+assert.equal(userFacingContent.includes('Dejan'), false)
+assert.equal(userFacingContent.includes('petintrideset'), false)
+assert.equal(userFacingContent.includes('35 Jahre'), false)
+assert.equal(vocabulary.find(word => word.id === 'v060')?.sl, 'šest')
+assert.equal(vocabulary.find(word => word.id === 'v060')?.de, 'sechs')
 
 const introduced = fresh({ introducedWords:['v001'], introducedGrammarRules:['greeting-basic'], preferences:{ ...defaultProgress.preferences, onboardingCompleted:true } })
 assert.equal(buildAdaptiveReviewDeck(introduced, enriched, 8, now, vocabulary).length, 0)
