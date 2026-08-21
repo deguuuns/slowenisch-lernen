@@ -20,7 +20,7 @@ export const GRAMMAR_RULES: Record<string, GrammarRuleDefinition> = {
   'accusative-feminine-a-o': { id:'accusative-feminine-a-o', title:'Akkusativ feminin: -a → -o', body:'Viele feminine Wörter auf -a ändern sich als direktes Objekt zu -o.', examples:['voda → vodo','pica → pico','kava → kavo'] },
   'negation-imeti': { id:'negation-imeti', title:'imeti verneinen', body:'Die Verneinung von imam lautet nimam.', examples:['Imam čas.','Nimam časa.'] },
   'genitive-after-negation': { id:'genitive-after-negation', title:'Nach Verneinung', body:'Nach einer Verneinung kann sich die Form des Nomens verändern.', examples:['Nimam časa.'], requires:['negation-imeti'] },
-  'age-expression': { id:'age-expression', title:'Alter sagen', body:'Das Alter wird mit star/stara + sem ausgedrückt.', examples:['Star sem 35 let.'] },
+  'age-expression': { id:'age-expression', title:'Alter sagen', body:'Das Alter wird mit star/stara + sem ausgedrückt.', examples:['Star sem šest let.'] },
   'time-ob-locative': { id:'time-ob-locative', title:'Uhrzeit mit ob', body:'Für „um ... Uhr“ verwendest du ob mit der passenden Zeitform.', examples:['ob osmih','ob desetih'] },
   'direction-domov': { id:'direction-domov', title:'Nach Hause: domov', body:'Für die Richtung „nach Hause“ benutzt du domov.', examples:['Grem domov.'] },
   'verb-first-person': { id:'verb-first-person', title:'Verbformen im Präsens', body:'Neue Verben lernst du zuerst im Singular: ich, du, er/sie/es. Erst danach werden weitere Personen freigeschaltet.', examples:['jaz imam · ti imaš · on/ona ima','jaz pijem · ti piješ · on/ona pije'] },
