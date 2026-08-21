@@ -6,13 +6,14 @@ export type HintType = 'translation' | 'firstLetter' | 'grammarHint' | 'slowAudi
 export type ExerciseDifficulty = 'intro' | 'easy' | 'normal' | 'challenge'
 export type VerbNumber = 'singular' | 'dual' | 'plural'
 export type VerbAnswerMode = 'full-person-form' | 'form-only' | 'gap'
+export type ResponseScope = 'fixed' | 'contextual' | 'personal-open'
 export type VerbFormRequirement = { verbId:string; person:1|2|3; number:VerbNumber }
 export type TargetContentKey = `vocab:${string}` | `grammar:${string}` | `verb:${string}` | `skill:${string}`
 
 export type Vocabulary = { id:string; sl:string; de:string; partOfSpeech:string; category:string; example:string; exampleDe:string; lesson:number; lemma?:string; gender?:'masculine'|'feminine'|'neuter'; cefrLevel?:'A1'|'A2'|'B1'|'B2'|'C1'; pronunciation?:string; tags?:string[] }
 export type Sentence = { id:string; sl:string; de:string; lesson:number; note?:string }
 export type ExerciseType = 'translate-de-sl' | 'fill' | 'choice' | 'free' | 'ending'
-export type Exercise = { id:string; lesson:number; type:ExerciseType; prompt:string; answer:string; alternatives?:string[]; acceptedAnswers?:string[]; hint?:string; explanation?:string; vocabularyIds?:string[]; grammarRuleIds?:string[]; evaluationMode?:EvaluationMode; skillTargets?:SkillTarget[]; difficulty?:ExerciseDifficulty; requiredVerbForms?:VerbFormRequirement[]; generated?:boolean; verbPractice?:boolean; verbAnswerMode?:VerbAnswerMode; targetContentKeys?:TargetContentKey[]; supportingContentKeys?:TargetContentKey[]; transferSourceExerciseId?:string; transferRuleId?:string }
+export type Exercise = { id:string; lesson:number; type:ExerciseType; prompt:string; answer:string; alternatives?:string[]; acceptedAnswers?:string[]; hint?:string; explanation?:string; vocabularyIds?:string[]; grammarRuleIds?:string[]; evaluationMode?:EvaluationMode; skillTargets?:SkillTarget[]; difficulty?:ExerciseDifficulty; requiredVerbForms?:VerbFormRequirement[]; generated?:boolean; verbPractice?:boolean; verbAnswerMode?:VerbAnswerMode; responseScope?:ResponseScope; targetContentKeys?:TargetContentKey[]; supportingContentKeys?:TargetContentKey[]; transferSourceExerciseId?:string; transferRuleId?:string }
 export type Lesson = { id:number; title:string; subtitle:string; minutes:number; focus:string[]; grammar:{title:string;body:string;examples:string[]} }
 export type ConversationTurn = { speaker:'Tutor'|'Nutzer'; sl:string; de?:string }
 export type Conversation = { id:string; title:string; lesson:number; turns:ConversationTurn[] }
