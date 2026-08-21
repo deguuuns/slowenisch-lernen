@@ -23,7 +23,16 @@ function distractors(word: Vocabulary, lessonWords: Vocabulary[]) {
     .slice(0, 3)
 }
 
+export function isConjugatedVerbVocabulary(word: Vocabulary) {
+  return word.partOfSpeech === 'Verb' && /^(ich|du|er|sie|es)\b/i.test(word.de.trim())
+}
+
 export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabulary[]): Exercise[] {
+  // Conjugated forms are first-class verb targets. Generating them again as ordinary
+  // vocabulary would create semantically wrong prompts such as “du bist” -> “si”.
+  // The dedicated Verb Learning Engine owns these forms and their answer modes.
+  if (isConjugatedVerbVocabulary(word)) return []
+
   const target = [`vocab:${word.id}` as TargetContentKey]
   const generated: Exercise[] = [{
     id: `gen-produce-${word.id}`,
