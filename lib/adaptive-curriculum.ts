@@ -1,5 +1,6 @@
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isExerciseEligible } from '@/lib/curriculum-access'
+import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { MASTERY_THRESHOLDS } from '@/lib/learner-status'
 import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys, isReviewDue } from '@/lib/learning-targets'
 import { generatedExercisesForWord } from '@/lib/learning-flow'
@@ -11,7 +12,7 @@ export type AdaptiveActionKind = 'review' | 'strengthen' | 'new-content' | 'spea
 export type AdaptiveRecommendation = { kind:AdaptiveActionKind; title:string; reason:string; priority:number; lessonId?:number; focusKeys:string[]; exerciseIds:string[] }
 
 function eligible(progress: UserProgress, exercises: Exercise[]) {
-  return exercises.filter(exercise => isExerciseEligible(exercise, progress))
+  return exercises.filter(isStrictlyAssessableExercise).filter(exercise => isExerciseEligible(exercise, progress))
 }
 
 function fluencyConcern(progress: UserProgress) {
@@ -104,7 +105,7 @@ export function buildAdaptiveReviewDeck(progress: UserProgress, rawExercises: Ex
   let chosen = dedupeExercisesByTarget(duePreferred, limit)
 
   const transfer = injectDueTransfer(chosen, progress.transferQueue || [], exercises, progress.recentAttempts?.length || 0)
-  chosen = dedupeExercisesByTarget(transfer.exercises.filter(exercise => exercise.generated || isExerciseEligible(exercise, progress)), limit)
+  chosen = dedupeExercisesByTarget(transfer.exercises.filter(exercise => exercise.generated || (isStrictlyAssessableExercise(exercise) && isExerciseEligible(exercise, progress))), limit)
   return chosen.slice(0, limit)
 }
 
