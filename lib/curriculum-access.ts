@@ -54,7 +54,7 @@ type VerbIntroForm = { person:1|2|3; pronounSl:string; formSl:string; translatio
 type VerbIntroDefinition = { verbId:string; infinitiveSl:string; infinitiveDe:string; forms:VerbIntroForm[] }
 
 const VERB_INTROS: Record<string, VerbIntroDefinition> = {
-  biti:{verbId:'biti',infinitiveSl:'biti',infinitiveDe:'sein',forms:[{person:1,pronounSl:'jaz',formSl:'sem',translationDe:'ich bin'},{person:2,pronounSl:'ti',formSl:'si',translationDe:'du bist'},{person:3,pronounSl:'on / ona',formSl:'je',translationDe:'er / sie ist'}]},
+  biti:{verbId:'biti',infinitiveSl:'biti',infinitiveDe:'sein',forms:[{person:1,pronounSl:'jaz',formSl:'sem',translationDe:'ich bin'},{person:2,pronounSl:'ti',formSl:'si',translationDe:'du bist'},{person:3,pronounSl:'on / ona / ono',formSl:'je',translationDe:'er / sie / es ist'}]},
   delati:{verbId:'delati',infinitiveSl:'delati',infinitiveDe:'arbeiten / machen',forms:[{person:1,pronounSl:'jaz',formSl:'delam',translationDe:'ich arbeite / mache'},{person:2,pronounSl:'ti',formSl:'delaš',translationDe:'du arbeitest / machst'},{person:3,pronounSl:'on / ona',formSl:'dela',translationDe:'er / sie arbeitet / macht'}]},
   iti:{verbId:'iti',infinitiveSl:'iti',infinitiveDe:'gehen',forms:[{person:1,pronounSl:'jaz',formSl:'grem',translationDe:'ich gehe'},{person:2,pronounSl:'ti',formSl:'greš',translationDe:'du gehst'},{person:3,pronounSl:'on / ona',formSl:'gre',translationDe:'er / sie geht'}]},
   imeti:{verbId:'imeti',infinitiveSl:'imeti',infinitiveDe:'haben',forms:[{person:1,pronounSl:'jaz',formSl:'imam',translationDe:'ich habe'},{person:2,pronounSl:'ti',formSl:'imaš',translationDe:'du hast'},{person:3,pronounSl:'on / ona',formSl:'ima',translationDe:'er / sie hat'}]},
