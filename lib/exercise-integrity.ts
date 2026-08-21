@@ -3,6 +3,10 @@ import { Exercise, Vocabulary } from '@/types'
 
 export type IntegrityIssue = { exerciseId: string; message: string }
 
+export function isStrictlyAssessableExercise(exercise: Exercise) {
+  return exercise.responseScope !== 'personal-open'
+}
+
 export function validateExerciseIntegrity(
   exercise: Exercise,
   vocabulary: Vocabulary[] = [],
@@ -13,6 +17,13 @@ export function validateExerciseIntegrity(
   if (!exercise.id?.trim()) add('exercise id missing')
   if (!exercise.prompt?.trim()) add('prompt missing')
   if (!exercise.answer?.trim()) add('answer missing')
+
+  if (exercise.responseScope === 'personal-open') {
+    if (exercise.evaluationMode !== 'open' && exercise.evaluationMode !== 'semantic') {
+      add('personal-open exercise must use open or semantic evaluation')
+    }
+    if (exercise.type !== 'free') add('personal-open exercise must use free response type')
+  }
 
   if (exercise.type === 'choice') {
     const options = [exercise.answer, ...(exercise.alternatives || [])]
