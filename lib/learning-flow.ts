@@ -1,3 +1,4 @@
+import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { LEARNING_FLOW_CONFIG } from '@/lib/learning-config'
 import { dedupeExercisesByTarget, withTargetMetadata } from '@/lib/learning-targets'
@@ -24,13 +25,13 @@ function distractors(word: Vocabulary, lessonWords: Vocabulary[]) {
 }
 
 export function isConjugatedVerbVocabulary(word: Vocabulary) {
-  return word.partOfSpeech === 'Verb' && /^(ich|du|er|sie|es)\b/i.test(word.de.trim())
+  return word.partOfSpeech === 'Verb' && isVerbFormVocabularyId(word.id)
 }
 
 export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabulary[]): Exercise[] {
   // Conjugated forms are first-class verb targets. Generating them again as ordinary
   // vocabulary would create semantically wrong prompts such as “du bist” -> “si”.
-  // The dedicated Verb Learning Engine owns these forms and their answer modes.
+  // The dedicated Verb Learning Engine owns registered forms and their answer modes.
   if (isConjugatedVerbVocabulary(word)) return []
 
   const target = [`vocab:${word.id}` as TargetContentKey]
