@@ -33,7 +33,6 @@ export const vocabulary: Vocabulary[] = [
   v('v028','od kod','woher','Fragewort','Fragewörter','Od kod si?','Woher kommst du?',1),
   v('v029','kaj','was','Fragewort','Fragewörter','Kaj delaš?','Was machst du?',1),
   v('v030','ampak','aber','Konjunktion','Gespräch','Danes delam, ampak jutri ne.','Heute arbeite ich, aber morgen nicht.',1),
-
   v('v031','imeti','haben','Verb','Verben','Imam čas.','Ich habe Zeit.',2),
   v('v032','imam','ich habe','Verb','Verben','Imam avto.','Ich habe ein Auto.',2),
   v('v033','imaš','du hast','Verb','Verben','Imaš čas?','Hast du Zeit?',2),
@@ -64,7 +63,6 @@ export const vocabulary: Vocabulary[] = [
   v('v058','pet','fünf','Zahl','Zahlen','Pet minut.','Fünf Minuten.',2),
   v('v059','deset','zehn','Zahl','Zahlen','Deset evrov.','Zehn Euro.',2),
   v('v060','šest','sechs','Zahl','Zahlen','Šest let.','Sechs Jahre.',2),
-
   v('v061','služba','Arbeit / Arbeitsstelle','Substantiv','Arbeit','Sem v službi.','Ich bin bei der Arbeit.',3),
   v('v062','v službi','bei der Arbeit','Phrase','Arbeit','Danes sem v službi.','Heute bin ich bei der Arbeit.',3),
   v('v063','v službo','zur Arbeit','Phrase','Arbeit','Grem v službo.','Ich gehe zur Arbeit.',3),
@@ -85,7 +83,6 @@ export const vocabulary: Vocabulary[] = [
   v('v078','peljem se','ich fahre','Verb','Verkehr','Peljem se domov.','Ich fahre nach Hause.',3),
   v('v079','pelješ se','du fährst','Verb','Verkehr','Kam se pelješ?','Wohin fährst du?',3),
   v('v080','počasi','langsam','Adverb','Gespräch','Govori počasi, prosim.','Sprich bitte langsam.',3),
-
   v('v081','jesti','essen','Verb','Essen','Rad jem pico.','Ich esse gern Pizza.',4),
   v('v082','jem','ich esse','Verb','Essen','Jem pico.','Ich esse Pizza.',4),
   v('v083','ješ','du isst','Verb','Essen','Kaj ješ?','Was isst du?',4),
@@ -106,7 +103,6 @@ export const vocabulary: Vocabulary[] = [
   v('v098','lačen','hungrig','Adjektiv','Gefühle','Lačen sem.','Ich bin hungrig.',4),
   v('v099','žejen','durstig','Adjektiv','Gefühle','Žejen sem.','Ich bin durstig.',4),
   v('v100','dobro','gut','Adverb','Gespräch','Dobro sem, hvala.','Mir geht es gut, danke.',4),
-
   v('v101','restavracija','Restaurant','Substantiv','Restaurant','Sem v restavraciji.','Ich bin im Restaurant.',5),
   v('v102','natakar','Kellner','Substantiv','Restaurant','Natakar prinese vodo.','Der Kellner bringt Wasser.',5),
   v('v103','natakarica','Kellnerin','Substantiv','Restaurant','Natakarica je prijazna.','Die Kellnerin ist freundlich.',5),
@@ -130,35 +126,35 @@ export const vocabulary: Vocabulary[] = [
 ]
 
 export const sentences: Sentence[] = [
-  ['s01','Živjo! Kako si?','Hallo! Wie geht es dir?',1], ['s02','Dobro sem, hvala.','Mir geht es gut, danke.',1),
-  ['s03','Zdaj sem tukaj.','Jetzt bin ich hier.',1], ['s04','Danes delam.','Heute arbeite ich.',1),
-  ['s05','Jutri ne delam.','Morgen arbeite ich nicht.',1], ['s06','Kje si zdaj?','Wo bist du jetzt?',1],
-  ['s07','Kam greš jutri?','Wohin gehst du morgen?',1], ['s08','Sem v Sloveniji.','Ich bin in Slowenien.',1],
-  ['s09','Grem v Slovenijo.','Ich gehe nach Slowenien.',1], ['s10','Sem iz Nemčije.','Ich komme aus Deutschland.',1],
-  ['s11','Živim v Nemčiji.','Ich wohne in Deutschland.',2], ['s12','Ime mi je Ana.','Ich heiße Ana.',2],
-  ['s13','Star sem šest let.','Ich bin sechs Jahre alt.',2], ['s14','Imam dva brata.','Ich habe zwei Brüder.',2],
-  ['s15','Imam eno sestro.','Ich habe eine Schwester.',2], ['s16','Nimam otrok.','Ich habe keine Kinder.',2],
-  ['s17','Imaš čas?','Hast du Zeit?',2], ['s18','Ne, nimam časa.','Nein, ich habe keine Zeit.',2],
-  ['s19','Kje živiš?','Wo wohnst du?',2], ['s20','Koliko bratov imaš?','Wie viele Brüder hast du?',2],
-  ['s21','Danes sem v službi.','Heute bin ich bei der Arbeit.',3], ['s22','Grem v službo.','Ich gehe zur Arbeit.',3],
-  ['s23','Delati začnem ob pol devetih.','Ich fange um halb neun an zu arbeiten.',3], ['s24','Kdaj začneš delati?','Wann fängst du an zu arbeiten?',3],
-  ['s25','Potem grem domov.','Danach gehe ich nach Hause.',3], ['s26','Jutri se peljem v Nemčijo.','Morgen fahre ich nach Deutschland.',3],
-  ['s27','Kam se pelješ jutri?','Wohin fährst du morgen?',3], ['s28','Grem spat ob desetih.','Ich gehe um zehn schlafen.',3],
-  ['s29','Govori počasi, prosim.','Sprich bitte langsam.',3], ['s30','Zvečer sem doma.','Abends bin ich zu Hause.',3],
-  ['s31','Jem pico.','Ich esse Pizza.',4], ['s32','Pijem pivo.','Ich trinke Bier.',4],
-  ['s33','Kaj ješ danes?','Was isst du heute?',4], ['s34','Kaj piješ?','Was trinkst du?',4],
-  ['s35','Pijem vodo.','Ich trinke Wasser.',4], ['s36','Zjutraj pijem kavo.','Morgens trinke ich Kaffee.',4],
-  ['s37','Lačen sem.','Ich bin hungrig.',4], ['s38','Žejen sem.','Ich bin durstig.',4],
-  ['s39','Ne jem mesa.','Ich esse kein Fleisch.',4], ['s40','Večerja je ob sedmih.','Das Abendessen ist um sieben.',4],
-  ['s41','Miza za dva, prosim.','Ein Tisch für zwei, bitte.',5], ['s42','Meni, prosim.','Die Speisekarte, bitte.',5],
-  ['s43','Kaj boste pili?','Was möchten Sie trinken?',5], ['s44','Eno pivo, prosim.','Ein Bier, bitte.',5],
-  ['s45','Kavo z mlekom, prosim.','Einen Kaffee mit Milch, bitte.',5], ['s46','Brez sladkorja, prosim.','Ohne Zucker, bitte.',5],
-  ['s47','Račun, prosim.','Die Rechnung, bitte.',5], ['s48','Koliko stane?','Wie viel kostet es?',5],
-  ['s49','Lahko ponovite?','Können Sie das wiederholen?',5], ['s50','Ne razumem.','Ich verstehe nicht.',5],
-  ['s51','Zelo okusno!','Sehr lecker!',5], ['s52','Še eno pivo, prosim.','Noch ein Bier, bitte.',5],
-  ['s53','Sem v restavraciji.','Ich bin im Restaurant.',5], ['s54','Grem v restavracijo.','Ich gehe ins Restaurant.',5],
-  ['s55','Danes jem pico in pijem vodo.','Heute esse ich Pizza und trinke Wasser.',4]
-].map(([id,sl,de,lesson]) => ({ id: id as string, sl: sl as string, de: de as string, lesson: lesson as number }))
+  {id:'s01',sl:'Živjo! Kako si?',de:'Hallo! Wie geht es dir?',lesson:1}, {id:'s02',sl:'Dobro sem, hvala.',de:'Mir geht es gut, danke.',lesson:1},
+  {id:'s03',sl:'Zdaj sem tukaj.',de:'Jetzt bin ich hier.',lesson:1}, {id:'s04',sl:'Danes delam.',de:'Heute arbeite ich.',lesson:1},
+  {id:'s05',sl:'Jutri ne delam.',de:'Morgen arbeite ich nicht.',lesson:1}, {id:'s06',sl:'Kje si zdaj?',de:'Wo bist du jetzt?',lesson:1},
+  {id:'s07',sl:'Kam greš jutri?',de:'Wohin gehst du morgen?',lesson:1}, {id:'s08',sl:'Sem v Sloveniji.',de:'Ich bin in Slowenien.',lesson:1},
+  {id:'s09',sl:'Grem v Slovenijo.',de:'Ich gehe nach Slowenien.',lesson:1}, {id:'s10',sl:'Sem iz Nemčije.',de:'Ich komme aus Deutschland.',lesson:1},
+  {id:'s11',sl:'Živim v Nemčiji.',de:'Ich wohne in Deutschland.',lesson:2}, {id:'s12',sl:'Ime mi je Ana.',de:'Ich heiße Ana.',lesson:2},
+  {id:'s13',sl:'Star sem šest let.',de:'Ich bin sechs Jahre alt.',lesson:2}, {id:'s14',sl:'Imam dva brata.',de:'Ich habe zwei Brüder.',lesson:2},
+  {id:'s15',sl:'Imam eno sestro.',de:'Ich habe eine Schwester.',lesson:2}, {id:'s16',sl:'Nimam otrok.',de:'Ich habe keine Kinder.',lesson:2},
+  {id:'s17',sl:'Imaš čas?',de:'Hast du Zeit?',lesson:2}, {id:'s18',sl:'Ne, nimam časa.',de:'Nein, ich habe keine Zeit.',lesson:2},
+  {id:'s19',sl:'Kje živiš?',de:'Wo wohnst du?',lesson:2}, {id:'s20',sl:'Koliko bratov imaš?',de:'Wie viele Brüder hast du?',lesson:2},
+  {id:'s21',sl:'Danes sem v službi.',de:'Heute bin ich bei der Arbeit.',lesson:3}, {id:'s22',sl:'Grem v službo.',de:'Ich gehe zur Arbeit.',lesson:3},
+  {id:'s23',sl:'Delati začnem ob pol devetih.',de:'Ich fange um halb neun an zu arbeiten.',lesson:3}, {id:'s24',sl:'Kdaj začneš delati?',de:'Wann fängst du an zu arbeiten?',lesson:3},
+  {id:'s25',sl:'Potem grem domov.',de:'Danach gehe ich nach Hause.',lesson:3}, {id:'s26',sl:'Jutri se peljem v Nemčijo.',de:'Morgen fahre ich nach Deutschland.',lesson:3},
+  {id:'s27',sl:'Kam se pelješ jutri?',de:'Wohin fährst du morgen?',lesson:3}, {id:'s28',sl:'Grem spat ob desetih.',de:'Ich gehe um zehn schlafen.',lesson:3},
+  {id:'s29',sl:'Govori počasi, prosim.',de:'Sprich bitte langsam.',lesson:3}, {id:'s30',sl:'Zvečer sem doma.',de:'Abends bin ich zu Hause.',lesson:3},
+  {id:'s31',sl:'Jem pico.',de:'Ich esse Pizza.',lesson:4}, {id:'s32',sl:'Pijem pivo.',de:'Ich trinke Bier.',lesson:4},
+  {id:'s33',sl:'Kaj ješ danes?',de:'Was isst du heute?',lesson:4}, {id:'s34',sl:'Kaj piješ?',de:'Was trinkst du?',lesson:4},
+  {id:'s35',sl:'Pijem vodo.',de:'Ich trinke Wasser.',lesson:4}, {id:'s36',sl:'Zjutraj pijem kavo.',de:'Morgens trinke ich Kaffee.',lesson:4},
+  {id:'s37',sl:'Lačen sem.',de:'Ich bin hungrig.',lesson:4}, {id:'s38',sl:'Žejen sem.',de:'Ich bin durstig.',lesson:4},
+  {id:'s39',sl:'Ne jem mesa.',de:'Ich esse kein Fleisch.',lesson:4}, {id:'s40',sl:'Večerja je ob sedmih.',de:'Das Abendessen ist um sieben.',lesson:4},
+  {id:'s41',sl:'Miza za dva, prosim.',de:'Ein Tisch für zwei, bitte.',lesson:5}, {id:'s42',sl:'Meni, prosim.',de:'Die Speisekarte, bitte.',lesson:5},
+  {id:'s43',sl:'Kaj boste pili?',de:'Was möchten Sie trinken?',lesson:5}, {id:'s44',sl:'Eno pivo, prosim.',de:'Ein Bier, bitte.',lesson:5},
+  {id:'s45',sl:'Kavo z mlekom, prosim.',de:'Einen Kaffee mit Milch, bitte.',lesson:5}, {id:'s46',sl:'Brez sladkorja, prosim.',de:'Ohne Zucker, bitte.',lesson:5},
+  {id:'s47',sl:'Račun, prosim.',de:'Die Rechnung, bitte.',lesson:5}, {id:'s48',sl:'Koliko stane?',de:'Wie viel kostet es?',lesson:5},
+  {id:'s49',sl:'Lahko ponovite?',de:'Können Sie das wiederholen?',lesson:5}, {id:'s50',sl:'Ne razumem.',de:'Ich verstehe nicht.',lesson:5},
+  {id:'s51',sl:'Zelo okusno!',de:'Sehr lecker!',lesson:5}, {id:'s52',sl:'Še eno pivo, prosim.',de:'Noch ein Bier, bitte.',lesson:5},
+  {id:'s53',sl:'Sem v restavraciji.',de:'Ich bin im Restaurant.',lesson:5}, {id:'s54',sl:'Grem v restavracijo.',de:'Ich gehe ins Restaurant.',lesson:5},
+  {id:'s55',sl:'Danes jem pico in pijem vodo.',de:'Heute esse ich Pizza und trinke Wasser.',lesson:4},
+]
 
 export const lessons: Lesson[] = [
   { id:1, title:'Pozdravljeni!', subtitle:'Begrüßen, sein und erste Richtungen', minutes:18, focus:['Begrüßung','sem / si','kje / kam / od kod','danes / jutri'], grammar:{ title:'Kje oder Kam?', body:'KJE fragt nach einem Ort, KAM nach einer Richtung. Bei Ländern auf -ija sieht man den Unterschied oft direkt an der Endung.', examples:['Kje? → Sem v Sloveniji.','Kam? → Grem v Slovenijo.','Od kod? → Sem iz Nemčije.'] } },
@@ -200,7 +196,7 @@ export const exercises: Exercise[] = [
   {id:'e29',lesson:5,type:'translate-de-sl',prompt:'Ich verstehe nicht.',answer:'Ne razumem.'},
   {id:'e30',lesson:5,type:'translate-de-sl',prompt:'Ein Tisch für zwei, bitte.',answer:'Miza za dva, prosim.'},
   {id:'e31',lesson:5,type:'translate-de-sl',prompt:'Noch ein Bier, bitte.',answer:'Še eno pivo, prosim.'},
-  {id:'e32',lesson:5,type:'ending',prompt:'Grem v restavracij___.',answer:'o',explanation:'Kam? → restavracijo'}
+  {id:'e32',lesson:5,type:'ending',prompt:'Grem v restavracij___.',answer:'o',explanation:'Kam? → restavracijo'},
 ]
 
 export const conversations: Conversation[] = [
@@ -210,31 +206,31 @@ export const conversations: Conversation[] = [
     {speaker:'Tutor',sl:'Od kod si?',de:'Woher kommst du?'},
     {speaker:'Nutzer',sl:'Sem iz Nemčije.'},
     {speaker:'Tutor',sl:'Kje živiš?',de:'Wo wohnst du?'},
-    {speaker:'Nutzer',sl:'Živim v Nemčiji.'}
+    {speaker:'Nutzer',sl:'Živim v Nemčiji.'},
   ]},
   { id:'c2', title:'Familie', lesson:2, turns:[
     {speaker:'Tutor',sl:'Imaš brata ali sestro?',de:'Hast du einen Bruder oder eine Schwester?'},
     {speaker:'Nutzer',sl:'Imam dva brata in eno sestro.'},
     {speaker:'Tutor',sl:'Imaš otroke?',de:'Hast du Kinder?'},
-    {speaker:'Nutzer',sl:'Ne, nimam otrok.'}
+    {speaker:'Nutzer',sl:'Ne, nimam otrok.'},
   ]},
   { id:'c3', title:'Arbeitstag', lesson:3, turns:[
     {speaker:'Tutor',sl:'Kje si zdaj?',de:'Wo bist du jetzt?'},
     {speaker:'Nutzer',sl:'Zdaj sem v službi.'},
     {speaker:'Tutor',sl:'Kdaj začneš delati?',de:'Wann fängst du an zu arbeiten?'},
-    {speaker:'Nutzer',sl:'Delati začnem ob pol devetih.'}
+    {speaker:'Nutzer',sl:'Delati začnem ob pol devetih.'},
   ]},
   { id:'c4', title:'Essen & Trinken', lesson:4, turns:[
     {speaker:'Tutor',sl:'Kaj ješ danes?',de:'Was isst du heute?'},
     {speaker:'Nutzer',sl:'Danes jem pico.'},
     {speaker:'Tutor',sl:'Kaj piješ?',de:'Was trinkst du?'},
-    {speaker:'Nutzer',sl:'Pijem vodo.'}
+    {speaker:'Nutzer',sl:'Pijem vodo.'},
   ]},
   { id:'c5', title:'Im Restaurant', lesson:5, turns:[
     {speaker:'Tutor',sl:'Dober večer. Kaj boste pili?',de:'Guten Abend. Was möchten Sie trinken?'},
     {speaker:'Nutzer',sl:'Eno pivo, prosim.'},
     {speaker:'Tutor',sl:'Še kaj?',de:'Noch etwas?'},
     {speaker:'Nutzer',sl:'Ne, hvala.'},
-    {speaker:'Nutzer',sl:'Račun, prosim.'}
-  ]}
+    {speaker:'Nutzer',sl:'Račun, prosim.'},
+  ]},
 ]
