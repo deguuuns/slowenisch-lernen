@@ -97,7 +97,7 @@ assert.equal(evaluateExercise(itiSecond, 'Ti greš').isCorrect, true)
 assert.equal(evaluateExercise(itiSecond, 'ti grem').isCorrect, false)
 
 const formOnly: Exercise = { id:'form-only', lesson:1, type:'fill', prompt:'Ti ___', answer:'si', verbAnswerMode:'form-only' }
-const gapFill: Exercise = { id:'gap-fill', lesson:1, type:'fill', prompt:'Jaz ___ doma.', answer:'sem', verbAnswerMode:'gap-fill' }
+const gapFill: Exercise = { id:'gap-fill', lesson:1, type:'fill', prompt:'Jaz ___ doma.', answer:'sem', verbAnswerMode:'gap' }
 assert.equal(evaluateExercise(formOnly, 'si').isCorrect, true)
 assert.equal(evaluateExercise(gapFill, 'sem').isCorrect, true)
 
