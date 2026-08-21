@@ -1,5 +1,6 @@
 import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
+import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { LEARNING_FLOW_CONFIG } from '@/lib/learning-config'
 import { dedupeExercisesByTarget, withTargetMetadata } from '@/lib/learning-targets'
 import { Exercise, TargetContentKey, Vocabulary } from '@/types'
@@ -47,6 +48,7 @@ export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabul
     skillTargets: ['production'],
     difficulty: 'easy',
     generated: true,
+    responseScope: 'fixed',
     targetContentKeys: target,
   }]
 
@@ -65,6 +67,7 @@ export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabul
       skillTargets: ['recognition'],
       difficulty: 'easy',
       generated: true,
+      responseScope: 'fixed',
       targetContentKeys: target,
     })
   }
@@ -89,6 +92,7 @@ function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<str
   const allAvailable = new Set([...Array.from(priorAvailable), ...Array.from(currentIds)])
 
   const contextual = curated
+    .filter(isStrictlyAssessableExercise)
     .filter(exercise => usesOnly(exercise, allAvailable) && containsAny(exercise, currentIds))
     .map(withTargetMetadata)
 
@@ -97,6 +101,7 @@ function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<str
     .filter((exercise): exercise is Exercise => Boolean(exercise))
 
   const knownWarmup = curated
+    .filter(isStrictlyAssessableExercise)
     .filter(exercise => usesOnly(exercise, priorAvailable) && !containsAny(exercise, currentIds))
     .slice(-1)
     .map(withTargetMetadata)
