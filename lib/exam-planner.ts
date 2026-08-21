@@ -1,6 +1,7 @@
 import { isExerciseEligible } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { promptSignature } from '@/lib/exam-history'
+import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { EXAM_CONFIG, EXAM_REPEAT_CONFIG, MAJOR_TEST_CONFIG } from '@/lib/learning-config'
 import { generatedExercisesForWord } from '@/lib/learning-flow'
 import { dedupeExercisesByTarget, inferTargetContentKeys, withTargetMetadata } from '@/lib/learning-targets'
@@ -67,7 +68,10 @@ function lessonRange(kind: ExamKind, lessonId: number) {
 
 function candidatePool(options: PlanOptions) {
   const lessons = lessonRange(options.kind, options.lessonId)
-  const curated = enrichExercises(options.exercises).filter(exercise => lessons.has(exercise.lesson)).map(withTargetMetadata)
+  const curated = enrichExercises(options.exercises)
+    .filter(exercise => lessons.has(exercise.lesson))
+    .filter(isStrictlyAssessableExercise)
+    .map(withTargetMetadata)
   const lessonWords = options.vocabulary.filter(word => lessons.has(word.lesson) && options.progress.introducedWords.includes(word.id))
   const generated = lessonWords.flatMap(word => generatedExercisesForWord(word, lessonWords))
   return [...curated, ...generated].filter(exercise => isExerciseEligible(exercise, options.progress))
