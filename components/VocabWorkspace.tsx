@@ -1,0 +1,71 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { Brain, ChevronDown, ChevronUp, Dumbbell, Search } from 'lucide-react'
+import AudioButton from './AudioButton'
+import { evaluateAnswer } from '@/lib/answer-evaluation'
+import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
+import { getVocabularyStatus } from '@/lib/learner-status'
+import { verbByInfinitive, verbCatalog } from '@/lib/verb-catalog'
+import { Exercise, UserProgress, Vocabulary } from '@/types'
+
+type ResultMeta = { responseMs:number; hintsUsed:number }
+type Props = { vocabulary:Vocabulary[]; progress:UserProgress; onResult:(exercise:Exercise, correct:boolean, meta:ResultMeta)=>void }
+type Mode = 'list'|'test'|'conjugation'
+
+function availableWords(vocabulary:Vocabulary[], progress:UserProgress) {
+  const allowed = new Set([...progress.introducedWords, ...progress.wordsLearned, ...progress.secureWords])
+  const list = vocabulary.filter(word => allowed.has(word.id) && !isVerbFormVocabularyId(word.id))
+  return list.length ? list : vocabulary.filter(word => !isVerbFormVocabularyId(word.id)).slice(0, 20)
+}
+
+export default function VocabWorkspace({ vocabulary, progress, onResult }:Props) {
+  const [mode,setMode]=useState<Mode>('list')
+  const [query,setQuery]=useState('')
+  const [category,setCategory]=useState('Alle')
+  const [open,setOpen]=useState<string|null>(null)
+  const visibleVocabulary=useMemo(()=>vocabulary.filter(word=>!isVerbFormVocabularyId(word.id)),[vocabulary])
+  const categories=['Alle',...Array.from(new Set(visibleVocabulary.map(item=>item.category)))]
+  const list=visibleVocabulary.filter(item=>(category==='Alle'||item.category===category)&&(`${item.sl} ${item.de}`.toLowerCase().includes(query.toLowerCase())))
+  const known=availableWords(vocabulary,progress)
+
+  return <div className="min-w-0 space-y-4">
+    <div className="card min-w-0">
+      <h2 className="text-2xl font-black sm:text-3xl">Vokabeln</h2>
+      <p className="mt-2 text-slate-600">Verben erscheinen hier nur in der Grundform. Konjugationen findest du in der Detailansicht und im Training.</p>
+      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <button className={`btn-primary min-h-11 ${mode==='list'?'':'opacity-80'}`} onClick={()=>setMode('list')}>Vokabeln lernen</button>
+        <button className="min-h-11 rounded-2xl bg-lime-200 px-4 font-bold" onClick={()=>setMode('test')}>Vokabeltest starten</button>
+        <button className="min-h-11 rounded-2xl bg-slate-950 px-4 font-bold text-white" onClick={()=>setMode('conjugation')}>Konjugation üben</button>
+      </div>
+    </div>
+
+    {mode==='test' && <VocabularyTest words={known} onResult={onResult}/>} 
+    {mode==='conjugation' && <ConjugationPractice progress={progress} onResult={onResult}/>} 
+    {mode==='list' && <>
+      <div className="card grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><div className="relative"><Search className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-3" placeholder="Slowenisch oder Deutsch …"/></div><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-2xl border border-slate-200 px-3 py-3">{categories.map(x=><option key={x}>{x}</option>)}</select></div>
+      <div className="grid gap-3 lg:grid-cols-2">{list.map(item=>{const verb=verbByInfinitive(item.sl);const expanded=open===item.id;return <div key={item.id} className="card min-w-0"><div className="flex gap-3"><AudioButton text={item.sl} compact/><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><b className="text-lg">{item.sl}</b><span className="rounded-full bg-slate-100 px-2 py-1 text-xs">{getVocabularyStatus(item.id,progress)}</span></div><div className="text-slate-600">{item.de}</div><div className="mt-2 text-sm"><b>{item.example}</b><div className="text-slate-500">{item.exampleDe}</div></div>{verb&&<button onClick={()=>setOpen(expanded?null:item.id)} className="mt-3 flex items-center gap-1 text-sm font-bold text-lime-700">Konjugation {expanded?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>}</div></div>{verb&&expanded&&<div className="mt-4 overflow-x-auto rounded-2xl bg-slate-50 p-3"><div className="mb-2 font-black">Präsens</div><table className="w-full text-sm"><tbody>{verb.forms.map(form=><tr key={`${form.number}-${form.person}`} className="border-t border-slate-200"><td className="py-2 pr-3 text-slate-500">{form.pronoun}</td><td className="py-2 font-bold">{form.form}</td></tr>)}</tbody></table></div>}</div>})}</div>
+    </>}
+  </div>
+}
+
+function VocabularyTest({ words,onResult }:{words:Vocabulary[];onResult:Props['onResult']}) {
+  const [index,setIndex]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
+  const word=words[index%Math.max(words.length,1)]
+  if(!word)return <div className="card">Noch keine bekannten Vokabeln für einen Test.</div>
+  const deToSl=index%2===0
+  function check(){const expected=deToSl?word.sl:word.de;const result=evaluateAnswer({input,expected,alternatives:[],locale:deToSl?'sl-SI':'de-DE'});const exercise:Exercise={id:`vocab-test:${word.id}:${deToSl?'de-sl':'sl-de'}`,lesson:word.lesson,type:'free',prompt:deToSl?word.de:word.sl,answer:expected,vocabularyIds:[word.id],evaluationMode:'grammar',skillTargets:['production'],targetContentKeys:[`vocab:${word.id}`]};onResult(exercise,result.isCorrect,{responseMs:2000,hintsUsed:0});setFeedback(result.isCorrect?'Odlično! Richtig.':result.explanation||`Richtig ist: ${expected}`);if(result.isCorrect)setTimeout(()=>{setIndex(i=>i+1);setInput('');setFeedback('')},700)}
+  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Brain size={18}/>Adaptiver Vokabeltest</div><div className="mt-4 text-sm text-slate-500">{deToSl?'Deutsch → Slowenisch':'Slowenisch → Deutsch'}</div><div className="mt-1 text-2xl font-black">{deToSl?word.de:word.sl}</div>{!deToSl&&<div className="mt-2"><AudioButton text={word.sl} compact/></div>}<div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Antwort …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-slate-50 p-3">{feedback}</div>}</div>
+}
+
+function ConjugationPractice({progress,onResult}:{progress:UserProgress;onResult:Props['onResult']}) {
+  const introduced=new Set(progress.introducedVerbForms.map(key=>key.split(':')[0]))
+  const pool=verbCatalog.filter(v=>introduced.has(v.id)||progress.introducedWords.some(id=>id===v.id))
+  const verbs=pool.length?pool:verbCatalog.slice(0,4)
+  const [round,setRound]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
+  const verb=verbs[round%verbs.length]
+  const forms=verb.forms
+  const form=forms[(round*3+1)%forms.length]
+  function check(){const result=evaluateAnswer({input,expected:form.form,locale:'sl-SI'});const key=`${verb.id}:${form.number}:${form.person}`;const exercise:Exercise={id:`conj:${key}`,lesson:1,type:'free',prompt:`${verb.infinitive} – ${form.pronoun}`,answer:form.form,evaluationMode:'grammar',skillTargets:['grammar-application','production'],verbPractice:true,requiredVerbForms:[{verbId:verb.id,person:form.person,number:form.number}],targetContentKeys:[`verb:${key}`]};onResult(exercise,result.isCorrect,{responseMs:2000,hintsUsed:0});if(result.isCorrect){setFeedback('Odlično! Richtig.');setTimeout(()=>{setRound(r=>r+1);setInput('');setFeedback('')},700)}else{const sameForm=verb.forms.find(x=>x.form.toLowerCase()===input.trim().toLowerCase());setFeedback(sameForm&&sameForm.number!==form.number?`Fast. „${input}“ gehört zu ${sameForm.pronoun} (${sameForm.number}). Für ${form.pronoun} brauchst du „${form.form}“.`:result.explanation||`Richtig ist: ${form.form}`)}}
+  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Dumbbell size={18}/>Konjugationstraining</div><div className="mt-4 text-2xl font-black">{verb.infinitive} <span className="font-normal text-slate-500">– {verb.translation}</span></div><div className="mt-3 rounded-2xl bg-slate-50 p-4"><div className="text-sm text-slate-500">Bilde die richtige Form für</div><div className="text-xl font-black">{form.pronoun} · {form.number==='dual'?'Dual':form.number==='plural'?'Plural':'Singular'}</div></div><div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Verbform …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-amber-50 p-3">{feedback}</div>}</div>
+}
