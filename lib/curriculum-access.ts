@@ -1,3 +1,8 @@
+import {
+  isRegisteredVerbFormVocabularyId,
+  singularVerbIntroFromRegistry,
+  verbRequirementForVocabularyId,
+} from '@/lib/content-registry'
 import { VERB_UNLOCK_THRESHOLDS } from '@/lib/learning-config'
 import { Exercise, UserProgress, VerbFormRequirement, Vocabulary } from '@/types'
 
@@ -31,76 +36,39 @@ export const GRAMMAR_RULES: Record<string, GrammarRuleDefinition> = {
   'restaurant-quantity': { id:'restaurant-quantity', title:'Mengen beim Bestellen', body:'Beim Bestellen ändern Mengenangaben manchmal die Form.', examples:['Še eno pivo, prosim.'] },
 }
 
-type VerbFormDefinition = {
-  verbId: string
-  person: 1 | 2 | 3
-  number: 'singular'
-  form: string
-}
-
-const VERB_FORMS: Record<string, VerbFormDefinition> = {
-  v011:{verbId:'biti',person:1,number:'singular',form:'sem'}, v012:{verbId:'biti',person:2,number:'singular',form:'si'}, v013:{verbId:'biti',person:3,number:'singular',form:'je'},
-  v021:{verbId:'delati',person:1,number:'singular',form:'delam'}, v022:{verbId:'delati',person:2,number:'singular',form:'delaš'},
-  v024:{verbId:'iti',person:1,number:'singular',form:'grem'}, v025:{verbId:'iti',person:2,number:'singular',form:'greš'},
-  v032:{verbId:'imeti',person:1,number:'singular',form:'imam'}, v033:{verbId:'imeti',person:2,number:'singular',form:'imaš'}, v034:{verbId:'imeti',person:1,number:'singular',form:'nimam'},
-  v050:{verbId:'živeti',person:1,number:'singular',form:'živim'}, v051:{verbId:'živeti',person:2,number:'singular',form:'živiš'},
-  v065:{verbId:'začeti',person:1,number:'singular',form:'začnem'}, v067:{verbId:'končati',person:1,number:'singular',form:'končam'},
-  v078:{verbId:'peljati-se',person:1,number:'singular',form:'peljem se'}, v079:{verbId:'peljati-se',person:2,number:'singular',form:'pelješ se'},
-  v082:{verbId:'jesti',person:1,number:'singular',form:'jem'}, v083:{verbId:'jesti',person:2,number:'singular',form:'ješ'},
-  v085:{verbId:'piti',person:1,number:'singular',form:'pijem'}, v086:{verbId:'piti',person:2,number:'singular',form:'piješ'},
-  v107:{verbId:'želeti',person:1,number:'singular',form:'želim'},
-}
-
-type VerbIntroForm = { person:1|2|3; pronounSl:string; formSl:string; translationDe:string }
-type VerbIntroDefinition = { verbId:string; infinitiveSl:string; infinitiveDe:string; forms:VerbIntroForm[] }
-
-const VERB_INTROS: Record<string, VerbIntroDefinition> = {
-  biti:{verbId:'biti',infinitiveSl:'biti',infinitiveDe:'sein',forms:[{person:1,pronounSl:'jaz',formSl:'sem',translationDe:'ich bin'},{person:2,pronounSl:'ti',formSl:'si',translationDe:'du bist'},{person:3,pronounSl:'on / ona / ono',formSl:'je',translationDe:'er / sie / es ist'}]},
-  delati:{verbId:'delati',infinitiveSl:'delati',infinitiveDe:'arbeiten / machen',forms:[{person:1,pronounSl:'jaz',formSl:'delam',translationDe:'ich arbeite / mache'},{person:2,pronounSl:'ti',formSl:'delaš',translationDe:'du arbeitest / machst'},{person:3,pronounSl:'on / ona / ono',formSl:'dela',translationDe:'er / sie / es arbeitet / macht'}]},
-  iti:{verbId:'iti',infinitiveSl:'iti',infinitiveDe:'gehen',forms:[{person:1,pronounSl:'jaz',formSl:'grem',translationDe:'ich gehe'},{person:2,pronounSl:'ti',formSl:'greš',translationDe:'du gehst'},{person:3,pronounSl:'on / ona / ono',formSl:'gre',translationDe:'er / sie / es geht'}]},
-  imeti:{verbId:'imeti',infinitiveSl:'imeti',infinitiveDe:'haben',forms:[{person:1,pronounSl:'jaz',formSl:'imam',translationDe:'ich habe'},{person:2,pronounSl:'ti',formSl:'imaš',translationDe:'du hast'},{person:3,pronounSl:'on / ona / ono',formSl:'ima',translationDe:'er / sie / es hat'}]},
-  živeti:{verbId:'živeti',infinitiveSl:'živeti',infinitiveDe:'leben / wohnen',forms:[{person:1,pronounSl:'jaz',formSl:'živim',translationDe:'ich lebe / wohne'},{person:2,pronounSl:'ti',formSl:'živiš',translationDe:'du lebst / wohnst'},{person:3,pronounSl:'on / ona / ono',formSl:'živi',translationDe:'er / sie / es lebt / wohnt'}]},
-  začeti:{verbId:'začeti',infinitiveSl:'začeti',infinitiveDe:'anfangen',forms:[{person:1,pronounSl:'jaz',formSl:'začnem',translationDe:'ich fange an'},{person:2,pronounSl:'ti',formSl:'začneš',translationDe:'du fängst an'},{person:3,pronounSl:'on / ona / ono',formSl:'začne',translationDe:'er / sie / es fängt an'}]},
-  končati:{verbId:'končati',infinitiveSl:'končati',infinitiveDe:'beenden',forms:[{person:1,pronounSl:'jaz',formSl:'končam',translationDe:'ich beende / bin fertig'},{person:2,pronounSl:'ti',formSl:'končaš',translationDe:'du beendest / bist fertig'},{person:3,pronounSl:'on / ona / ono',formSl:'konča',translationDe:'er / sie / es beendet / ist fertig'}]},
-  'peljati-se':{verbId:'peljati-se',infinitiveSl:'peljati se',infinitiveDe:'fahren',forms:[{person:1,pronounSl:'jaz',formSl:'peljem se',translationDe:'ich fahre'},{person:2,pronounSl:'ti',formSl:'pelješ se',translationDe:'du fährst'},{person:3,pronounSl:'on / ona / ono',formSl:'pelje se',translationDe:'er / sie / es fährt'}]},
-  jesti:{verbId:'jesti',infinitiveSl:'jesti',infinitiveDe:'essen',forms:[{person:1,pronounSl:'jaz',formSl:'jem',translationDe:'ich esse'},{person:2,pronounSl:'ti',formSl:'ješ',translationDe:'du isst'},{person:3,pronounSl:'on / ona / ono',formSl:'je',translationDe:'er / sie / es isst'}]},
-  piti:{verbId:'piti',infinitiveSl:'piti',infinitiveDe:'trinken',forms:[{person:1,pronounSl:'jaz',formSl:'pijem',translationDe:'ich trinke'},{person:2,pronounSl:'ti',formSl:'piješ',translationDe:'du trinkst'},{person:3,pronounSl:'on / ona / ono',formSl:'pije',translationDe:'er / sie / es trinkt'}]},
-  želeti:{verbId:'želeti',infinitiveSl:'želeti',infinitiveDe:'wollen / wünschen',forms:[{person:1,pronounSl:'jaz',formSl:'želim',translationDe:'ich möchte / wünsche'},{person:2,pronounSl:'ti',formSl:'želiš',translationDe:'du möchtest / wünschst'},{person:3,pronounSl:'on / ona / ono',formSl:'želi',translationDe:'er / sie / es möchte / wünscht'}]},
-}
-
 export function verbFormKey(requirement: VerbFormRequirement) {
   return `${requirement.verbId}:${requirement.number}:${requirement.person}`
 }
 
 export function isVerbFormVocabularyId(id: string) {
-  return Boolean(VERB_FORMS[id])
+  return isRegisteredVerbFormVocabularyId(id)
 }
 
 export function inferRequiredVerbForms(exercise: Exercise): VerbFormRequirement[] {
-  const forms = (exercise.vocabularyIds || []).map(id => VERB_FORMS[id]).filter(Boolean)
+  const forms = (exercise.vocabularyIds || [])
+    .map(id => verbRequirementForVocabularyId(id))
+    .filter((value): value is VerbFormRequirement => Boolean(value))
   const seen = new Set<string>()
-  return forms
-    .filter(form => {
-      const key = verbFormKey(form)
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    .map(({ verbId, person, number }) => ({ verbId, person, number }))
+  return forms.filter(form => {
+    const key = verbFormKey(form)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function singularVerbIntroForVocabulary(ids: string[]) {
-  const verbIds = Array.from(new Set(ids.map(id => VERB_FORMS[id]?.verbId).filter(Boolean))) as string[]
+  const verbIds = Array.from(new Set(
+    ids.map(id => verbRequirementForVocabularyId(id)?.verbId).filter((value): value is string => Boolean(value)),
+  ))
   return verbIds
     .map(verbId => {
-      const definition = VERB_INTROS[verbId]
+      const definition = singularVerbIntroFromRegistry(verbId)
       if (!definition) return null
       return {
         ...definition,
         title: `${definition.infinitiveSl} – ${definition.infinitiveDe}`,
-        keys: definition.forms.map(form =>
-          verbFormKey({ verbId, person: form.person, number: 'singular' }),
-        ),
+        keys: definition.forms.map(form => verbFormKey({ verbId, person:form.person, number:'singular' })),
       }
     })
     .filter((value): value is NonNullable<typeof value> => Boolean(value))
