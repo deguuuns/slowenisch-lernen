@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Brain, ChevronDown, ChevronUp, Dumbbell, Search } from 'lucide-react'
 import AudioButton from './AudioButton'
 import { evaluateAnswer } from '@/lib/answer-evaluation'
 import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
 import { getVocabularyStatus } from '@/lib/learner-status'
+import { conjugationMistakeCategory, mistakeCategoryFromEvaluation } from '@/lib/learning-signals'
 import { verbByInfinitive, verbCatalog } from '@/lib/verb-catalog'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 
@@ -15,8 +16,19 @@ type Mode = 'list'|'test'|'conjugation'
 
 function availableWords(vocabulary:Vocabulary[], progress:UserProgress) {
   const allowed = new Set([...progress.introducedWords, ...progress.wordsLearned, ...progress.secureWords])
-  const list = vocabulary.filter(word => allowed.has(word.id) && !isVerbFormVocabularyId(word.id))
-  return list.length ? list : vocabulary.filter(word => !isVerbFormVocabularyId(word.id)).slice(0, 20)
+  const now = Date.now()
+  return vocabulary
+    .filter(word => allowed.has(word.id) && !isVerbFormVocabularyId(word.id))
+    .sort((a,b) => {
+      const score = (word:Vocabulary) => {
+        const key=`vocab:${word.id}`
+        const review=progress.reviews.find(item=>item.key===key)
+        const mastery=progress.mastery?.[key]
+        const mistakes=progress.mistakes.filter(item=>item.key.includes(word.id)).reduce((sum,item)=>sum+item.count,0)
+        return (review?.dueAt && review.dueAt<=now?100:0) + mistakes*12 + (mastery?Math.round((1-mastery.score)*30):20) + (review?.lastReviewedAt?Math.min(20,Math.floor((now-review.lastReviewedAt)/86_400_000)):10)
+      }
+      return score(b)-score(a)
+    })
 }
 
 export default function VocabWorkspace({ vocabulary, progress, onResult }:Props) {
@@ -51,21 +63,41 @@ export default function VocabWorkspace({ vocabulary, progress, onResult }:Props)
 
 function VocabularyTest({ words,onResult }:{words:Vocabulary[];onResult:Props['onResult']}) {
   const [index,setIndex]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
+  const startedAt=useRef(Date.now())
   const word=words[index%Math.max(words.length,1)]
-  if(!word)return <div className="card">Noch keine bekannten Vokabeln für einen Test.</div>
+  if(!word)return <div className="card"><b>Noch keine eingeführten Vokabeln für einen Test.</b><p className="mt-2 text-sm text-slate-600">Lerne zuerst Wörter in einer Lektion. Der Test greift bewusst nicht auf noch unbekannten Stoff vor.</p></div>
   const deToSl=index%2===0
-  function check(){const expected=deToSl?word.sl:word.de;const result=evaluateAnswer({input,expected,alternatives:[],locale:deToSl?'sl-SI':'de-DE'});const exercise:Exercise={id:`vocab-test:${word.id}:${deToSl?'de-sl':'sl-de'}`,lesson:word.lesson,type:'free',prompt:deToSl?word.de:word.sl,answer:expected,vocabularyIds:[word.id],evaluationMode:'grammar',skillTargets:['production'],targetContentKeys:[`vocab:${word.id}`]};onResult(exercise,result.isCorrect,{responseMs:2000,hintsUsed:0});setFeedback(result.isCorrect?'Odlično! Richtig.':result.explanation||`Richtig ist: ${expected}`);if(result.isCorrect)setTimeout(()=>{setIndex(i=>i+1);setInput('');setFeedback('')},700)}
-  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Brain size={18}/>Adaptiver Vokabeltest</div><div className="mt-4 text-sm text-slate-500">{deToSl?'Deutsch → Slowenisch':'Slowenisch → Deutsch'}</div><div className="mt-1 text-2xl font-black">{deToSl?word.de:word.sl}</div>{!deToSl&&<div className="mt-2"><AudioButton text={word.sl} compact/></div>}<div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Antwort …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-slate-50 p-3">{feedback}</div>}</div>
+  function next(){setIndex(i=>i+1);setInput('');setFeedback('');startedAt.current=Date.now()}
+  function check(){
+    const expected=deToSl?word.sl:word.de
+    const result=evaluateAnswer({input,expected,alternatives:[],locale:deToSl?'sl-SI':'de-DE'})
+    const mistake=mistakeCategoryFromEvaluation(result)
+    const exercise:Exercise={id:`vocab-test:${word.id}:${deToSl?'de-sl':'sl-de'}${mistake?`:mistake:${mistake}`:''}`,lesson:word.lesson,type:'free',prompt:deToSl?word.de:word.sl,answer:expected,vocabularyIds:[word.id],evaluationMode:'grammar',skillTargets:[deToSl?'production':'recognition'],targetContentKeys:[`vocab:${word.id}`],mistakeCategory:mistake}
+    onResult(exercise,result.isCorrect,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:0})
+    setFeedback(result.isCorrect?'Odlično! Richtig.':result.explanation||`Richtig ist: ${expected}`)
+    if(result.isCorrect)setTimeout(next,700)
+  }
+  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Brain size={18}/>Adaptiver Vokabeltest</div><div className="mt-2 text-xs text-slate-500">Fällige, unsichere und häufig falsch beantwortete Wörter kommen zuerst.</div><div className="mt-4 text-sm text-slate-500">{deToSl?'Deutsch → Slowenisch · aktive Produktion':'Slowenisch → Deutsch · Erkennen'}</div><div className="mt-1 text-2xl font-black">{deToSl?word.de:word.sl}</div>{!deToSl&&<div className="mt-2"><AudioButton text={word.sl} compact/></div>}<div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Antwort …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-slate-50 p-3">{feedback}</div>}</div>
 }
 
 function ConjugationPractice({progress,onResult}:{progress:UserProgress;onResult:Props['onResult']}) {
-  const introduced=new Set(progress.introducedVerbForms.map(key=>key.split(':')[0]))
-  const pool=verbCatalog.filter(v=>introduced.has(v.id)||progress.introducedWords.some(id=>id===v.id))
-  const verbs=pool.length?pool:verbCatalog.slice(0,4)
+  const introducedForms=new Set(progress.introducedVerbForms)
+  const verbs=verbCatalog.map(verb=>({...verb,forms:verb.forms.filter(form=>introducedForms.has(`${verb.id}:${form.number}:${form.person}`))})).filter(verb=>verb.forms.length)
   const [round,setRound]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
+  const startedAt=useRef(Date.now())
+  if(!verbs.length)return <div className="card"><b>Noch keine freigeschalteten Verbformen.</b><p className="mt-2 text-sm text-slate-600">Das Konjugationstraining verwendet nur Formen, die im Curriculum bereits eingeführt wurden.</p></div>
   const verb=verbs[round%verbs.length]
-  const forms=verb.forms
-  const form=forms[(round*3+1)%forms.length]
-  function check(){const result=evaluateAnswer({input,expected:form.form,locale:'sl-SI'});const key=`${verb.id}:${form.number}:${form.person}`;const exercise:Exercise={id:`conj:${key}`,lesson:1,type:'free',prompt:`${verb.infinitive} – ${form.pronoun}`,answer:form.form,evaluationMode:'grammar',skillTargets:['grammar-application','production'],verbPractice:true,requiredVerbForms:[{verbId:verb.id,person:form.person,number:form.number}],targetContentKeys:[`verb:${key}`]};onResult(exercise,result.isCorrect,{responseMs:2000,hintsUsed:0});if(result.isCorrect){setFeedback('Odlično! Richtig.');setTimeout(()=>{setRound(r=>r+1);setInput('');setFeedback('')},700)}else{const sameForm=verb.forms.find(x=>x.form.toLowerCase()===input.trim().toLowerCase());setFeedback(sameForm&&sameForm.number!==form.number?`Fast. „${input}“ gehört zu ${sameForm.pronoun} (${sameForm.number}). Für ${form.pronoun} brauchst du „${form.form}“.`:result.explanation||`Richtig ist: ${form.form}`)}}
-  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Dumbbell size={18}/>Konjugationstraining</div><div className="mt-4 text-2xl font-black">{verb.infinitive} <span className="font-normal text-slate-500">– {verb.translation}</span></div><div className="mt-3 rounded-2xl bg-slate-50 p-4"><div className="text-sm text-slate-500">Bilde die richtige Form für</div><div className="text-xl font-black">{form.pronoun} · {form.number==='dual'?'Dual':form.number==='plural'?'Plural':'Singular'}</div></div><div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Verbform …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-amber-50 p-3">{feedback}</div>}</div>
+  const form=verb.forms[(round*3+1)%verb.forms.length]
+  function next(){setRound(r=>r+1);setInput('');setFeedback('');startedAt.current=Date.now()}
+  function check(){
+    const result=evaluateAnswer({input,expected:form.form,locale:'sl-SI'})
+    const sameForm=verb.forms.find(x=>x.form.toLowerCase()===input.trim().toLowerCase())
+    const mistake=result.isCorrect?undefined:(sameForm?conjugationMistakeCategory(form.number,sameForm.number):mistakeCategoryFromEvaluation(result)||'conjugation-error')
+    const key=`${verb.id}:${form.number}:${form.person}`
+    const exercise:Exercise={id:`conj:${key}${mistake?`:mistake:${mistake}`:''}`,lesson:1,type:'free',prompt:`${verb.infinitive} – ${form.pronoun}`,answer:form.form,evaluationMode:'grammar',skillTargets:['grammar-application','production'],verbPractice:true,requiredVerbForms:[{verbId:verb.id,person:form.person,number:form.number}],targetContentKeys:[`verb:${key}`],mistakeCategory:mistake}
+    onResult(exercise,result.isCorrect,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:0})
+    if(result.isCorrect){setFeedback('Odlično! Richtig.');setTimeout(next,700)}
+    else setFeedback(sameForm&&sameForm.number!==form.number?`Fast. „${input}“ gehört zu ${sameForm.pronoun} (${sameForm.number}). Für ${form.pronoun} brauchst du „${form.form}“.`:result.explanation||`Richtig ist: ${form.form}`)
+  }
+  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Dumbbell size={18}/>Konjugationstraining</div><div className="mt-2 text-xs text-slate-500">Nur bereits freigeschaltete Verbformen werden abgefragt.</div><div className="mt-4 text-2xl font-black">{verb.infinitive} <span className="font-normal text-slate-500">– {verb.translation}</span></div><div className="mt-3 rounded-2xl bg-slate-50 p-4"><div className="text-sm text-slate-500">Bilde die richtige Form für</div><div className="text-xl font-black">{form.pronoun} · {form.number==='dual'?'Dual':form.number==='plural'?'Plural':'Singular'}</div></div><div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Verbform …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-amber-50 p-3">{feedback}</div>}</div>
 }
