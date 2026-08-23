@@ -5,7 +5,7 @@ import { exercises } from '../data/seed'
 import type { UserProgress } from '../types'
 
 const now=Date.now()
-const base:UserProgress={...defaultProgress,preferences:{...defaultProgress.preferences,dailyGoalMinutes:10},reviews:[{key:'vocab:v001',dueAt:now-1000,lastReviewedAt:now-86_400_000,updatedAt:now-86_400_000,intervalIndex:0,status:'unsicher',successfulReviews:1,consecutiveCorrect:1}],mastery:{...defaultProgress.mastery,'skill:listening':{score:.42,attempts:5,correct:2,lastAttemptAt:now-1000}}}
+const base:UserProgress={...defaultProgress,preferences:{...defaultProgress.preferences,dailyGoalMinutes:10},reviews:[{key:'vocab:v001',dueAt:now-1000,lastReviewedAt:now-86_400_000,updatedAt:now-86_400_000,intervalIndex:0,status:'unsicher',successfulReviews:1,consecutiveCorrect:1}],mastery:{...defaultProgress.mastery,'skill:listening':{key:'skill:listening',kind:'skill',score:.42,attempts:5,correct:2,lastSeen:now-1000}}}
 const plan=buildDailyTrainingPlan(base,exercises,2,now)
 assert.equal(plan.goalMinutes,10)
 assert.ok(plan.minutes>=8&&plan.minutes<=10)
