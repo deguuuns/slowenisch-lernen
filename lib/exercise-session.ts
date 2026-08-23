@@ -47,6 +47,7 @@ function copyExercise(exercise: Exercise): Exercise {
     targetContentKeys: enriched.targetContentKeys ? [...enriched.targetContentKeys] : undefined,
     supportingContentKeys: enriched.supportingContentKeys ? [...enriched.supportingContentKeys] : undefined,
     requiredVerbForms: enriched.requiredVerbForms ? enriched.requiredVerbForms.map(requirement => ({ ...requirement })) : undefined,
+    wordBank: enriched.wordBank ? [...enriched.wordBank] : undefined,
   }
 }
 
@@ -61,7 +62,7 @@ export function createExerciseSession(kind: ExerciseSessionKind, exercises: Exer
     seen.add(exercise.id)
     return Object.freeze({
       id: `${sessionId}:${index}:${exercise.id}`,
-      sourceExerciseId: exercise.id,
+      sourceExerciseId: exercise.variantOfExerciseId || exercise.id,
       exercise: Object.freeze(exercise),
       options: Object.freeze(exercise.type === 'choice' ? stableChoiceOptions(exercise, sessionId) : []) as unknown as ChoiceOption[],
     })

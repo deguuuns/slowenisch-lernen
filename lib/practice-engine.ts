@@ -1,5 +1,6 @@
 import { isExerciseEligible } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
+import { expandExerciseVariety, presentationVarietyBonus } from '@/lib/exercise-variety'
 import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys } from '@/lib/learning-targets'
 import { Exercise, SkillTarget, UserProgress, Vocabulary } from '@/types'
 
@@ -54,11 +55,12 @@ function exerciseScore(progress: UserProgress, exercise: Exercise, now = Date.no
   const targets = inferTargetContentKeys(exercise)
   const weakest = targets.length ? Math.min(...targets.map(key=>masteryScore(progress,key))) : .5
   const recent = new Set((progress.recentAttempts||[]).slice(-6).map(item=>item.exerciseId))
-  return intentWeight[intent] + Math.round((1-weakest)*30) - (recent.has(exercise.id)?18:0)
+  return intentWeight[intent] + Math.round((1-weakest)*30) + presentationVarietyBonus(progress,exercise) - (recent.has(exercise.id)?18:0)
 }
 
 export function buildPracticeDeck(progress: UserProgress, rawExercises: Exercise[], limit: number, now = Date.now()) {
-  const eligible = enrichExercises(rawExercises).filter(exercise=>isExerciseEligible(exercise,progress))
+  const varied = expandExerciseVariety(rawExercises)
+  const eligible = enrichExercises(varied).filter(exercise=>isExerciseEligible(exercise,progress))
   const ranked = [...eligible].sort((a,b)=>exerciseScore(progress,b,now)-exerciseScore(progress,a,now))
   return dedupeExercisesByTarget(ranked,limit).slice(0,limit)
 }
