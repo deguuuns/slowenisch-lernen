@@ -7,7 +7,9 @@ const grammarFeatureCategory: Partial<Record<GrammarFeature, MistakeCategory>> =
   number: 'number-error',
   conjugation: 'conjugation-error',
   person: 'verb-person-error',
+  pronoun: 'reflexive-error',
   preposition: 'preposition-error',
+  numeral: 'gender-error',
   'word-order': 'word-order-error',
 }
 
