@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ThemeToggle from '@/components/ThemeToggle'
 import {
   CloudSession,
   cloudConfigured,
@@ -112,7 +113,7 @@ export default function AccountMenu({
               <p className="mt-1 break-words text-sm text-slate-500">Mit einem Konto kannst du auf mehreren Geräten weitermachen.</p>
               {!cloudConfigured() && <div className="mt-3 break-words rounded-2xl bg-amber-50 p-3 text-sm">Cloud-Synchronisation ist derzeit nicht verfügbar.</div>}
               <input type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="E-Mail" aria-label="E-Mail" className="mt-4 w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 text-base" />
-              <input type="password" autoComplete={session ? 'current-password' : 'current-password'} value={password} onChange={event => setPassword(event.target.value)} placeholder="Passwort" aria-label="Passwort" className="mt-2 w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 text-base" />
+              <input type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} placeholder="Passwort" aria-label="Passwort" className="mt-2 w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 text-base" />
               {message && <div className="mt-3 break-words text-sm text-slate-600 [overflow-wrap:anywhere]">{message}</div>}
               <button disabled={busy || !email || password.length < 6} onClick={() => login(false)} className="btn-primary mt-4 w-full min-h-11 justify-center whitespace-normal disabled:opacity-40">Anmelden</button>
               <button disabled={busy || !email || password.length < 6} onClick={() => login(true)} className="mt-2 min-h-11 w-full whitespace-normal rounded-2xl border border-slate-200 px-4 py-3 font-bold disabled:opacity-40">Konto erstellen</button>
@@ -127,6 +128,11 @@ export default function AccountMenu({
           <select disabled={!onPreferences} value={preferences.pace} onChange={event => change({...preferences,pace:event.target.value as LearnerPreferences['pace']})} className="mt-1 w-full min-w-0 rounded-2xl border border-slate-200 px-3 py-3 text-base disabled:opacity-50"><option value="ruhig">Ruhig</option><option value="normal">Normal</option><option value="intensiv">Intensiv</option></select>
           <label className="mt-3 block text-xs font-bold uppercase tracking-wide text-slate-400">Audio</label>
           <select disabled={!onPreferences} value={preferences.audioSpeed} onChange={event => change({...preferences,audioSpeed:event.target.value as LearnerPreferences['audioSpeed']})} className="mt-1 w-full min-w-0 rounded-2xl border border-slate-200 px-3 py-3 text-base disabled:opacity-50"><option value="langsam">Langsam</option><option value="normal">Normal</option></select>
+
+          <div className="my-4 border-t border-slate-100" />
+          <div className="font-black">Darstellung</div>
+          <p className="mt-1 mb-3 text-sm text-slate-500">Hell, dunkel oder automatisch passend zu deinem Gerät.</p>
+          <ThemeToggle />
 
           <div className="my-4 border-t border-slate-100" />
           <div className="font-black">Lernstand</div>
