@@ -193,7 +193,7 @@ export function updateMastery(mastery: Record<string, MasteryItem>, exercise: Ex
     ...inferredSkills(exercise).map(skill => `skill:${skill}`),
     ...explicitSkillTargetKeys(exercise.targetContentKeys),
   ])
-  for (const keyValue of skillKeys) {
+  for (const keyValue of Array.from(skillKeys)) {
     const activeSkill = keyValue.startsWith('skill:production') || keyValue.startsWith('skill:speaking')
     next[keyValue] = updateItem(next[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, activeSkill)
   }
