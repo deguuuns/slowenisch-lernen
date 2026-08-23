@@ -5,6 +5,7 @@ import { verbFormKey } from '@/lib/curriculum-access'
 import { ERROR_RETRY_DELAY_MINUTES, REVIEW_INTERVALS_DAYS } from '@/lib/learning-config'
 import { inferTargetContentKeys, isCanonicalReviewKey } from '@/lib/learning-targets'
 import { inferMistakeCategoryFromExerciseId } from '@/lib/learning-signals'
+import { explicitSkillTargetKeys } from '@/lib/skill-mastery'
 
 const LEGACY_KEY = 'slovensko-progress-v1'
 const KEY_PREFIX = 'slovensko-progress-v2'
@@ -188,13 +189,21 @@ export function updateMastery(mastery: Record<string, MasteryItem>, exercise: Ex
     const reviewKey = `verb:${verbFormKey(requirement)}`
     next[reviewKey] = updateItem(next[reviewKey], reviewKey, 'verb', correct, responseMs, hintsUsed, active)
   }
-  for (const skill of inferredSkills(exercise)) next[`skill:${skill}`] = updateItem(next[`skill:${skill}`], `skill:${skill}`, 'skill', correct, responseMs, hintsUsed, skill === 'production' || skill === 'speaking')
+  const skillKeys = new Set([
+    ...inferredSkills(exercise).map(skill => `skill:${skill}`),
+    ...explicitSkillTargetKeys(exercise.targetContentKeys),
+  ])
+  for (const keyValue of skillKeys) {
+    const activeSkill = keyValue.startsWith('skill:production') || keyValue.startsWith('skill:speaking')
+    next[keyValue] = updateItem(next[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, activeSkill)
+  }
   return next
 }
 
-export function updateSkillMastery(mastery: Record<string, MasteryItem>, skill: SkillTarget, correct: boolean, responseMs = 0, hintsUsed = 0) {
+export function updateSkillMastery(mastery: Record<string, MasteryItem>, skill: SkillTarget | string, correct: boolean, responseMs = 0, hintsUsed = 0) {
   const keyValue = `skill:${skill}`
-  return { ...mastery, [keyValue]:updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, skill === 'speaking' || skill === 'production') }
+  const active = skill === 'speaking' || skill === 'production' || skill.startsWith('speaking:') || skill.startsWith('production:')
+  return { ...mastery, [keyValue]:updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, active) }
 }
 
 export function recordAttempt(items: AttemptSignal[], signal: AttemptSignal) { return [...items, signal].slice(-150) }
