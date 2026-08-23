@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { explicitSkillTargetKeys, listeningStageKey, speakingModeKey, weakestListeningStage } from '../lib/skill-mastery'
-import type { MasteryItem } from '../types'
+import { updateMastery, updateSkillMastery } from '../lib/storage'
+import type { Exercise, MasteryItem } from '../types'
 
 assert.equal(listeningStageKey('word'),'skill:listening:word')
 assert.equal(listeningStageKey('sentence'),'skill:listening:sentence')
@@ -24,5 +25,21 @@ const mastery: Record<string, MasteryItem> = {
 assert.equal(weakestListeningStage(mastery)?.stage,'dialogue')
 assert.equal(weakestListeningStage(mastery,4)?.stage,'word')
 assert.equal(weakestListeningStage({},2),null)
+
+const listeningExercise: Exercise = {
+  id:'phase13-listen-dialogue',lesson:1,type:'choice',prompt:'Kaj želi gost?',answer:'Vodo',
+  skillTargets:['listening'],targetContentKeys:['skill:listening','skill:listening:dialogue'],
+}
+const listeningUpdated=updateMastery({},listeningExercise,true,5000,0)
+assert.equal(listeningUpdated['skill:listening'].attempts,1)
+assert.equal(listeningUpdated['skill:listening:dialogue'].attempts,1)
+
+const spoken=updateSkillMastery({},'speaking:spoken-response',true,6000,0)
+assert.ok(spoken['skill:speaking:spoken-response'])
+assert.equal(spoken['skill:production:typed-fallback'],undefined)
+
+const typed=updateSkillMastery({},'production:typed-fallback',true,6000,0)
+assert.ok(typed['skill:production:typed-fallback'])
+assert.equal(typed['skill:speaking:spoken-response'],undefined)
 
 console.log('Skill mastery checks passed')
