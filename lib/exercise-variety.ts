@@ -52,7 +52,7 @@ function reorderVariant(exercise:Exercise):Exercise|null{
   return {
     ...variant,
     type:'free',
-    prompt:`Baue den korrekten slowenischen Satz: ${exercise.prompt}`,
+    prompt:`Baue den korrekten slowenischen Satz. Wörter: ${shuffled.join(' · ')}. Aufgabe: ${exercise.prompt}`,
     wordBank:shuffled,
     alternatives:undefined,
     skillTargets:Array.from(new Set([...(exercise.skillTargets||[]),'production','grammar-application'])) as SkillTarget[],
