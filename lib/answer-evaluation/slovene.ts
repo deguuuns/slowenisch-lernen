@@ -4,17 +4,16 @@ import { caseContrastForForm, DUAL_NUMERAL_GENDER, isDirectionVerb, isLocationVe
 import { verbCatalog } from '@/lib/verb-catalog'
 
 function normalized(value:string){return value.trim().toLocaleLowerCase('sl-SI')}
+function reflexiveBase(value:string){return normalized(value).replace(/\s+se$/,'')}
 
 function verbFormInfo(form:string){
   const value=normalized(form)
   for(const verb of verbCatalog){
-    const match=verb.forms.find(item=>normalized(item.form)===value)
+    const match=verb.forms.find(item=>normalized(item.form)===value||reflexiveBase(item.form)===value)
     if(match)return {verb,form:match}
   }
   return undefined
 }
-
-function reflexiveBase(value:string){return normalized(value).replace(/\s+se$/,'')}
 
 /**
  * Deterministic Slovene rule layer.
