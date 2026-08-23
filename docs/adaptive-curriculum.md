@@ -33,6 +33,20 @@ Ausgewertet werden die letzten bis zu zwölf Versuche anhand von Trefferquote, d
 
 Die adaptive Dauer verändert nur die Menge der geplanten Aufgaben. Fällige Wiederholungen und andere inhaltliche Prioritäten bleiben erhalten.
 
+## Übungsvielfalt
+
+Kuratiertes Lernmaterial bleibt die fachliche Quelle. Für adaptive Übungssitzungen darf die Practice Engine daraus zusätzliche Präsentationsvarianten erzeugen, ohne Lernziele oder erwartete korrekte Antworten zu verändern.
+
+Aktuell werden drei sichere Varianten genutzt:
+
+- Satzbau aus deterministisch gemischten Wortbausteinen für mehr aktive Grammatik- und Produktionsarbeit.
+- Erkennungsaufgaben als Multiple Choice mit Antworten aus bereits verfügbaren, geeigneten Aufgaben als Distraktoren.
+- Aktiver Abruf ohne Auswahl für bestehende Multiple-Choice-Aufgaben.
+
+Automatisch erzeugte Varianten behalten die Vokabel-, Grammatik- und Ziel-Metadaten ihrer Ursprungsaufgabe und verweisen explizit auf diese. Sie werden von derselben Answer-Evaluation und denselben Integritätsprüfungen verarbeitet. Persönlich offene Antworten sowie spezielle Hör- und Sprechaufgaben werden nicht automatisch in generische Varianten umgebaut.
+
+Die adaptive Auswahl berücksichtigt außerdem die zuletzt verwendeten Darstellungsformen. Dadurch soll nicht nur das richtige Lernziel, sondern nach Möglichkeit auch eine abwechslungsreiche Form gewählt werden, ohne fällige oder schwache Inhalte zu verdrängen.
+
 ## Sicherheitsregeln für den Lernfluss
 
 - Adaptiv bedeutet nicht zufällig.
@@ -43,6 +57,7 @@ Die adaptive Dauer verändert nur die Menge der geplanten Aufgaben. Fällige Wie
 - Bereits eingeführte Wörter werden nicht erneut als Einführungskarte gezeigt.
 - Transferaufgaben verwenden nach Möglichkeit einen anderen Satz mit derselben Grammatikregel und werden nach erfolgreichem Transfer entfernt.
 - Die Sitzungsdauer wird nie unter fünf Minuten empfohlen und höchstens moderat über das Tagesziel hinaus verlängert.
+- Generierte Übungsvarianten dürfen keine neuen fachlichen Lösungen erfinden; Antwort und Zielbindung stammen aus einer bereits validierten Ursprungsaufgabe.
 
 ## Deployment-Validierung
 
@@ -54,4 +69,4 @@ Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert un
 
 ## Nächste Ausbaustufe
 
-- Ausbau der Übungsvielfalt vor dem größeren Wortschatzimport
+- größerer, curriculumgebundener Wortschatzimport auf Basis der jetzt abgesicherten Übungsvielfalt
