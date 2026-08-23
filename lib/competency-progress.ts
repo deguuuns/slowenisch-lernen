@@ -40,11 +40,11 @@ export function buildCefrProgress(progress:UserProgress):CefrProgress{
  const competencies=competencyScores(progress)
  const evidenced=competencies.filter(item=>item.evidence>=2||item.domain==='vocabulary')
  const overall=evidenced.length?evidenced.reduce((sum,item)=>sum+item.score,0)/evidenced.length:0
- const ranked=[...evidenced].sort((a,b)=>a.score-b.score)
+ const ranked=Array.from(evidenced).sort((a,b)=>a.score-b.score)
  const weakest=ranked[0],strongest=ranked[ranked.length-1]
  const requiredTargets=new Set(A1_SKILL_GRAPH.flatMap(skill=>[...(skill.grammarTargets||[]),...(skill.vocabularyTopics||[])]))
  const masteryKeys=Object.keys(progress.mastery||{})
- const covered=[...requiredTargets].filter(target=>masteryKeys.some(key=>key.includes(target)||key.includes(target.replace(/-basic|-present|-core|-introduction/g,''))))
+ const covered=Array.from(requiredTargets).filter(target=>masteryKeys.some(key=>key.includes(target)||key.includes(target.replace(/-basic|-present|-core|-introduction/g,''))))
  const skillCoverage=requiredTargets.size?covered.length/requiredTargets.size:0
  const recommendation=!weakest||weakest.evidence<2
   ?'Sammle noch etwas Lernpraxis, damit die App deine Kompetenzen zuverlässig einschätzen kann.'
