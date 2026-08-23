@@ -2,6 +2,7 @@ import { vocabulary as seedVocabulary } from '@/data/seed'
 import { buildAdaptiveReviewDeck } from '@/lib/adaptive-curriculum'
 import { dedupeExercisesByTarget } from '@/lib/learning-targets'
 import { buildPracticeDeck, choosePracticeIntent } from '@/lib/practice-engine'
+import { assessSessionLoad, exercisesForMinutes, type SessionLoadLevel } from '@/lib/session-load'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 
 export type SessionPlan = {
@@ -12,16 +13,16 @@ export type SessionPlan = {
   weakVocabulary: number
   production: number
   newContent: number
+  goalMinutes: number
+  recommendedMinutes: number
+  loadLevel: SessionLoadLevel
+  loadReason: string
   exerciseItems: Exercise[]
 }
 
-function targetSize(progress: UserProgress) {
-  const minutes = progress.preferences.dailyGoalMinutes
-  return minutes <= 5 ? 5 : minutes <= 10 ? 8 : minutes <= 15 ? 10 : minutes <= 20 ? 12 : 15
-}
-
 export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[], _activeLesson: number, vocabulary: Vocabulary[] = seedVocabulary): SessionPlan {
-  const requested = targetSize(progress)
+  const load = assessSessionLoad(progress)
+  const requested = exercisesForMinutes(load.recommendedMinutes)
   const now = Date.now()
 
   // Preserve generated due-review/transfer exercises, then let the central Practice Engine
@@ -42,6 +43,10 @@ export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[
     weakVocabulary,
     production: deck.filter(exercise => exercise.skillTargets?.includes('production') || exercise.skillTargets?.includes('speaking')).length,
     newContent: 0,
+    goalMinutes: load.goalMinutes,
+    recommendedMinutes: load.recommendedMinutes,
+    loadLevel: load.level,
+    loadReason: load.reason,
     exerciseItems: deck,
   }
 }
