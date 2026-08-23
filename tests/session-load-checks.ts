@@ -19,8 +19,8 @@ assert.equal(fresh.level,'fresh')
 assert.equal(fresh.recommendedMinutes,12)
 
 const elevated=assessSessionLoad(progress(20,[
-  attempt(true,32000,0,1),attempt(true,35000,1,2),attempt(false,22000,0,3),attempt(true,31000,0,4),
-  attempt(true,29000,0,5),attempt(false,26000,0,6),attempt(true,28000,0,7),attempt(true,27000,0,8),
+  attempt(true,34000,0,1),attempt(true,35000,1,2),attempt(false,30000,0,3),attempt(true,33000,0,4),
+  attempt(true,31000,0,5),attempt(false,30000,0,6),attempt(true,32000,0,7),attempt(true,31000,0,8),
 ]))
 assert.equal(elevated.level,'elevated')
 assert.equal(elevated.recommendedMinutes,17)
