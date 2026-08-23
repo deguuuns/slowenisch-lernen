@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { assessSessionLoad, exercisesForMinutes } from '../lib/session-load'
 import { defaultProgress } from '../lib/storage'
-import type { AttemptSignal, UserProgress } from '../types'
+import type { AttemptSignal, LearnerPreferences, UserProgress } from '../types'
 
 function attempt(correct:boolean,responseMs:number,hintsUsed=0,index=0):AttemptSignal{
   return {exerciseId:`load-${index}`,correct,responseMs,hintsUsed,occurredAt:index+1,vocabularyIds:[],grammarRuleIds:[],skillTargets:[],activeProduction:false}
 }
-function progress(goal:number,attempts:AttemptSignal[]):UserProgress{
+function progress(goal:LearnerPreferences['dailyGoalMinutes'],attempts:AttemptSignal[]):UserProgress{
   return {...defaultProgress,preferences:{...defaultProgress.preferences,dailyGoalMinutes:goal},recentAttempts:attempts}
 }
 
