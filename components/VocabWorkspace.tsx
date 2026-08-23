@@ -7,6 +7,7 @@ import { evaluateAnswer } from '@/lib/answer-evaluation'
 import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
 import { getVocabularyStatus } from '@/lib/learner-status'
 import { conjugationMistakeCategory, mistakeCategoryFromEvaluation } from '@/lib/learning-signals'
+import { chooseVocabularyDirection, introducedVerbFormKeys, primarySkillForDirection, rankVocabularyForPractice } from '@/lib/practice-engine'
 import { verbByInfinitive, verbCatalog } from '@/lib/verb-catalog'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 
@@ -15,20 +16,7 @@ type Props = { vocabulary:Vocabulary[]; progress:UserProgress; onResult:(exercis
 type Mode = 'list'|'test'|'conjugation'
 
 function availableWords(vocabulary:Vocabulary[], progress:UserProgress) {
-  const allowed = new Set([...progress.introducedWords, ...progress.wordsLearned, ...progress.secureWords])
-  const now = Date.now()
-  return vocabulary
-    .filter(word => allowed.has(word.id) && !isVerbFormVocabularyId(word.id))
-    .sort((a,b) => {
-      const score = (word:Vocabulary) => {
-        const key=`vocab:${word.id}`
-        const review=progress.reviews.find(item=>item.key===key)
-        const mastery=progress.mastery?.[key]
-        const mistakes=progress.mistakes.filter(item=>item.key.includes(word.id)).reduce((sum,item)=>sum+item.count,0)
-        return (review?.dueAt && review.dueAt<=now?100:0) + mistakes*12 + (mastery?Math.round((1-mastery.score)*30):20) + (review?.lastReviewedAt?Math.min(20,Math.floor((now-review.lastReviewedAt)/86_400_000)):10)
-      }
-      return score(b)-score(a)
-    })
+  return rankVocabularyForPractice(vocabulary.filter(word=>!isVerbFormVocabularyId(word.id)),progress)
 }
 
 export default function VocabWorkspace({ vocabulary, progress, onResult }:Props) {
@@ -52,7 +40,7 @@ export default function VocabWorkspace({ vocabulary, progress, onResult }:Props)
       </div>
     </div>
 
-    {mode==='test' && <VocabularyTest words={known} onResult={onResult}/>} 
+    {mode==='test' && <VocabularyTest words={known} progress={progress} onResult={onResult}/>} 
     {mode==='conjugation' && <ConjugationPractice progress={progress} onResult={onResult}/>} 
     {mode==='list' && <>
       <div className="card grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"><div className="relative"><Search className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-3" placeholder="Slowenisch oder Deutsch …"/></div><select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-2xl border border-slate-200 px-3 py-3">{categories.map(x=><option key={x}>{x}</option>)}</select></div>
@@ -61,27 +49,28 @@ export default function VocabWorkspace({ vocabulary, progress, onResult }:Props)
   </div>
 }
 
-function VocabularyTest({ words,onResult }:{words:Vocabulary[];onResult:Props['onResult']}) {
+function VocabularyTest({ words,progress,onResult }:{words:Vocabulary[];progress:UserProgress;onResult:Props['onResult']}) {
   const [index,setIndex]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
   const startedAt=useRef(Date.now())
   const word=words[index%Math.max(words.length,1)]
   if(!word)return <div className="card"><b>Noch keine eingeführten Vokabeln für einen Test.</b><p className="mt-2 text-sm text-slate-600">Lerne zuerst Wörter in einer Lektion. Der Test greift bewusst nicht auf noch unbekannten Stoff vor.</p></div>
-  const deToSl=index%2===0
+  const direction=chooseVocabularyDirection(word,progress,index)
+  const deToSl=direction==='de-sl'
   function next(){setIndex(i=>i+1);setInput('');setFeedback('');startedAt.current=Date.now()}
   function check(){
     const expected=deToSl?word.sl:word.de
     const result=evaluateAnswer({input,expected,alternatives:[],locale:deToSl?'sl-SI':'de-DE'})
     const mistake=mistakeCategoryFromEvaluation(result)
-    const exercise:Exercise={id:`vocab-test:${word.id}:${deToSl?'de-sl':'sl-de'}${mistake?`:mistake:${mistake}`:''}`,lesson:word.lesson,type:'free',prompt:deToSl?word.de:word.sl,answer:expected,vocabularyIds:[word.id],evaluationMode:'grammar',skillTargets:[deToSl?'production':'recognition'],targetContentKeys:[`vocab:${word.id}`],mistakeCategory:mistake}
+    const exercise:Exercise={id:`vocab-test:${word.id}:${direction}${mistake?`:mistake:${mistake}`:''}`,lesson:word.lesson,type:'free',prompt:deToSl?word.de:word.sl,answer:expected,vocabularyIds:[word.id],evaluationMode:'grammar',skillTargets:[primarySkillForDirection(direction)],targetContentKeys:[`vocab:${word.id}`],mistakeCategory:mistake}
     onResult(exercise,result.isCorrect,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:0})
     setFeedback(result.isCorrect?'Odlično! Richtig.':result.explanation||`Richtig ist: ${expected}`)
     if(result.isCorrect)setTimeout(next,700)
   }
-  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Brain size={18}/>Adaptiver Vokabeltest</div><div className="mt-2 text-xs text-slate-500">Fällige, unsichere und häufig falsch beantwortete Wörter kommen zuerst.</div><div className="mt-4 text-sm text-slate-500">{deToSl?'Deutsch → Slowenisch · aktive Produktion':'Slowenisch → Deutsch · Erkennen'}</div><div className="mt-1 text-2xl font-black">{deToSl?word.de:word.sl}</div>{!deToSl&&<div className="mt-2"><AudioButton text={word.sl} compact/></div>}<div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Antwort …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-slate-50 p-3">{feedback}</div>}</div>
+  return <div className="card"><div className="flex items-center gap-2 text-sm font-bold text-lime-700"><Brain size={18}/>Adaptiver Vokabeltest</div><div className="mt-2 text-xs text-slate-500">Die Practice Engine wählt Wort und Abrufrichtung nach Fälligkeit, Fehlern sowie Recognition-/Production-Stärke.</div><div className="mt-4 text-sm text-slate-500">{deToSl?'Deutsch → Slowenisch · aktive Produktion':'Slowenisch → Deutsch · Erkennen'}</div><div className="mt-1 text-2xl font-black">{deToSl?word.de:word.sl}</div>{!deToSl&&<div className="mt-2"><AudioButton text={word.sl} compact/></div>}<div className="mt-4 flex gap-2"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&check()} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3" placeholder="Antwort …"/><button className="btn-primary" onClick={check}>Prüfen</button></div>{feedback&&<div className="mt-3 rounded-2xl bg-slate-50 p-3">{feedback}</div>}</div>
 }
 
 function ConjugationPractice({progress,onResult}:{progress:UserProgress;onResult:Props['onResult']}) {
-  const introducedForms=new Set(progress.introducedVerbForms)
+  const introducedForms=introducedVerbFormKeys(progress)
   const verbs=verbCatalog.map(verb=>({...verb,forms:verb.forms.filter(form=>introducedForms.has(`${verb.id}:${form.number}:${form.person}`))})).filter(verb=>verb.forms.length)
   const [round,setRound]=useState(0),[input,setInput]=useState(''),[feedback,setFeedback]=useState('')
   const startedAt=useRef(Date.now())
