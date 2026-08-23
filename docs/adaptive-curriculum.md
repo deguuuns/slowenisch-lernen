@@ -47,6 +47,12 @@ Automatisch erzeugte Varianten behalten die Vokabel-, Grammatik- und Ziel-Metada
 
 Die adaptive Auswahl berücksichtigt außerdem die zuletzt verwendeten Darstellungsformen. Dadurch soll nicht nur das richtige Lernziel, sondern nach Möglichkeit auch eine abwechslungsreiche Form gewählt werden, ohne fällige oder schwache Inhalte zu verdrängen.
 
+## Curriculumgebundener Wortschatzimport
+
+Nach Absicherung der Übungsvielfalt kann der A1-Wortschatz in größeren, kuratierten Paketen erweitert werden. Neue Wörter erhalten stabile IDs, A1-Zuordnung, Beispiele und eine feste Bindung an eine geplante Lektion, werden aber nicht allein durch ihre Existenz in der Datenbasis als gelernt oder eingeführt markiert.
+
+Phase 16 reserviert und befüllt `v121` bis `v180` für drei geplante Einheiten: Einkaufen, Unterwegs/Reisen sowie Zuhause/Wetter/Hilfe. Bestehende IDs `v001` bis `v120` bleiben unverändert. Die Freischaltung dieser neuen Wörter erfolgt erst durch spätere Lektionen und Übungen und muss weiterhin die normale Progress-, Review- und Mastery-Logik durchlaufen.
+
 ## Sicherheitsregeln für den Lernfluss
 
 - Adaptiv bedeutet nicht zufällig.
@@ -58,6 +64,7 @@ Die adaptive Auswahl berücksichtigt außerdem die zuletzt verwendeten Darstellu
 - Transferaufgaben verwenden nach Möglichkeit einen anderen Satz mit derselben Grammatikregel und werden nach erfolgreichem Transfer entfernt.
 - Die Sitzungsdauer wird nie unter fünf Minuten empfohlen und höchstens moderat über das Tagesziel hinaus verlängert.
 - Generierte Übungsvarianten dürfen keine neuen fachlichen Lösungen erfinden; Antwort und Zielbindung stammen aus einer bereits validierten Ursprungsaufgabe.
+- Ein importierter Wortschatzeintrag darf den Nutzerfortschritt nicht verändern, solange er nicht über das Curriculum freigeschaltet wurde.
 
 ## Deployment-Validierung
 
@@ -69,4 +76,4 @@ Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert un
 
 ## Nächste Ausbaustufe
 
-- größerer, curriculumgebundener Wortschatzimport auf Basis der jetzt abgesicherten Übungsvielfalt
+- Lektion 6 „Einkaufen“ auf Basis des importierten Wortschatzes mit kuratierten Übungen, Metadaten und Curriculum-Freischaltung integrieren
