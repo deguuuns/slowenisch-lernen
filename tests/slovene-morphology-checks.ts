@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { evaluateAnswer } from '../lib/answer-evaluation'
 import { mistakeCategoryFromEvaluation } from '../lib/learning-signals'
+import { adjectiveForm, auditMorphologyDatabase, locationDirectionForms, nounForm, numeralForTwo } from '../lib/morphology-database'
 
 function issue(input:string, expected:string){
   return evaluateAnswer({input,expected,locale:'sl-SI'})
@@ -41,5 +42,15 @@ assert.equal(mistakeCategoryFromEvaluation(reflexive),'reflexive-error')
 assert.equal(issue('Sem v Sloveniji.','Sem v Sloveniji.').isCorrect,true)
 assert.equal(issue('Grem v Slovenijo.','Grem v Slovenijo.').isCorrect,true)
 assert.equal(issue('Mi gremo domov.','Mi gremo domov.').isCorrect,true)
+
+assert.equal(nounForm('brat','dual','nominative'),'brata')
+assert.equal(nounForm('brat','plural','nominative'),'bratje')
+assert.equal(nounForm('sestra','dual','nominative'),'sestri')
+assert.equal(numeralForTwo('masculine'),'dva')
+assert.equal(numeralForTwo('feminine'),'dve')
+assert.deepEqual(locationDirectionForms('Slovenija'),{location:'Sloveniji',direction:'Slovenijo'})
+assert.deepEqual(locationDirectionForms('Nemčija'),{location:'Nemčiji',direction:'Nemčijo'})
+assert.equal(adjectiveForm('dober','feminine','singular','nominative'),'dobra')
+assert.equal(auditMorphologyDatabase().length,0)
 
 console.log('Slovene morphology checks passed')
