@@ -7,6 +7,7 @@ import { generatedExercisesForWord } from '@/lib/learning-flow'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 import { buildTransferExercise, injectDueTransfer } from '@/lib/transfer-practice'
 import { buildVerbPracticeExercises, verbIntrosForVocabulary } from '@/lib/verb-learning'
+import { weakestListeningStage } from '@/lib/skill-mastery'
 
 export type AdaptiveActionKind = 'review' | 'strengthen' | 'new-content' | 'speaking'
 export type AdaptiveRecommendation = { kind:AdaptiveActionKind; title:string; reason:string; priority:number; lessonId?:number; focusKeys:string[]; exerciseIds:string[] }
@@ -63,6 +64,13 @@ function generatedDueReviews(progress: UserProgress, vocabulary: Vocabulary[], n
   return generated
 }
 
+function listeningStageLabel(stage: string) {
+  if (stage === 'word') return 'Wörter'
+  if (stage === 'sentence') return 'Sätze'
+  if (stage === 'dialogue') return 'Dialoge'
+  return 'Geschichten'
+}
+
 export function buildAdaptiveRecommendation(progress: UserProgress, rawExercises: Exercise[], vocabulary: Vocabulary[], activeLesson: number, now = Date.now()): AdaptiveRecommendation {
   const exercises = eligible(progress, enrichExercises(rawExercises))
   const dueKeys = (progress.reviews || []).filter(review => review.dueAt <= now).map(review => review.key)
@@ -81,8 +89,16 @@ export function buildAdaptiveRecommendation(progress: UserProgress, rawExercises
     return { kind:'speaking', title:'Mehr selbst produzieren', reason:'Erkennen klappt besser als selbst formulieren.', priority:75, focusKeys:['skill:production'], exerciseIds:exercises.filter(exercise => exercise.skillTargets?.includes('production')).map(exercise => exercise.id).slice(0,8) }
   }
 
+  const weakListening = weakestListeningStage(progress.mastery)
+  if (weakListening && (weakListening.item?.score || 0) < MASTERY_THRESHOLDS.learning) {
+    return { kind:'strengthen', title:`Hören: ${listeningStageLabel(weakListening.stage)} festigen`, reason:`Deine Hör-Mastery ist bei ${listeningStageLabel(weakListening.stage).toLowerCase()} aktuell am schwächsten.`, priority:72, focusKeys:[weakListening.key,'skill:listening'], exerciseIds:[] }
+  }
+
   const listening = progress.mastery?.['skill:listening']
   if ((listening?.attempts || 0) >= 2 && listening.score < MASTERY_THRESHOLDS.learning) return { kind:'strengthen', title:'Hörverständnis festigen', reason:'Beim Hören brauchst du noch Unterstützung.', priority:70, focusKeys:['skill:listening'], exerciseIds:exercises.filter(exercise => exercise.skillTargets?.includes('listening')).map(exercise => exercise.id).slice(0,8) }
+
+  const spokenResponse = progress.mastery?.['skill:speaking:spoken-response']
+  if ((spokenResponse?.attempts || 0) >= 2 && spokenResponse.score < MASTERY_THRESHOLDS.learning) return { kind:'speaking', title:'Freies Sprechen festigen', reason:'Echte gesprochene Antworten sind aktuell noch unsicher.', priority:69, focusKeys:['skill:speaking:spoken-response','skill:speaking'], exerciseIds:[] }
 
   const speaking = progress.mastery?.['skill:speaking']
   if ((speaking?.attempts || 0) >= 2 && speaking.score < MASTERY_THRESHOLDS.learning) return { kind:'speaking', title:'Sprechen festigen', reason:'Aktives Sprechen ist aktuell noch unsicher.', priority:68, focusKeys:['skill:speaking'], exerciseIds:[] }
