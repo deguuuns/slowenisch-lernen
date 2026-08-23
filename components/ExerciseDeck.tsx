@@ -140,20 +140,37 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
     setIndex(current => current + 1)
   }
 
+  function addWord(word: string) {
+    if (checked) return
+    setValue(current => current ? `${current} ${word}` : word)
+  }
+
   const correct = evaluation?.isCorrect ?? false
   const classificationLabel = evaluation?.classification === 'ACCEPTABLE_VARIANT' ? 'Auch richtig' : evaluation?.classification === 'MINOR_TYPO' ? 'Fast richtig' : evaluation?.classification === 'GRAMMAR_ERROR' ? 'Grammatik' : evaluation?.classification === 'INCOMPLETE' ? 'Noch unvollständig' : null
   const progressValue = inRetry ? Math.round(((retryIndex + (checked ? 1 : 0)) / Math.max(1, retryQueue.length)) * 100) : Math.round(((index + (checked ? 1 : 0)) / session.exercises.length) * 100)
+  const nextLabel = inRetry ? (retryIndex === retryQueue.length - 1 ? 'Sitzung abschließen' : 'Nächster Fehler') : index === session.exercises.length - 1 ? (resultsRef.current.some(result => !result.correct) ? 'Fehler wiederholen' : 'Sitzung abschließen') : 'Nächste Aufgabe'
 
-  return <div className="card min-w-0 max-w-full overflow-hidden">
-    <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-lime-400 transition-all" style={{ width:`${progressValue}%` }} /></div>
-    <div className={`text-sm font-bold ${inRetry ? 'text-amber-700' : 'text-lime-700'}`}>{inRetry ? `Fehler wiederholen · ${retryIndex + 1} von ${retryQueue.length}` : `Aufgabe ${index + 1} von ${session.exercises.length}`}</div>
-    <h3 className="mt-2 min-w-0 break-words text-xl font-black [overflow-wrap:anywhere]">{exercise.prompt}</h3>
+  return <div className="card exercise-shell min-w-0 max-w-full">
+    <div className="shrink-0">
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-lime-400 transition-all" style={{ width:`${progressValue}%` }} /></div>
+      <div className={`text-xs font-bold sm:text-sm ${inRetry ? 'text-amber-700' : 'text-lime-700'}`}>{inRetry ? `Fehler wiederholen · ${retryIndex + 1} von ${retryQueue.length}` : `Aufgabe ${index + 1} von ${session.exercises.length}`}</div>
+    </div>
 
-    {exercise.hint && !checked && <button type="button" onClick={() => setShowHint(true)} className="mt-2 break-words text-left text-sm font-semibold text-slate-500 underline">{showHint ? `Hinweis: ${exercise.hint}` : 'Hinweis anzeigen'}</button>}
+    <div className="exercise-content py-3 sm:py-5">
+      <h3 className="min-w-0 break-words text-xl font-black sm:text-2xl [overflow-wrap:anywhere]">{exercise.prompt}</h3>
+      {exercise.hint && !checked && <button type="button" onClick={() => setShowHint(true)} className="mt-2 break-words text-left text-sm font-semibold text-slate-500 underline">{showHint ? `Hinweis: ${exercise.hint}` : 'Hinweis anzeigen'}</button>}
 
-    {exercise.type === 'choice' ? <div className="mt-5 grid min-w-0 gap-2">{item.options.map((option, optionIndex) => <button key={option.id} disabled={checked} onClick={() => submit(option.text)} className={`min-h-12 min-w-0 whitespace-normal break-words rounded-2xl border px-4 py-3 text-left font-semibold transition [overflow-wrap:anywhere] ${checked && option.correct ? 'border-lime-500 bg-lime-50' : checked && value === option.text ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white hover:border-lime-400'}`}><span className="mr-3 text-slate-400">{String.fromCharCode(65 + optionIndex)}</span>{option.text}</button>)}</div> : <><input value={value} disabled={checked} onChange={event => setValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') submit() }} className="mt-5 w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-lime-500" placeholder="Deine Antwort …" aria-label="Deine Antwort" /><div className="mt-2 flex flex-wrap gap-2">{['č','š','ž'].map(character => <button key={character} type="button" disabled={checked} onClick={() => setValue(current => current + character)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{character.toUpperCase()}</button>)}</div><button onClick={() => submit()} disabled={!value.trim() || checked} className="btn-primary mt-3 w-full justify-center whitespace-normal">Prüfen</button></>}
+      {exercise.type === 'choice' ? <div className="mt-4 grid min-w-0 gap-2 sm:mt-5 sm:grid-cols-2">{item.options.map((option, optionIndex) => <button key={option.id} disabled={checked} onClick={() => submit(option.text)} className={`min-h-12 min-w-0 whitespace-normal break-words rounded-2xl border px-4 py-3 text-left font-semibold transition [overflow-wrap:anywhere] ${checked && option.correct ? 'border-lime-500 bg-lime-50' : checked && value === option.text ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white hover:border-lime-400'}`}><span className="mr-3 text-slate-400">{String.fromCharCode(65 + optionIndex)}</span>{option.text}</button>)}</div> : <div className="mt-4 sm:mt-5">
+        {exercise.wordBank?.length ? <div className="mb-3 flex flex-wrap gap-2" aria-label="Wortbausteine">{exercise.wordBank.map((word, wordIndex) => <button key={`${word}:${wordIndex}`} type="button" disabled={checked} onClick={() => addWord(word)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold hover:border-lime-400">{word}</button>)}</div> : null}
+        <input value={value} disabled={checked} onChange={event => setValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') submit() }} className="w-full min-w-0 rounded-2xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-lime-500" placeholder={exercise.wordBank?.length ? 'Satz zusammensetzen …' : 'Deine Antwort …'} aria-label="Deine Antwort" />
+        <div className="mt-2 flex flex-wrap gap-2">{['č','š','ž'].map(character => <button key={character} type="button" disabled={checked} onClick={() => setValue(current => current + character)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{character.toUpperCase()}</button>)}</div>
+      </div>}
+    </div>
 
-    {checked && <div className={`mt-4 min-w-0 rounded-2xl p-4 ${correct ? 'bg-lime-50' : 'bg-amber-50'}`}>{correct ? <><b>{evaluation?.classification === 'ACCEPTABLE_VARIANT' ? 'Auch richtig!' : 'Pravilno!'}</b>{' '}{evaluation?.classification === 'ACCEPTABLE_VARIANT' ? 'Diese Formulierung ist ebenfalls korrekt.' : 'Genau richtig.'}</> : <><b>{classificationLabel ?? 'Noch nicht.'}</b><div className="mt-1 break-words [overflow-wrap:anywhere]">{evaluation?.explanation ?? `Richtig: ${exercise.answer}`}</div>{exercise.explanation && evaluation?.classification !== 'GRAMMAR_ERROR' && <div className="mt-2 break-words text-sm">Warum? {exercise.explanation}</div>}</>}<button onClick={next} className="mt-3 min-h-11 font-bold underline">{inRetry ? (retryIndex === retryQueue.length - 1 ? 'Sitzung abschließen' : 'Nächster Fehler') : index === session.exercises.length - 1 ? (resultsRef.current.some(result => !result.correct) ? 'Fehler wiederholen' : 'Sitzung abschließen') : 'Nächste Aufgabe'}</button></div>}
+    <div className="exercise-actions border-t border-slate-100 pt-3">
+      {!checked && exercise.type !== 'choice' && <button onClick={() => submit()} disabled={!value.trim()} className="btn-primary min-h-12 w-full justify-center whitespace-normal">Prüfen</button>}
+      {checked && <div className={`min-w-0 rounded-2xl p-3 sm:p-4 ${correct ? 'bg-lime-50' : 'bg-amber-50'}`}><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0">{correct ? <><b>{evaluation?.classification === 'ACCEPTABLE_VARIANT' ? 'Auch richtig!' : 'Pravilno!'}</b> <span>{evaluation?.classification === 'ACCEPTABLE_VARIANT' ? 'Diese Formulierung ist ebenfalls korrekt.' : 'Genau richtig.'}</span></> : <><b>{classificationLabel ?? 'Noch nicht.'}</b><div className="mt-1 break-words [overflow-wrap:anywhere]">{evaluation?.explanation ?? `Richtig: ${exercise.answer}`}</div>{exercise.explanation && evaluation?.classification !== 'GRAMMAR_ERROR' && <div className="mt-1 break-words text-sm">Warum? {exercise.explanation}</div>}</>}</div><button onClick={next} className="btn-primary min-h-11 shrink-0 justify-center whitespace-normal sm:min-w-40">{nextLabel}</button></div></div>}
+    </div>
   </div>
 }
 
