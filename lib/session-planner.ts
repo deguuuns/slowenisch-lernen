@@ -1,8 +1,7 @@
 import { vocabulary as seedVocabulary } from '@/data/seed'
 import { buildAdaptiveReviewDeck } from '@/lib/adaptive-curriculum'
-import { isExerciseEligible } from '@/lib/curriculum-access'
-import { enrichExercises } from '@/lib/curriculum-metadata'
 import { dedupeExercisesByTarget } from '@/lib/learning-targets'
+import { buildPracticeDeck, choosePracticeIntent } from '@/lib/practice-engine'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
 
 export type SessionPlan = {
@@ -22,20 +21,26 @@ function targetSize(progress: UserProgress) {
 }
 
 export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[], _activeLesson: number, vocabulary: Vocabulary[] = seedVocabulary): SessionPlan {
-  const eligible = enrichExercises(rawExercises).filter(exercise => isExerciseEligible(exercise, progress))
   const requested = targetSize(progress)
   const now = Date.now()
-  const due = (progress.reviews || []).filter(review => review.dueAt <= now).length
-  const transfer = Math.min((progress.transferQueue || []).filter(item => progress.introducedGrammarRules.includes(item.grammarRuleId) && item.dueAfter <= (progress.recentAttempts?.length || 0)).length, 2)
-  const deck = dedupeExercisesByTarget(buildAdaptiveReviewDeck(progress, eligible, requested, now, vocabulary), requested).map(exercise => ({ ...exercise }))
+
+  // Preserve generated due-review/transfer exercises, then let the central Practice Engine
+  // fill the remaining slots according to the learner's weakest current need.
+  const dueDeck = buildAdaptiveReviewDeck(progress, rawExercises, requested, now, vocabulary)
+  const adaptiveDeck = buildPracticeDeck(progress, rawExercises, requested, now)
+  const deck = dedupeExercisesByTarget([...dueDeck, ...adaptiveDeck], requested).slice(0, requested).map(exercise => ({ ...exercise }))
+
+  const intents = deck.map(exercise => choosePracticeIntent(progress, exercise, now))
+  const weakGrammar = deck.filter((exercise,index)=>intents[index]==='repair-weakness' && (exercise.grammarRuleIds?.length||exercise.requiredVerbForms?.length)).length
+  const weakVocabulary = deck.filter((exercise,index)=>intents[index]==='repair-weakness' && exercise.vocabularyIds?.length).length
 
   return {
     total: deck.length,
-    review: Math.min(deck.length, due),
-    transfer: Math.min(deck.length, transfer),
-    weakGrammar: 0,
-    weakVocabulary: 0,
-    production: deck.filter(exercise => exercise.skillTargets?.includes('production')).length,
+    review: intents.filter(intent=>intent==='review-due').length,
+    transfer: deck.filter(exercise=>Boolean(exercise.transferSourceExerciseId)).length,
+    weakGrammar,
+    weakVocabulary,
+    production: deck.filter(exercise => exercise.skillTargets?.includes('production') || exercise.skillTargets?.includes('speaking')).length,
     newContent: 0,
     exerciseItems: deck,
   }
