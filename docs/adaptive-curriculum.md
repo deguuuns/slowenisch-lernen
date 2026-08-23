@@ -19,10 +19,19 @@ Mastery wird getrennt gespeichert für:
 - `skill:recognition`
 - `skill:production`
 - `skill:grammar-application`
+- skill-spezifische Hörstufen und Sprechmodi
 
 Die Curriculum-Engine liest diese Werte nur. Die Aktualisierung erfolgt weiterhin zentral in der Progress-/Mastery-Logik.
 
 Zusätzliche Lernsignale sind Antwortzeit und Hilfenutzung. Eine richtige, aber sehr langsame oder stark unterstützte Antwort wird daher schwächer gewichtet als eine sichere, schnelle Antwort ohne Hilfe.
+
+## Adaptive Sitzungsdauer
+
+Das eingestellte Tagesziel bleibt die persönliche Referenz. Die konkrete Tagesempfehlung darf davon kontrolliert abweichen, wenn die letzten Antworten eine klare Belastung oder besonders hohe Sicherheit zeigen.
+
+Ausgewertet werden die letzten bis zu zwölf Versuche anhand von Trefferquote, durchschnittlicher Antwortzeit, Hilfenutzung und einer Häufung jüngster Fehler. Bei hoher Belastung wird die Einheit deutlich kompakter, bei erhöhter Belastung leicht verkürzt. Bei sehr sicherem, schnellem Lernen ohne Hilfen darf sie moderat verlängert werden. Ohne genügend aktuelle Daten bleibt die eingestellte Tagesdauer unverändert.
+
+Die adaptive Dauer verändert nur die Menge der geplanten Aufgaben. Fällige Wiederholungen und andere inhaltliche Prioritäten bleiben erhalten.
 
 ## Sicherheitsregeln für den Lernfluss
 
@@ -33,6 +42,7 @@ Zusätzliche Lernsignale sind Antwortzeit und Hilfenutzung. Eine richtige, aber 
 - Das Curriculum darf die Answer-Evaluation nicht umgehen.
 - Bereits eingeführte Wörter werden nicht erneut als Einführungskarte gezeigt.
 - Transferaufgaben verwenden nach Möglichkeit einen anderen Satz mit derselben Grammatikregel und werden nach erfolgreichem Transfer entfernt.
+- Die Sitzungsdauer wird nie unter fünf Minuten empfohlen und höchstens moderat über das Tagesziel hinaus verlängert.
 
 ## Deployment-Validierung
 
@@ -44,6 +54,4 @@ Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert un
 
 ## Nächste Ausbaustufe
 
-- skill-spezifische Hör- und Sprech-Mastery
-- adaptive Sitzungsdauer anhand Tagesziel und Belastung
 - Ausbau der Übungsvielfalt vor dem größeren Wortschatzimport
