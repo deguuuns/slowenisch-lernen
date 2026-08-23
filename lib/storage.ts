@@ -4,6 +4,7 @@ import { AttemptSignal, Exercise, LearnerPreferences, MasteryItem, Mistake, Revi
 import { verbFormKey } from '@/lib/curriculum-access'
 import { ERROR_RETRY_DELAY_MINUTES, REVIEW_INTERVALS_DAYS } from '@/lib/learning-config'
 import { inferTargetContentKeys, isCanonicalReviewKey } from '@/lib/learning-targets'
+import { inferMistakeCategoryFromExerciseId } from '@/lib/learning-signals'
 
 const LEGACY_KEY = 'slovensko-progress-v1'
 const KEY_PREFIX = 'slovensko-progress-v2'
@@ -49,23 +50,12 @@ function migrateReview(review: ReviewItem): ReviewItem {
   const successfulReviews = Number(review.successfulReviews ?? Math.max(0, index + 1))
   const consecutiveCorrect = Number(review.consecutiveCorrect ?? successfulReviews)
   let dueAt = Number(review.dueAt || 0)
-
-  // Legacy interval 0 used to mean ten minutes. For a recently successful card,
-  // migrate that to the new first box (one day) instead of making everything due now.
   if (successfulReviews > 0 && lastReviewedAt > 0) {
     const safeIndex = Math.max(0, index)
     const canonicalDue = lastReviewedAt + REVIEW_INTERVALS_DAYS[safeIndex] * DAY
     dueAt = Math.max(dueAt, canonicalDue)
   }
-
-  return {
-    ...review,
-    intervalIndex: index,
-    dueAt,
-    lastReviewedAt: lastReviewedAt || undefined,
-    successfulReviews,
-    consecutiveCorrect,
-  }
+  return { ...review, intervalIndex:index, dueAt, lastReviewedAt:lastReviewedAt || undefined, successfulReviews, consecutiveCorrect }
 }
 
 export function hydrateProgress(parsed: Partial<UserProgress> | null | undefined): UserProgress {
@@ -78,7 +68,7 @@ export function hydrateProgress(parsed: Partial<UserProgress> | null | undefined
     introducedVerbForms: parsed?.introducedVerbForms || [],
     wordsLearned: parsed?.wordsLearned || [],
     secureWords: parsed?.secureWords || [],
-    mistakes: parsed?.mistakes || [],
+    mistakes: (parsed?.mistakes || []).map(mistake => ({ ...mistake, category:mistake.category || inferMistakeCategoryFromExerciseId(mistake.key) })),
     reviews: (parsed?.reviews || []).filter(review => isCanonicalReviewKey(review.key)).map(migrateReview),
     mastery: { ...(parsed?.mastery || {}) },
     recentAttempts: parsed?.recentAttempts || [],
@@ -93,13 +83,7 @@ export function hydrateProgress(parsed: Partial<UserProgress> | null | undefined
 }
 
 export function hasMeaningfulProgress(progress: UserProgress) {
-  return Boolean(
-    progress.completedLessons.length ||
-    progress.introducedWords.length ||
-    progress.introducedGrammarRules.length ||
-    progress.recentAttempts.length ||
-    Object.keys(progress.mastery || {}).length,
-  )
+  return Boolean(progress.completedLessons.length || progress.introducedWords.length || progress.introducedGrammarRules.length || progress.recentAttempts.length || Object.keys(progress.mastery || {}).length)
 }
 
 export function loadProgress(ownerId?: string | null): UserProgress {
@@ -126,19 +110,11 @@ export function saveProgress(progress: UserProgress, ownerId?: string | null) {
   localStorage.setItem(key(ownerId), JSON.stringify({ ...progress, updatedAt: Date.now() }))
 }
 
-export function clearGuestProgress() {
-  if (typeof window !== 'undefined') localStorage.removeItem(key(null))
-}
+export function clearGuestProgress() { if (typeof window !== 'undefined') localStorage.removeItem(key(null)) }
 
 export function resetLearningProgress(current: UserProgress): UserProgress {
   const now = Date.now()
-  return {
-    ...defaultProgress,
-    preferences: { ...current.preferences },
-    preferencesUpdatedAt: current.preferencesUpdatedAt || now,
-    updatedAt: now,
-    resetAt: now,
-  }
+  return { ...defaultProgress, preferences:{ ...current.preferences }, preferencesUpdatedAt:current.preferencesUpdatedAt || now, updatedAt:now, resetAt:now }
 }
 
 function normalizedReviewKey(keyValue: string): string | null {
@@ -152,47 +128,26 @@ export function scheduleReview(items: ReviewItem[], rawKey: string, correct: boo
   const keyValue = normalizedReviewKey(rawKey)
   if (!keyValue) return items
   const current = items.find(item => item.key === keyValue)
-
   if (!correct) {
-    const next: ReviewItem = {
-      key: keyValue,
-      intervalIndex: -1,
-      status: 'neu',
-      dueAt: now + ERROR_RETRY_DELAY_MINUTES * 60_000,
-      updatedAt: now,
-      lastReviewedAt: now,
-      successfulReviews: current?.successfulReviews || 0,
-      consecutiveCorrect: 0,
-    }
+    const next: ReviewItem = { key:keyValue, intervalIndex:-1, status:'neu', dueAt:now + ERROR_RETRY_DELAY_MINUTES * 60_000, updatedAt:now, lastReviewedAt:now, successfulReviews:current?.successfulReviews || 0, consecutiveCorrect:0 }
     return [...items.filter(item => item.key !== keyValue), next]
   }
-
   const nextIndex = Math.min((current?.intervalIndex ?? -1) + 1, REVIEW_INTERVALS_DAYS.length - 1)
   const successfulReviews = (current?.successfulReviews || 0) + 1
   const status: ReviewItem['status'] = nextIndex >= 5 ? 'sicher' : nextIndex >= 2 ? 'gelernt' : 'unsicher'
-  const next: ReviewItem = {
-    key: keyValue,
-    intervalIndex: nextIndex,
-    status,
-    dueAt: now + REVIEW_INTERVALS_DAYS[nextIndex] * DAY,
-    updatedAt: now,
-    lastReviewedAt: now,
-    successfulReviews,
-    consecutiveCorrect: (current?.consecutiveCorrect || 0) + 1,
-  }
+  const next: ReviewItem = { key:keyValue, intervalIndex:nextIndex, status, dueAt:now + REVIEW_INTERVALS_DAYS[nextIndex] * DAY, updatedAt:now, lastReviewedAt:now, successfulReviews, consecutiveCorrect:(current?.consecutiveCorrect || 0) + 1 }
   return [...items.filter(item => item.key !== keyValue), next]
 }
 
 export function scheduleExerciseReviews(items: ReviewItem[], exercise: Exercise, correct: boolean, now = Date.now()) {
   let reviews = items
-  const targets = inferTargetContentKeys(exercise)
-  for (const target of targets) reviews = scheduleReview(reviews, target, correct, now)
+  for (const target of inferTargetContentKeys(exercise)) reviews = scheduleReview(reviews, target, correct, now)
   return reviews
 }
 
-export function registerMistake(mistakes: Mistake[], keyValue: string): Mistake[] {
+export function registerMistake(mistakes: Mistake[], keyValue: string, category = inferMistakeCategoryFromExerciseId(keyValue)): Mistake[] {
   const current = mistakes.find(mistake => mistake.key === keyValue)
-  const next: Mistake = { key: keyValue, count: (current?.count ?? 0) + 1, lastSeen: Date.now() }
+  const next: Mistake = { key:keyValue, category, count:(current?.count ?? 0) + 1, lastSeen:Date.now() }
   return [...mistakes.filter(mistake => mistake.key !== keyValue), next].sort((a, b) => b.count - a.count)
 }
 
@@ -209,18 +164,7 @@ function updateItem(old: MasteryItem | undefined, keyValue: string, kind: Master
   const observed = quality(correct, responseMs, hintsUsed, active)
   const previous = old?.score ?? .25
   const score = Math.max(0, Math.min(1, previous * .72 + observed * .28))
-  return {
-    key: keyValue,
-    kind,
-    score: +score.toFixed(3),
-    attempts,
-    correct: hits,
-    activeCorrect: (old?.activeCorrect || 0) + (correct && active ? 1 : 0),
-    passiveCorrect: (old?.passiveCorrect || 0) + (correct && !active ? 1 : 0),
-    hintsUsed: (old?.hintsUsed || 0) + hintsUsed,
-    slowCorrect: (old?.slowCorrect || 0) + (correct && responseMs > 30_000 ? 1 : 0),
-    lastSeen: Date.now(),
-  }
+  return { key:keyValue, kind, score:+score.toFixed(3), attempts, correct:hits, activeCorrect:(old?.activeCorrect || 0) + (correct && active ? 1 : 0), passiveCorrect:(old?.passiveCorrect || 0) + (correct && !active ? 1 : 0), hintsUsed:(old?.hintsUsed || 0) + hintsUsed, slowCorrect:(old?.slowCorrect || 0) + (correct && responseMs > 30_000 ? 1 : 0), lastSeen:Date.now() }
 }
 
 function inferredSkills(exercise: Exercise): SkillTarget[] {
@@ -250,18 +194,16 @@ export function updateMastery(mastery: Record<string, MasteryItem>, exercise: Ex
 
 export function updateSkillMastery(mastery: Record<string, MasteryItem>, skill: SkillTarget, correct: boolean, responseMs = 0, hintsUsed = 0) {
   const keyValue = `skill:${skill}`
-  return { ...mastery, [keyValue]: updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, skill === 'speaking' || skill === 'production') }
+  return { ...mastery, [keyValue]:updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, skill === 'speaking' || skill === 'production') }
 }
 
-export function recordAttempt(items: AttemptSignal[], signal: AttemptSignal) {
-  return [...items, signal].slice(-150)
-}
+export function recordAttempt(items: AttemptSignal[], signal: AttemptSignal) { return [...items, signal].slice(-150) }
 
 export function queueTransfers(items: TransferItem[], exercise: Exercise, correct: boolean, attemptCount: number) {
   if (correct && exercise.transferSourceExerciseId && exercise.transferRuleId) return items.filter(item => !(item.sourceExerciseId === exercise.transferSourceExerciseId && item.grammarRuleId === exercise.transferRuleId))
-  if (!correct && exercise.transferSourceExerciseId && exercise.transferRuleId) return items.map(item => item.sourceExerciseId === exercise.transferSourceExerciseId && item.grammarRuleId === exercise.transferRuleId ? { ...item, failedTransfers: (item.failedTransfers || 0) + 1, dueAfter: attemptCount + 3 } : item)
+  if (!correct && exercise.transferSourceExerciseId && exercise.transferRuleId) return items.map(item => item.sourceExerciseId === exercise.transferSourceExerciseId && item.grammarRuleId === exercise.transferRuleId ? { ...item, failedTransfers:(item.failedTransfers || 0) + 1, dueAfter:attemptCount + 3 } : item)
   if (correct || !exercise.grammarRuleIds?.length) return items
-  const created = exercise.grammarRuleIds.map(grammarRuleId => ({ sourceExerciseId: exercise.id, grammarRuleId, dueAfter: attemptCount + 2, createdAt: Date.now(), failedTransfers: 0 }))
+  const created = exercise.grammarRuleIds.map(grammarRuleId => ({ sourceExerciseId:exercise.id, grammarRuleId, dueAfter:attemptCount + 2, createdAt:Date.now(), failedTransfers:0 }))
   const map = new Map(items.map(item => [`${item.sourceExerciseId}:${item.grammarRuleId}`, item]))
   created.forEach(item => map.set(`${item.sourceExerciseId}:${item.grammarRuleId}`, item))
   return Array.from(map.values())
