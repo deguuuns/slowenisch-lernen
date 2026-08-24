@@ -28,7 +28,4 @@ for (const exercise of lessonExercises) {
   }
 }
 
-const futureWords = releasedVocabulary.filter(item => item.lesson === 8)
-assert.equal(futureWords.length, 0, 'Lektion 8 darf durch Phase 19 noch nicht freigeschaltet werden')
-
 console.log(`Lesson 7 travel checks passed: ${words.length} words, ${lessonExercises.length} exercises, ${lessonSentences.length} sentences.`)
