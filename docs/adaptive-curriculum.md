@@ -53,7 +53,7 @@ Nach Absicherung der Übungsvielfalt kann der A1-Wortschatz in größeren, kurat
 
 Phase 16 reserviert und befüllt `v121` bis `v180` für drei geplante Einheiten: Einkaufen, Unterwegs/Reisen sowie Zuhause/Wetter/Hilfe. Bestehende IDs `v001` bis `v120` bleiben unverändert. Die Freischaltung dieser neuen Wörter erfolgt erst durch spätere Lektionen und Übungen und muss weiterhin die normale Progress-, Review- und Mastery-Logik durchlaufen.
 
-Phase 18 schaltet `v121`–`v140` über Lektion 6 „Nakupovanje“ frei. Phase 19 integriert `v141`–`v160` als Lektion 7 „Na poti“. Wörter `v161`–`v180` bleiben bis zur nächsten Curriculum-Phase vorbereitet, aber nicht freigeschaltet.
+Phase 18 schaltet `v121`–`v140` über Lektion 6 „Nakupovanje“ frei. Phase 19 integriert `v141`–`v160` als Lektion 7 „Na poti“. Phase 20 integriert `v161`–`v180` als Lektion 8 „Doma in pomoč“. Damit sind alle in Phase 16 vorbereiteten A1-Wörter über reguläre Lektionen freigeschaltet und bleiben vollständig in Progress-, Review- und Mastery-Logik eingebunden.
 
 ## Sicherheitsregeln für den Lernfluss
 
@@ -78,4 +78,4 @@ Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert un
 
 ## Nächste Ausbaustufe
 
-- Phase 20: Lektion 8 „Doma in pomoč“ auf Basis von `v161`–`v180` mit Zuhause, Wetter, grundlegender Hilfe und kuratierten Transferübungen integrieren.
+- Phase 21: Vokabel- und Konjugationstraining auf der vollständigen freigegebenen A1-Basis ausbauen, mit Grundformen, gezielten Tests und sicheren Flexionsübungen ohne bestehende SRS-/Progress-Daten zu ersetzen.
