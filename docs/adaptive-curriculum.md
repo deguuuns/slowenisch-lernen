@@ -55,6 +55,12 @@ Phase 16 reserviert und befüllt `v121` bis `v180` für drei geplante Einheiten:
 
 Phase 18 schaltet `v121`–`v140` über Lektion 6 „Nakupovanje“ frei. Phase 19 integriert `v141`–`v160` als Lektion 7 „Na poti“. Phase 20 integriert `v161`–`v180` als Lektion 8 „Doma in pomoč“. Damit sind alle in Phase 16 vorbereiteten A1-Wörter über reguläre Lektionen freigeschaltet und bleiben vollständig in Progress-, Review- und Mastery-Logik eingebunden.
 
+## CEFR-Fortschrittsprofil
+
+Phase 25 ergänzt eine abgeleitete A1-Fortschrittsanzeige für Wortschatz, Grammatik, Hören, Sprechen und aktive Produktion. Sie verwendet ausschließlich bereits vorhandene Lernsignale und verändert weder `UserProgress` noch Synchronisation, Reviews oder Mastery-Daten.
+
+Die A1-Bereitschaft ist eine Lernstandsschätzung innerhalb des App-Curriculums, keine offizielle CEFR-Zertifizierung. Echte Spracheingabe bleibt von getippter Produktion getrennt; reine Textantworten dürfen die Sprechdimension nicht künstlich erhöhen. Bei zu wenig Evidenz wird ausdrücklich noch kein stabiler Leistungsstand behauptet.
+
 ## Sicherheitsregeln für den Lernfluss
 
 - Adaptiv bedeutet nicht zufällig.
@@ -67,6 +73,7 @@ Phase 18 schaltet `v121`–`v140` über Lektion 6 „Nakupovanje“ frei. Phase 
 - Die Sitzungsdauer wird nie unter fünf Minuten empfohlen und höchstens moderat über das Tagesziel hinaus verlängert.
 - Generierte Übungsvarianten dürfen keine neuen fachlichen Lösungen erfinden; Antwort und Zielbindung stammen aus einer bereits validierten Ursprungsaufgabe.
 - Ein importierter Wortschatzeintrag darf den Nutzerfortschritt nicht verändern, solange er nicht über das Curriculum freigeschaltet wurde.
+- CEFR-Anzeigen dürfen keine offizielle Prüfung vortäuschen und müssen bei geringer Evidenz entsprechend zurückhaltend bleiben.
 
 ## Deployment-Validierung
 
@@ -78,4 +85,4 @@ Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert un
 
 ## Nächste Ausbaustufe
 
-- Phase 21: Vokabel- und Konjugationstraining auf der vollständigen freigegebenen A1-Basis ausbauen, mit Grundformen, gezielten Tests und sicheren Flexionsübungen ohne bestehende SRS-/Progress-Daten zu ersetzen.
+- Phase 26: UI/UX-Polish auf dem vollständigen Lernflow, mit Fokus auf Mobile, konsistente Dark-Mode-Zustände, verständliche Leerzustände und ruhige Übergänge ohne Änderung der Lernlogik.
