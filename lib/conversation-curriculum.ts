@@ -1,6 +1,8 @@
 export type ConversationTopic='smalltalk'|'restaurant'|'travel'|'shopping'|'hotel'|'family'
 export type ConversationStep={id:string;prompt:string;translation:string;intent:string;acceptedPatterns:string[];hint:string;grammarTargets:string[];vocabulary:string[]}
 export type ConversationScenario={id:ConversationTopic;label:string;level:'A1';goal:string;grammarTargets:string[];vocabulary:string[];steps:ConversationStep[]}
+export type DialogueResponseQuality='strong'|'supported'|'weak'
+export type AdaptiveDialogueDecision={step:ConversationStep;completed:boolean;reason:'advance'|'reinforce'|'complete'}
 
 export const CONVERSATION_CURRICULUM:ConversationScenario[]=[
 {id:'smalltalk',label:'Smalltalk',level:'A1',goal:'Ort und einfache Tätigkeit nennen',grammarTargets:['location-static-v-locative','biti-present','present-singular'],vocabulary:['doma','danes','delati','kuhati'],steps:[
@@ -26,3 +28,26 @@ export function conversationScenario(id:ConversationTopic){return CONVERSATION_C
 export function conversationStepForPrompt(topic:ConversationTopic,prompt:string){const s=conversationScenario(topic);const p=prompt.trim().toLowerCase();return s.steps.find(step=>step.prompt.toLowerCase()===p)||s.steps.find(step=>p.includes(step.prompt.toLowerCase().replace(/[?!.,]/g,'')))}
 export function nextConversationStep(topic:ConversationTopic,currentStepId:string){const s=conversationScenario(topic);const i=s.steps.findIndex(step=>step.id===currentStepId);return i>=0?s.steps[Math.min(i+1,s.steps.length-1)]:s.steps[0]}
 export function scenarioForWeakTargets(weakTargets:string[]=[]){return [...CONVERSATION_CURRICULUM].sort((a,b)=>b.grammarTargets.filter(t=>weakTargets.includes(t)).length-a.grammarTargets.filter(t=>weakTargets.includes(t)).length)[0]}
+
+export function dialogueResponseQuality(message:string,hintLevel=0):DialogueResponseQuality{
+ const words=message.trim().split(/\s+/).filter(Boolean).length
+ if(hintLevel>1||words<2)return'weak'
+ if(hintLevel===1||words<4)return'supported'
+ return'strong'
+}
+
+export function adaptiveDialogueDecision(topic:ConversationTopic,currentStepId:string,quality:DialogueResponseQuality,attemptsOnStep=1):AdaptiveDialogueDecision{
+ const scenario=conversationScenario(topic)
+ const index=scenario.steps.findIndex(step=>step.id===currentStepId)
+ const current=index>=0?scenario.steps[index]:scenario.steps[0]
+ const isLast=index===scenario.steps.length-1
+ if(quality==='weak'&&attemptsOnStep<2)return{step:current,completed:false,reason:'reinforce'}
+ if(isLast)return{step:current,completed:true,reason:'complete'}
+ return{step:scenario.steps[Math.max(0,index)+1],completed:false,reason:'advance'}
+}
+
+export function dialogueProgress(topic:ConversationTopic,stepId:string){
+ const scenario=conversationScenario(topic)
+ const index=Math.max(0,scenario.steps.findIndex(step=>step.id===stepId))
+ return{current:index+1,total:scenario.steps.length,percent:Math.round(((index+1)/scenario.steps.length)*100)}
+}
