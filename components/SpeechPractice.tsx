@@ -28,10 +28,11 @@ export type SpeechResultMeta = {
   inputMode: 'speech' | 'text'
 }
 
-export default function SpeechPractice({ prompt, expected, onResult }: {
+export default function SpeechPractice({ prompt, expected, onResult, onComplete }: {
   prompt: string
   expected: string
   onResult?: (correct: boolean, actual: string, meta: SpeechResultMeta) => void
+  onComplete?: () => void
 }) {
   const [listening, setListening] = useState(false)
   const [answer, setAnswer] = useState('')
@@ -116,6 +117,7 @@ export default function SpeechPractice({ prompt, expected, onResult }: {
               </div>
               <div className="mt-2 text-[11px] opacity-70">Hinweis: Browser-Spracherkennung bewertet keine Phonetik. Die Rückmeldung zeigt, wie zuverlässig deine gesprochene Form als Zieltext erkannt wurde.</div>
             </> : correct ? <><strong>Odlično!</strong> Inhaltlich richtig. Für Aussprachefeedback nutze die Mikrofonaufnahme.</> : <><strong>{evaluation?.classification === 'GRAMMAR_ERROR' ? 'Grammatik noch unsicher.' : 'Noch nicht ganz.'}</strong><div className="mt-1 text-sm">{evaluation?.explanation || <>Korrektur: <span className="font-semibold">{expected}</span></>}</div></>}
+            {correct&&onComplete&&<button type="button" onClick={onComplete} className="mt-3 min-h-11 font-bold underline">Im Tagestraining weiter</button>}
           </div>
         )}
       </div>

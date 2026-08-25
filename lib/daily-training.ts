@@ -1,8 +1,9 @@
 import { buildSessionPlan } from '@/lib/session-planner'
 import type { SessionLoadLevel } from '@/lib/session-load'
-import { Exercise, UserProgress } from '@/types'
+import { Exercise, TargetContentKey, UserProgress } from '@/types'
 
 export type DailyTrainingBlockKind='review'|'weakness'|'lesson'|'listening'|'speaking'
+export type DailyTrainingDestination='review'|'lesson'|'speak'
 export type DailyTrainingBlock={
   id:string
   kind:DailyTrainingBlockKind
@@ -31,6 +32,23 @@ function weakTargets(progress:UserProgress){
 
 function clampMinutes(value:number){return Math.max(2,Math.round(value))}
 
+export function exerciseTargetKeys(exercise:Exercise):TargetContentKey[]{
+  const explicit=exercise.targetContentKeys||[]
+  const inferred:TargetContentKey[]=[
+    ...(exercise.vocabularyIds||[]).map(id=>`vocab:${id}` as TargetContentKey),
+    ...(exercise.grammarRuleIds||[]).map(id=>`grammar:${id}` as TargetContentKey),
+    ...(exercise.skillTargets||[]).map(id=>`skill:${id}` as TargetContentKey),
+    ...(exercise.requiredVerbForms||[]).map(item=>`verb:${item.verbId}:${item.person}:${item.number}` as TargetContentKey),
+  ]
+  return Array.from(new Set([...explicit,...inferred]))
+}
+
+export function dailyTrainingBlockDestination(block:DailyTrainingBlock):DailyTrainingDestination{
+  if(block.kind==='lesson')return 'lesson'
+  if(block.kind==='speaking')return 'speak'
+  return 'review'
+}
+
 export function buildDailyTrainingPlan(progress:UserProgress, exercises:Exercise[], activeLesson:number, now=Date.now()):DailyTrainingPlan{
   const session=buildSessionPlan(progress,exercises,activeLesson)
   const goal=session.goalMinutes
@@ -56,7 +74,9 @@ export function buildDailyTrainingPlan(progress:UserProgress, exercises:Exercise
   if(remaining>3){
     const listeningWeak=weak.some(key=>key.includes('listening'))
     const speakingWeak=weak.some(key=>key.includes('speaking')||key.includes('production'))
-    const kind:DailyTrainingBlockKind=listeningWeak?'listening':speakingWeak?'speaking':activeLesson<=5?'lesson':'speaking'
+    // Neue Inhalte bleiben auch nach den ersten fünf Lektionen Teil des Tagesplans.
+    // Frühere Phasen hatten hier versehentlich ab Lektion 6 immer Sprechen gewählt.
+    const kind:DailyTrainingBlockKind=listeningWeak?'listening':speakingWeak?'speaking':'lesson'
     const title=kind==='listening'?'Hörverständnis':kind==='speaking'?'Aktiv sprechen':`Lektion ${activeLesson} fortsetzen`
     const minutes=Math.min(remaining,clampMinutes(target*.35))
     blocks.push({id:`daily-${kind}`,kind,title,reason:listeningWeak?'Hören ist aktuell ein schwächerer Bereich.':speakingWeak?'Aktive Produktion braucht mehr Sicherheit.':'Neuer Stoff ergänzt die fällige Wiederholung.',minutes,targetKeys:[]})
