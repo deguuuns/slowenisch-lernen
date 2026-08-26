@@ -12,13 +12,9 @@ button, input, select, textarea { font: inherit; max-width: 100%; }
 button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 input, select, textarea { font-size: 16px; }
 ::selection { background: #d9f99d; }
-
 :focus-visible { outline: 3px solid #84cc16; outline-offset: 3px; }
 button:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:not(:focus-visible), textarea:focus:not(:focus-visible) { outline: none; }
-
-@supports (padding: max(0px)) {
-  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
-}
+@supports (padding: max(0px)) { body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); } }
 
 @layer components {
   .btn-primary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition duration-150 hover:-translate-y-px hover:bg-slate-800 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0; }
@@ -29,55 +25,48 @@ button:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:
   .exercise-actions { @apply shrink-0; }
   .tap-target { @apply min-h-11 min-w-11; }
   .surface-interactive { @apply transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0; }
+  .daily-training-screen { @apply min-w-0 space-y-3; }
+  .daily-training-status { @apply min-w-0 rounded-2xl bg-white px-4 py-3 shadow-soft; }
+  .daily-training-content { @apply min-h-0 min-w-0; }
 }
 
 [data-theme='dark'] { color-scheme: dark; background: #0b0f0d; }
 [data-theme='dark'] body { background: #0b0f0d; color: #edf5ee; }
-[data-theme='dark'] .card,
-[data-theme='dark'] .bg-white,
-[data-theme='dark'] .bg-white\/95 { background-color: #151b18 !important; color: #edf5ee; }
-[data-theme='dark'] .bg-slate-50,
-[data-theme='dark'] .bg-slate-100 { background-color: #1b2420 !important; }
+[data-theme='dark'] .card,[data-theme='dark'] .bg-white,[data-theme='dark'] .bg-white\/95,[data-theme='dark'] .daily-training-status { background-color: #151b18 !important; color: #edf5ee; }
+[data-theme='dark'] .bg-slate-50,[data-theme='dark'] .bg-slate-100 { background-color: #1b2420 !important; }
 [data-theme='dark'] .bg-lime-50 { background-color: #17251a !important; }
 [data-theme='dark'] .bg-lime-100 { background-color: #203820 !important; }
 [data-theme='dark'] .bg-amber-50 { background-color: #2d2414 !important; }
 [data-theme='dark'] .bg-red-50 { background-color: #32191b !important; }
 [data-theme='dark'] .text-slate-400 { color: #9aa8a0 !important; }
 [data-theme='dark'] .text-slate-500 { color: #aab6af !important; }
-[data-theme='dark'] .text-slate-600,
-[data-theme='dark'] .text-slate-700 { color: #c6d0ca !important; }
-[data-theme='dark'] .text-slate-900,
-[data-theme='dark'] .text-slate-950 { color: #f4f8f5 !important; }
-[data-theme='dark'] .border-slate-100,
-[data-theme='dark'] .border-slate-200 { border-color: #303b35 !important; }
+[data-theme='dark'] .text-slate-600,[data-theme='dark'] .text-slate-700 { color: #c6d0ca !important; }
+[data-theme='dark'] .text-slate-900,[data-theme='dark'] .text-slate-950 { color: #f4f8f5 !important; }
+[data-theme='dark'] .border-slate-100,[data-theme='dark'] .border-slate-200 { border-color: #303b35 !important; }
 [data-theme='dark'] .ring-slate-100 { --tw-ring-color: #303b35 !important; }
-[data-theme='dark'] input,
-[data-theme='dark'] select,
-[data-theme='dark'] textarea { background: #101613; color: #edf5ee; border-color: #39443e; }
-[data-theme='dark'] input::placeholder,
-[data-theme='dark'] textarea::placeholder { color: #7f8d85; }
-[data-theme='dark'] .hover\:bg-slate-50:hover,
-[data-theme='dark'] .hover\:bg-slate-200:hover { background-color: #26302b !important; }
+[data-theme='dark'] input,[data-theme='dark'] select,[data-theme='dark'] textarea { background: #101613; color: #edf5ee; border-color: #39443e; }
+[data-theme='dark'] input::placeholder,[data-theme='dark'] textarea::placeholder { color: #7f8d85; }
+[data-theme='dark'] .hover\:bg-slate-50:hover,[data-theme='dark'] .hover\:bg-slate-200:hover { background-color: #26302b !important; }
 [data-theme='dark'] .shadow-soft { box-shadow: 0 16px 40px rgba(0,0,0,.28); }
 [data-theme='dark'] :focus-visible { outline-color: #a3e635; }
 
 @media (max-width: 640px) {
   .card { @apply p-4; }
   input, select, textarea { font-size: 16px !important; }
-  .exercise-shell { height: calc(100dvh - 8.1rem); min-height: 27rem; }
+  .daily-training-screen { position: fixed; z-index: 40; inset: 0 0 calc(4.65rem + env(safe-area-inset-bottom)) 0; display: flex; flex-direction: column; gap: .65rem; overflow: hidden; padding: max(.65rem, env(safe-area-inset-top)) .65rem .65rem; background: #f7f8f4; }
+  [data-theme='dark'] .daily-training-screen { background: #0b0f0d; }
+  .daily-training-screen > .daily-training-status { flex: 0 0 auto; }
+  .daily-training-content { flex: 1 1 auto; overflow: hidden; }
+  .daily-training-content > .exercise-shell, .daily-training-content > .card { height: 100%; }
+  .daily-training-content .exercise-shell { height: 100%; min-height: 0; }
   .exercise-content { scrollbar-width: thin; }
 }
 
 @media (max-width: 640px) and (max-height: 700px) {
-  .exercise-shell { height: calc(100dvh - 7.4rem); min-height: 23rem; }
-  .exercise-content { padding-top: .55rem !important; padding-bottom: .55rem !important; }
+  .card { @apply p-3; }
+  .daily-training-screen { gap: .45rem; padding-top: max(.45rem, env(safe-area-inset-top)); padding-left: .45rem; padding-right: .45rem; }
+  .daily-training-status { padding: .55rem .75rem; }
+  .exercise-content { padding-top: .45rem !important; padding-bottom: .45rem !important; }
 }
-
-@media (min-width: 641px) {
-  .exercise-shell { min-height: 34rem; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
-}
+@media (min-width: 641px) { .exercise-shell { min-height: 34rem; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
