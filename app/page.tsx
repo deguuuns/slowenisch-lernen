@@ -1,7 +1,7 @@
 'use client'
 
 import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react'
-import { BookOpen, Brain, ChevronRight, Flame, GraduationCap, Headphones, Home, LucideIcon, Mic2, RotateCcw, Sparkles, Trophy } from 'lucide-react'
+import { BookOpen, Brain, ChevronRight, Flame, GraduationCap, Home, LucideIcon, Mic2, RotateCcw, Sparkles, Trophy } from 'lucide-react'
 import AccountMenu from '@/components/AccountMenu'
 import DailyTrainingSession from '@/components/DailyTrainingSession'
 import ExerciseDeck from '@/components/ExerciseDeck'
@@ -50,10 +50,11 @@ export default function Page(){
   useEffect(()=>{if(!session||!profileId||progressScope!==session.user.id||!hydrated.current)return;if(syncTimer.current)clearTimeout(syncTimer.current);syncTimer.current=setTimeout(async()=>{try{setSyncState('synchronisiere …');await saveCloudProgress(session,profileId,progress);setSyncState(`synchronisiert · ${new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}`)}catch{console.error('Cloud sync save failed');setSyncState('offline – lokal gespeichert')}},1200);return()=>{if(syncTimer.current)clearTimeout(syncTimer.current)}},[progress,session,profileId,progressScope])
 
   const activeLesson=Math.min(lessons.length,Math.max(1,[...progress.completedLessons,0].sort((a,b)=>b-a)[0]+1))
+  useEffect(()=>{if(hydrated.current&&lessonId===1&&activeLesson!==1)setLessonId(activeLesson)},[activeLesson,lessonId])
   function handleSession(next:CloudSession|null){if(!next){if(progressScope)saveProgress(progress,progressScope);setProgressScope(null);setProgress(loadProgress(null));setProfileId(null);setSyncState('nur lokal')}setSession(next)}
   function finishLesson(id:number){setProgress(previous=>({...previous,completedLessons:Array.from(new Set([...previous.completedLessons,id])),updatedAt:Date.now()}));setTab('progress')}
   function setPreferences(preferences:LearnerPreferences){const now=Date.now();setProgress(previous=>({...previous,preferences,preferencesUpdatedAt:now,updatedAt:now}))}
-  function go(next:NavTab){setTab(next)}
+  function go(next:NavTab){setTab(next);window.scrollTo({top:0,behavior:'smooth'})}
 
   return <main className="min-h-screen min-w-0 max-w-full pb-[calc(5.75rem+env(safe-area-inset-bottom))] md:pb-10">
     <div className="mx-auto w-full min-w-0 max-w-6xl px-4 py-4 sm:px-5 md:px-8 md:py-6">
@@ -61,7 +62,7 @@ export default function Page(){
       <div className="mt-5 grid min-w-0 gap-6 md:grid-cols-[190px_minmax(0,1fr)] md:items-start">
         <aside className="hidden md:block"><DesktopNav tab={tab} setTab={go}/></aside>
         <section className="mx-auto w-full min-w-0 max-w-4xl">
-          {tab==='home'&&<HomeView progress={progress} activeLesson={activeLesson} onContinue={()=>setTab('today')} onGo={go}/>} 
+          {tab==='home'&&<HomeView progress={progress} activeLesson={activeLesson} onContinue={()=>{setTab('today');window.scrollTo({top:0,behavior:'smooth'})}} onGo={go}/>} 
           {tab==='today'&&<DailyTrainingSession progress={progress} setProgress={setProgress} exercises={exercises} vocabulary={vocabulary} activeLesson={activeLesson} onExerciseResult={(exercise,correct,meta)=>handleExercise(exercise,correct,meta,setProgress)} onFinish={()=>setTab('progress')}/>} 
           {tab==='learn'&&<LearnView lessonId={lessonId} setLessonId={setLessonId} activeLesson={activeLesson} progress={progress} setProgress={setProgress} finishLesson={finishLesson}/>} 
           {tab==='practice'&&<PracticeHub progress={progress} activeLesson={activeLesson} setProgress={setProgress}/>} 
@@ -108,7 +109,7 @@ function HomeView({progress,activeLesson,onContinue,onGo}:{progress:UserProgress
     <section className="overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-md sm:p-6">
       <div className="flex items-start justify-between gap-4"><div><div className="text-sm font-bold text-lime-300">Heute lernen</div><h2 className="mt-1 text-3xl font-black tracking-tight">{plan.recommendedMinutes} Minuten</h2></div><div className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold">{plan.blocks.length} Teile</div></div>
       <div className="mt-4 flex flex-wrap gap-2">{plan.blocks.slice(0,4).map(block=><span key={block.id} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200">{block.title}</span>)}</div>
-      <button onClick={onContinue} className="mt-5 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl bg-lime-300 px-5 py-3.5 font-black text-slate-950">Training starten <ChevronRight size={20}/></button>
+      <button onClick={onContinue} className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-lime-300 px-5 py-3.5 font-black text-slate-950">Training starten <ChevronRight size={20}/></button>
     </section>
 
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
