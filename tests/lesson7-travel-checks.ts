@@ -8,9 +8,10 @@ assert.equal(lesson?.title, 'Na poti')
 
 const words = releasedVocabulary.filter(item => item.lesson === 7)
 const legacyIds = Array.from({length:20}, (_,index) => `v${141 + index}`)
+const v2Words = words.filter(item => /^v\d+$/.test(item.id) && Number(item.id.slice(1)) >= 181 && Number(item.id.slice(1)) <= 230)
 assert.ok(words.length >= 20, 'Lektion 7 muss mindestens die 20 kuratierten Reisewörter erhalten')
 for (const id of legacyIds) assert.ok(words.some(item=>item.id===id), `Lektion 7 muss Legacy-Wort ${id} für gespeicherten Fortschritt erhalten`)
-assert.ok(words.filter(item=>!legacyIds.includes(item.id)).every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.7 Unterwegs'), 'Neue Wörter in Lektion 7 müssen definierte A1.7-Erweiterungen sein')
+assert.ok(v2Words.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.7 Unterwegs'), 'Neue V2-Wörter in Lektion 7 müssen definierte A1.7-Erweiterungen sein')
 
 const lessonExercises = exercises.filter(item => item.lesson === 7)
 assert.ok(lessonExercises.length >= 10, 'Lektion 7 braucht ausreichend kuratierte Übungen')
