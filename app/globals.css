@@ -4,25 +4,31 @@
 
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-html { background: #f7f8f4; width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; }
+html { background: #f7f8f4; width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body { margin: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: hidden; background: #f7f8f4; color: #182018; transition: background-color .2s ease, color .2s ease; }
 main, section, header, nav, aside, div { min-width: 0; }
 img, svg, video, canvas { max-width: 100%; }
 button, input, select, textarea { font: inherit; max-width: 100%; }
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 input, select, textarea { font-size: 16px; }
 ::selection { background: #d9f99d; }
+
+:focus-visible { outline: 3px solid #84cc16; outline-offset: 3px; }
+button:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:not(:focus-visible), textarea:focus:not(:focus-visible) { outline: none; }
 
 @supports (padding: max(0px)) {
   body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 
 @layer components {
-  .btn-primary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40; }
-  .btn-secondary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-200; }
-  .card { @apply w-full max-w-full overflow-hidden rounded-3xl bg-white p-5 shadow-soft; }
+  .btn-primary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition duration-150 hover:-translate-y-px hover:bg-slate-800 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0; }
+  .btn-secondary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition duration-150 hover:-translate-y-px hover:bg-slate-200 active:translate-y-0; }
+  .card { @apply w-full max-w-full overflow-hidden rounded-3xl bg-white p-5 shadow-soft transition-[box-shadow,transform,border-color] duration-200; }
   .exercise-shell { @apply flex min-w-0 max-w-full flex-col overflow-hidden; }
-  .exercise-content { @apply min-h-0 flex-1 overflow-y-auto overscroll-contain; }
+  .exercise-content { @apply min-h-0 flex-1 overflow-y-auto overscroll-contain; scrollbar-gutter: stable; }
   .exercise-actions { @apply shrink-0; }
+  .tap-target { @apply min-h-11 min-w-11; }
+  .surface-interactive { @apply transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0; }
 }
 
 [data-theme='dark'] { color-scheme: dark; background: #0b0f0d; }
@@ -53,14 +59,25 @@ input, select, textarea { font-size: 16px; }
 [data-theme='dark'] .hover\:bg-slate-50:hover,
 [data-theme='dark'] .hover\:bg-slate-200:hover { background-color: #26302b !important; }
 [data-theme='dark'] .shadow-soft { box-shadow: 0 16px 40px rgba(0,0,0,.28); }
+[data-theme='dark'] :focus-visible { outline-color: #a3e635; }
 
 @media (max-width: 640px) {
   .card { @apply p-4; }
   input, select, textarea { font-size: 16px !important; }
-  .exercise-shell { height: calc(100dvh - 8.75rem); min-height: 30rem; }
+  .exercise-shell { height: calc(100dvh - 8.1rem); min-height: 27rem; }
   .exercise-content { scrollbar-width: thin; }
+}
+
+@media (max-width: 640px) and (max-height: 700px) {
+  .exercise-shell { height: calc(100dvh - 7.4rem); min-height: 23rem; }
+  .exercise-content { padding-top: .55rem !important; padding-bottom: .55rem !important; }
 }
 
 @media (min-width: 641px) {
   .exercise-shell { min-height: 34rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
