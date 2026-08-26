@@ -2,71 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+  --app-bg: #f6f7f4;
+  --app-surface: #ffffff;
+  --app-text: #182018;
+  --app-muted: #667069;
+  --app-line: #e5e9e4;
+  --app-accent: #b8ee63;
+  --app-accent-strong: #4d7c0f;
+}
+
 * { box-sizing: border-box; }
-html { background: #f7f8f4; width: 100%; max-width: 100%; overflow-x: hidden; -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
-body { margin: 0; min-width: 0; width: 100%; max-width: 100%; overflow-x: hidden; background: #f7f8f4; color: #182018; transition: background-color .2s ease, color .2s ease; }
+html { width: 100%; max-width: 100%; overflow-x: hidden; background: var(--app-bg); -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; width: 100%; max-width: 100%; min-width: 0; min-height: 100%; overflow-x: hidden; overflow-y: auto; background: var(--app-bg); color: var(--app-text); transition: background-color .2s ease, color .2s ease; }
 main, section, header, nav, aside, div { min-width: 0; }
 img, svg, video, canvas { max-width: 100%; }
-button, input, select, textarea { font: inherit; max-width: 100%; }
+button, input, select, textarea { max-width: 100%; font: inherit; }
 button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 input, select, textarea { font-size: 16px; }
 ::selection { background: #d9f99d; }
 :focus-visible { outline: 3px solid #84cc16; outline-offset: 3px; }
 button:focus:not(:focus-visible), input:focus:not(:focus-visible), select:focus:not(:focus-visible), textarea:focus:not(:focus-visible) { outline: none; }
-@supports (padding: max(0px)) { body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); } }
 
-@layer components {
-  .btn-primary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 font-semibold text-white transition duration-150 hover:-translate-y-px hover:bg-slate-800 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0; }
-  .btn-secondary { @apply inline-flex max-w-full items-center gap-2 rounded-xl bg-slate-100 px-4 py-2.5 font-semibold text-slate-700 transition duration-150 hover:-translate-y-px hover:bg-slate-200 active:translate-y-0; }
-  .card { @apply w-full max-w-full overflow-hidden rounded-3xl bg-white p-5 shadow-soft transition-[box-shadow,transform,border-color] duration-200; }
-  .exercise-shell { @apply flex min-w-0 max-w-full flex-col overflow-hidden; }
-  .exercise-content { @apply min-h-0 flex-1 overflow-y-auto overscroll-contain; scrollbar-gutter: stable; }
-  .exercise-actions { @apply shrink-0; }
-  .tap-target { @apply min-h-11 min-w-11; }
-  .surface-interactive { @apply transition duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0; }
-  .daily-training-screen { @apply min-w-0 space-y-3; }
-  .daily-training-status { @apply min-w-0 rounded-2xl bg-white px-4 py-3 shadow-soft; }
-  .daily-training-content { @apply min-h-0 min-w-0; }
+@supports (padding: max(0px)) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 }
 
-[data-theme='dark'] { color-scheme: dark; background: #0b0f0d; }
-[data-theme='dark'] body { background: #0b0f0d; color: #edf5ee; }
-[data-theme='dark'] .card,[data-theme='dark'] .bg-white,[data-theme='dark'] .bg-white\/95,[data-theme='dark'] .daily-training-status { background-color: #151b18 !important; color: #edf5ee; }
-[data-theme='dark'] .bg-slate-50,[data-theme='dark'] .bg-slate-100 { background-color: #1b2420 !important; }
+@layer components {
+  .btn-primary { @apply inline-flex min-h-12 max-w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white transition duration-150 hover:bg-slate-800 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-40; }
+  .btn-secondary { @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 font-semibold text-slate-700 transition duration-150 hover:bg-slate-50 active:scale-[.99]; }
+  .btn-quiet { @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100; }
+  .card { @apply w-full max-w-full rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm; overflow: visible; }
+  .surface { @apply w-full max-w-full rounded-2xl border border-slate-200/80 bg-white; }
+  .surface-soft { @apply w-full max-w-full rounded-2xl bg-slate-100/70; }
+  .eyebrow { @apply text-xs font-extrabold uppercase tracking-[0.14em] text-lime-700; }
+  .page-title { @apply text-2xl font-black tracking-tight text-slate-950 sm:text-3xl; }
+  .page-copy { @apply mt-1 text-sm leading-6 text-slate-500 sm:text-base; }
+  .progress-track { @apply h-2 w-full overflow-hidden rounded-full bg-slate-200/80; }
+  .progress-fill { @apply h-full rounded-full bg-lime-400 transition-[width] duration-300; }
+  .pill { @apply inline-flex min-h-8 items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600; }
+  .tap-target { @apply min-h-11 min-w-11; }
+  .surface-interactive { @apply transition duration-150 hover:border-lime-300 hover:bg-lime-50/40 active:scale-[.995]; }
+
+  /* Exercise layouts deliberately follow normal document flow. No fixed viewport heights, no nested scroll lock. */
+  .exercise-shell { @apply flex w-full min-w-0 max-w-full flex-col rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm sm:p-5; overflow: visible; }
+  .exercise-content { @apply min-w-0 py-4 sm:py-5; overflow: visible; }
+  .exercise-actions { @apply min-w-0 border-t border-slate-100 pt-4; }
+
+  .daily-training-screen { @apply mx-auto w-full min-w-0 max-w-3xl space-y-3; position: static; overflow: visible; }
+  .daily-training-status { @apply w-full min-w-0 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm; }
+  .daily-training-content { @apply min-w-0; overflow: visible; }
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --app-bg: #0c100e;
+  --app-surface: #151a17;
+  --app-text: #edf5ee;
+  --app-muted: #aab6af;
+  --app-line: #303b35;
+  background: var(--app-bg);
+}
+[data-theme='dark'] body { background: var(--app-bg); color: var(--app-text); }
+[data-theme='dark'] .card,
+[data-theme='dark'] .surface,
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .bg-white\/95,
+[data-theme='dark'] .daily-training-status,
+[data-theme='dark'] .exercise-shell { background-color: #151b18 !important; color: #edf5ee; border-color: #303b35; }
+[data-theme='dark'] .bg-slate-50,
+[data-theme='dark'] .bg-slate-100,
+[data-theme='dark'] .surface-soft { background-color: #1b2420 !important; }
 [data-theme='dark'] .bg-lime-50 { background-color: #17251a !important; }
 [data-theme='dark'] .bg-lime-100 { background-color: #203820 !important; }
 [data-theme='dark'] .bg-amber-50 { background-color: #2d2414 !important; }
 [data-theme='dark'] .bg-red-50 { background-color: #32191b !important; }
 [data-theme='dark'] .text-slate-400 { color: #9aa8a0 !important; }
-[data-theme='dark'] .text-slate-500 { color: #aab6af !important; }
-[data-theme='dark'] .text-slate-600,[data-theme='dark'] .text-slate-700 { color: #c6d0ca !important; }
-[data-theme='dark'] .text-slate-900,[data-theme='dark'] .text-slate-950 { color: #f4f8f5 !important; }
-[data-theme='dark'] .border-slate-100,[data-theme='dark'] .border-slate-200 { border-color: #303b35 !important; }
-[data-theme='dark'] .ring-slate-100 { --tw-ring-color: #303b35 !important; }
-[data-theme='dark'] input,[data-theme='dark'] select,[data-theme='dark'] textarea { background: #101613; color: #edf5ee; border-color: #39443e; }
-[data-theme='dark'] input::placeholder,[data-theme='dark'] textarea::placeholder { color: #7f8d85; }
-[data-theme='dark'] .hover\:bg-slate-50:hover,[data-theme='dark'] .hover\:bg-slate-200:hover { background-color: #26302b !important; }
-[data-theme='dark'] .shadow-soft { box-shadow: 0 16px 40px rgba(0,0,0,.28); }
+[data-theme='dark'] .text-slate-500,
+[data-theme='dark'] .text-slate-600,
+[data-theme='dark'] .text-slate-700 { color: #b8c3bc !important; }
+[data-theme='dark'] .text-slate-900,
+[data-theme='dark'] .text-slate-950 { color: #f4f8f5 !important; }
+[data-theme='dark'] .border-slate-100,
+[data-theme='dark'] .border-slate-200 { border-color: #303b35 !important; }
+[data-theme='dark'] input,
+[data-theme='dark'] select,
+[data-theme='dark'] textarea { background: #101613; color: #edf5ee; border-color: #39443e; }
+[data-theme='dark'] input::placeholder,
+[data-theme='dark'] textarea::placeholder { color: #7f8d85; }
+[data-theme='dark'] .btn-secondary { background-color: #151b18; color: #edf5ee; border-color: #39443e; }
+[data-theme='dark'] .btn-quiet { color: #c6d0ca; }
 [data-theme='dark'] :focus-visible { outline-color: #a3e635; }
 
 @media (max-width: 640px) {
-  .card { @apply p-4; }
+  .card, .exercise-shell { @apply p-4; }
   input, select, textarea { font-size: 16px !important; }
-  .daily-training-screen { position: fixed; z-index: 40; inset: 0 0 calc(4.65rem + env(safe-area-inset-bottom)) 0; display: flex; flex-direction: column; gap: .65rem; overflow: hidden; padding: max(.65rem, env(safe-area-inset-top)) .65rem .65rem; background: #f7f8f4; }
-  [data-theme='dark'] .daily-training-screen { background: #0b0f0d; }
-  .daily-training-screen > .daily-training-status { flex: 0 0 auto; }
-  .daily-training-content { flex: 1 1 auto; overflow: hidden; }
-  .daily-training-content > .exercise-shell, .daily-training-content > .card { height: 100%; }
-  .daily-training-content .exercise-shell { height: 100%; min-height: 0; }
-  .exercise-content { scrollbar-width: thin; }
 }
 
-@media (max-width: 640px) and (max-height: 700px) {
-  .card { @apply p-3; }
-  .daily-training-screen { gap: .45rem; padding-top: max(.45rem, env(safe-area-inset-top)); padding-left: .45rem; padding-right: .45rem; }
-  .daily-training-status { padding: .55rem .75rem; }
-  .exercise-content { padding-top: .45rem !important; padding-bottom: .45rem !important; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
-@media (min-width: 641px) { .exercise-shell { min-height: 34rem; } }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
