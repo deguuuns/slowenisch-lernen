@@ -5,7 +5,9 @@ import { CheckCircle2, RotateCcw, XCircle } from 'lucide-react'
 import LearningFocusPortal from '@/components/LearningFocusPortal'
 import { evaluateAnswer, EvaluationResult } from '@/lib/answer-evaluation'
 import { ExerciseSession, ExerciseSessionResult, SessionExercise, sessionSummary, validateCompletedSession } from '@/lib/exercise-session'
-import { Exercise } from '@/types'
+import { mistakeCategoryFromEvaluation } from '@/lib/learning-signals'
+import { buildImmediateRemediationQueue } from '@/lib/remediation-engine'
+import { Exercise, MistakeCategory } from '@/types'
 
 export type ExerciseResultMeta = { responseMs: number; hintsUsed: number }
 
@@ -27,6 +29,7 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
   const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null)
   const [results, setResults] = useState<ExerciseSessionResult[]>([])
   const resultsRef = useRef<ExerciseSessionResult[]>([])
+  const mistakeCategoriesRef = useRef<Map<string,MistakeCategory|undefined>>(new Map())
   const startedAt = useRef(Date.now())
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -36,6 +39,7 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
   useEffect(() => {
     setIndex(0);setRetryIndex(0);setRetryQueue([]);setInRetry(false);setValue('');setChecked(false);setFinished(false);setShowHint(false);setShowExplanation(false);setEvaluation(null);setResults([])
     resultsRef.current=[]
+    mistakeCategoriesRef.current=new Map()
     startedAt.current=Date.now()
   }, [session.sessionId])
 
@@ -63,6 +67,7 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
     const result=evaluate(answer)
     const responseMs=Math.max(250,Date.now()-startedAt.current)
     const hintsUsed=showHint?1:0
+    const mistakeCategory=result.isCorrect?undefined:(exercise.mistakeCategory||mistakeCategoryFromEvaluation(result))
     if(!inRetry){
       const nextResult:ExerciseSessionResult={sessionExerciseId:item.id,sourceExerciseId:item.sourceExerciseId,correct:result.isCorrect,responseMs,vocabularyIds:exercise.vocabularyIds||[],grammarRuleIds:exercise.grammarRuleIds||[]}
       const previous=resultsRef.current
@@ -70,15 +75,17 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
       const nextResults=[...previous,nextResult]
       if(nextResults.length>session.exercises.length)throw new Error(`Session ${session.sessionId} received too many results`)
       resultsRef.current=nextResults;setResults(nextResults)
+      mistakeCategoriesRef.current.set(item.id,mistakeCategory)
     }
-    setValue(answer);setEvaluation(result);setChecked(true);onResult(exercise,result.isCorrect,{responseMs,hintsUsed})
+    setValue(answer);setEvaluation(result);setChecked(true);onResult({...exercise,mistakeCategory},result.isCorrect,{responseMs,hintsUsed})
   }
 
   function beginRetryOrFinish(){
     const failedIds=new Set(resultsRef.current.filter(result=>!result.correct).map(result=>result.sessionExerciseId))
     const failed=session.exercises.filter(candidate=>failedIds.has(candidate.id))
     if(failed.length&&session.kind!=='error-review'){
-      setRetryQueue([...failed]);setRetryIndex(0);setInRetry(true);setChecked(false);setValue('');setEvaluation(null);setShowHint(false);setShowExplanation(false);startedAt.current=Date.now();return
+      const remediation=buildImmediateRemediationQueue(failed,session.exercises,mistakeCategoriesRef.current)
+      setRetryQueue(remediation.length?remediation:[...failed]);setRetryIndex(0);setInRetry(true);setChecked(false);setValue('');setEvaluation(null);setShowHint(false);setShowExplanation(false);startedAt.current=Date.now();return
     }
     setFinished(true)
   }
@@ -94,9 +101,9 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
 
   const correct=evaluation?.isCorrect??false
   const progressValue=inRetry?Math.round(((retryIndex+(checked?1:0))/Math.max(1,retryQueue.length))*100):Math.round(((index+(checked?1:0))/session.exercises.length)*100)
-  const nextLabel=inRetry?(retryIndex===retryQueue.length-1?'Sitzung abschließen':'Nächster Fehler'):index===session.exercises.length-1?(resultsRef.current.some(result=>!result.correct)?'Fehler wiederholen':'Sitzung abschließen'):'Weiter'
+  const nextLabel=inRetry?(retryIndex===retryQueue.length-1?'Sitzung abschließen':'Weiter üben'):index===session.exercises.length-1?(resultsRef.current.some(result=>!result.correct)?'Gezielt wiederholen':'Sitzung abschließen'):'Weiter'
   const classificationLabel=evaluation?.classification==='ACCEPTABLE_VARIANT'?'Auch richtig':evaluation?.classification==='MINOR_TYPO'?'Fast richtig':evaluation?.classification==='GRAMMAR_ERROR'?'Grammatik':evaluation?.classification==='INCOMPLETE'?'Noch unvollständig':'Noch nicht'
-  const progressLabel=inRetry?`Fehler wiederholen, ${retryIndex+1} von ${retryQueue.length}`:`Aufgabe ${index+1} von ${session.exercises.length}`
+  const progressLabel=inRetry?`Gezielte Wiederholung, ${retryIndex+1} von ${retryQueue.length}`:`Aufgabe ${index+1} von ${session.exercises.length}`
   const promptLong=exercise.prompt.length>72
 
   if(finished){
@@ -107,7 +114,7 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
 
   const body=<div className="exercise-shell">
     <div aria-live="polite">
-      <div className="flex items-center justify-between gap-3 text-[11px] font-bold"><span className={inRetry?'text-amber-700':'text-slate-500'}>{inRetry?<span className="inline-flex items-center gap-1"><RotateCcw size={12}/>Fehler {retryIndex+1}/{retryQueue.length}</span>:`${index+1} / ${session.exercises.length}`}</span><span className="text-slate-400">{progressValue}%</span></div>
+      <div className="flex items-center justify-between gap-3 text-[11px] font-bold"><span className={inRetry?'text-amber-700':'text-slate-500'}>{inRetry?<span className="inline-flex items-center gap-1"><RotateCcw size={12}/>Gezielt {retryIndex+1}/{retryQueue.length}</span>:`${index+1} / ${session.exercises.length}`}</span><span className="text-slate-400">{progressValue}%</span></div>
       <div className="progress-track mt-1.5" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressValue} aria-label={progressLabel}><div className="progress-fill" style={{width:`${progressValue}%`}}/></div>
     </div>
 
