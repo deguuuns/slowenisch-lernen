@@ -25,9 +25,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - name: Install browser QA runtime
-        run: |
-          npm install --no-save --package-lock=false @playwright/test@1.55.0
-          npx playwright install --with-deps chromium
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0
       - name: Start production build
         run: |
           npm start > /tmp/slowenisch-next.log 2>&1 &
