@@ -51,7 +51,7 @@ async function openWorkspace(page){
   await page.getByRole('button',{name:'Vokabeltest'}).waitFor()
 }
 
-const browser=await chromium.launch({headless:true})
+const browser=await chromium.launch({headless:true,channel:'chrome'})
 try{
   for(const viewport of viewports){
     const context=await browser.newContext({viewport:{width:viewport.width,height:viewport.height}})
@@ -80,7 +80,7 @@ try{
     await page.getByRole('button',{name:'Weiter'}).click()
     await page.getByRole('button',{name:/dva sestri/i}).click()
     assertFits(`${viewport.name} second-error-feedback`,await metrics(page))
-    await page.getByRole('button',{name:/Fehler wiederholen|Sitzung abschließen/}).click()
+    await page.getByRole('button',{name:/Gezielt wiederholen|Sitzung abschließen/}).click()
     assertFits(`${viewport.name} remediation`,await metrics(page))
 
     await openWorkspace(page)
