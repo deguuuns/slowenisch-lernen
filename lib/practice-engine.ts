@@ -1,6 +1,7 @@
 import { isExerciseEligible } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { expandExerciseVariety, presentationVarietyBonus } from '@/lib/exercise-variety'
+import { phaseMatchScore } from '@/lib/learning-cycle'
 import { dedupeExercisesByTarget, exerciseHasDueTarget, inferTargetContentKeys } from '@/lib/learning-targets'
 import { verbCatalog, VerbForm } from '@/lib/verb-catalog'
 import { Exercise, SkillTarget, UserProgress, Vocabulary } from '@/types'
@@ -25,7 +26,8 @@ export function vocabularyPracticeScore(word: Vocabulary, progress: UserProgress
   const mistakes = mistakeCount(progress,key) * 12
   const weakness = Math.round((1 - (mastery?.score ?? .25)) * 30)
   const age = review?.lastReviewedAt ? Math.min(20,Math.floor((now-review.lastReviewedAt)/86_400_000)) : 10
-  return due + mistakes + weakness + age
+  const curricularPriority = Math.max(0,6-(word.priority||5))*3
+  return due + mistakes + weakness + age + curricularPriority
 }
 
 export function rankVocabularyForPractice(words: Vocabulary[], progress: UserProgress, now = Date.now()) {
@@ -57,7 +59,7 @@ function exerciseScore(progress: UserProgress, exercise: Exercise, now = Date.no
   const targets = inferTargetContentKeys(exercise)
   const weakest = targets.length ? Math.min(...targets.map(key=>masteryScore(progress,key))) : .5
   const recent = new Set((progress.recentAttempts||[]).slice(-6).map(item=>item.exerciseId))
-  return intentWeight[intent] + Math.round((1-weakest)*30) + presentationVarietyBonus(progress,exercise) - (recent.has(exercise.id)?18:0)
+  return intentWeight[intent] + Math.round((1-weakest)*30) + phaseMatchScore(progress,{...exercise,targetContentKeys:targets}) + presentationVarietyBonus(progress,exercise) - (recent.has(exercise.id)?18:0)
 }
 
 export function buildPracticeDeck(progress: UserProgress, rawExercises: Exercise[], limit: number, now = Date.now()) {
