@@ -116,7 +116,22 @@ try{
   await keyboardPage.screenshot({path:path.join(outDir,'375x390-keyboard-focus.png'),fullPage:true})
   await keyboardContext.close()
 
-  console.log('Zero-scroll browser checks passed for all required phone viewports and keyboard simulation.')
+  const overviewContext=await browser.newContext({viewport:{width:390,height:844}})
+  const overviewPage=await overviewContext.newPage()
+  await overviewPage.goto('http://127.0.0.1:3000/',{waitUntil:'networkidle'})
+  for(let step=0;step<2;step++)await overviewPage.getByRole('button',{name:'Weiter'}).click()
+  await overviewPage.getByRole('button',{name:'Lernen starten'}).click()
+  await overviewPage.getByRole('heading',{name:'Bereit für eine Runde?'}).waitFor()
+  await overviewPage.screenshot({path:path.join(outDir,'390x844-start.png'),fullPage:true})
+  await overviewPage.getByRole('navigation').last().getByRole('button',{name:'Vokabeln'}).click()
+  await overviewPage.getByRole('heading',{name:'Vokabeln'}).waitFor()
+  await overviewPage.screenshot({path:path.join(outDir,'390x844-vocabulary-overview.png'),fullPage:true})
+  await overviewPage.getByRole('navigation').last().getByRole('button',{name:'Fortschritt'}).click()
+  await overviewPage.getByText('Fortschritt',{exact:true}).first().waitFor()
+  await overviewPage.screenshot({path:path.join(outDir,'390x844-progress.png'),fullPage:true})
+  await overviewContext.close()
+
+  console.log('Zero-scroll browser checks and overview screenshot QA passed.')
 } finally {
   await browser.close()
 }
