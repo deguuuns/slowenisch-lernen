@@ -1,5 +1,6 @@
 'use client'
 import {useMemo,useRef,useState} from 'react'
+import {Headphones} from 'lucide-react'
 import AudioButton from './AudioButton'
 import {LISTENING_CURRICULUM,recommendedListeningItems,type ListeningItem} from '@/lib/listening-curriculum'
 import {Exercise,UserProgress,Vocabulary} from '@/types'
@@ -16,12 +17,16 @@ export default function ListeningPractice({vocabulary,progress,onResult,onComple
  const item:ListeningItem=ranked[index%Math.max(1,ranked.length)]||LISTENING_CURRICULUM[0]
  const answeredAll=item.prompts.length>0&&item.prompts.every((_,qi)=>Boolean(answers[qi]))
  function answer(qi:number,option:string){if(answers[qi])return;const q=item.prompts[qi],correct=option===q.answer;setAnswers(a=>({...a,[qi]:option}));const exercise:Exercise={id:`listening:${item.id}:${qi}`,lesson:1,type:'choice',prompt:q.question,answer:q.answer,evaluationMode:'exact',skillTargets:['listening'],targetContentKeys:item.targetKeys};onResult(exercise,correct,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:(showText?1:0)+(showTranslation?1:0)})}
- function next(){setIndex(i=>(i+1)%Math.max(1,ranked.length));setAnswers({});setShowText(false);setShowTranslation(false);startedAt.current=Date.now()}
- return <div className="card min-w-0"><div className="flex items-start gap-3"><div className="min-w-0 flex-1"><div className="text-xs font-bold uppercase tracking-wide text-lime-700">Hörtraining · {item.stage}</div><h3 className="text-xl font-black">{item.title}</h3><div className="mt-1 text-sm text-slate-500">Empfohlenes Tempo: {item.recommendedSpeed==='verySlow'?'sehr langsam':item.recommendedSpeed==='slow'?'langsam':item.recommendedSpeed==='normal'?'normal':'muttersprachlich'} · adaptiv nach Hör-Lernstand</div></div></div>
- <div className="mt-4"><AudioButton text={item.text}/></div>
- <div className="mt-4 rounded-2xl bg-lime-50 p-4 text-sm text-lime-900 dark:bg-lime-950 dark:text-lime-100"><b>Zuerst nur hören.</b> Text und Übersetzung sind Hilfen und werden beim Ergebnis als Hinweis berücksichtigt.</div>
- <div className="mt-3 flex flex-wrap gap-2"><button className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold dark:bg-slate-800" onClick={()=>setShowText(v=>!v)}>{showText?'Text ausblenden':'Text anzeigen'}</button><button className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold dark:bg-slate-800" onClick={()=>setShowTranslation(v=>!v)}>{showTranslation?'Übersetzung aus':'Übersetzung anzeigen'}</button></div>
- {showText&&<p className="mt-4 rounded-2xl bg-slate-50 p-4 text-lg leading-8 dark:bg-slate-950">{item.text}</p>}{showTranslation&&<p className="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400">{item.translation}</p>}
- <div className="mt-5 space-y-4">{item.prompts.map((q,qi)=><div key={q.question}><div className="font-bold">{q.question}</div><div className="mt-2 flex flex-wrap gap-2">{q.options.map(o=>{const picked=answers[qi]===o,correct=picked&&o===q.answer,wrong=picked&&o!==q.answer;return <button key={o} disabled={Boolean(answers[qi])} onClick={()=>answer(qi,o)} className={`rounded-xl border px-3 py-2 text-sm font-semibold disabled:cursor-default ${correct?'border-lime-500 bg-lime-100 dark:bg-lime-950':wrong?'border-rose-300 bg-rose-50 dark:bg-rose-950':'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900'}`}>{o}</button>})}</div>{answers[qi]&&<div className={`mt-1 text-sm font-semibold ${answers[qi]===q.answer?'text-lime-700 dark:text-lime-300':'text-rose-700 dark:text-rose-300'}`}>{answers[qi]===q.answer?'Richtig.':'Richtig wäre: '+q.answer}</div>}</div>)}</div>
- <div className="mt-5 flex justify-end"><button className="btn-primary" disabled={Boolean(onComplete)&&!answeredAll} onClick={()=>onComplete&&answeredAll?onComplete():next()}>{onComplete?'Hörblock abschließen':'Nächste Hörübung'}</button></div></div>
+ function next(){setIndex(i=>(i+1)%Math.max(1,ranked.length));setAnswers({});setShowText(false);setShowTranslation(false);startedAt.current=Date.now();window.scrollTo({top:0,behavior:'smooth'})}
+ return <div className="surface p-4 sm:p-5">
+   <div className="flex items-center gap-2 text-lime-700"><Headphones size={18}/><span className="eyebrow">Hören</span></div>
+   <h2 className="mt-2 text-2xl font-black tracking-tight">{item.title}</h2>
+   <p className="mt-1 text-sm text-slate-500">Hör zuerst nur zu. Text und Übersetzung sind optionale Hilfen.</p>
+   <div className="mt-5 rounded-2xl bg-slate-50 p-5 text-center"><AudioButton text={item.text}/><div className="mt-2 text-xs font-bold text-slate-400">{item.recommendedSpeed==='verySlow'?'Sehr langsam':item.recommendedSpeed==='slow'?'Langsam':item.recommendedSpeed==='normal'?'Normal':'Muttersprachlich'}</div></div>
+   <div className="mt-3 flex gap-2"><button className="btn-secondary flex-1 text-sm" onClick={()=>setShowText(v=>!v)}>{showText?'Text ausblenden':'Text anzeigen'}</button><button className="btn-secondary flex-1 text-sm" onClick={()=>setShowTranslation(v=>!v)}>{showTranslation?'Übersetzung aus':'Übersetzung'}</button></div>
+   {showText&&<p className="mt-3 rounded-2xl bg-slate-50 p-4 text-lg font-semibold leading-8">{item.text}</p>}
+   {showTranslation&&<p className="mt-3 text-sm leading-6 text-slate-500">{item.translation}</p>}
+   <div className="mt-5 space-y-5">{item.prompts.map((q,qi)=><div key={q.question}><div className="font-black">{q.question}</div><div className="mt-2 grid gap-2">{q.options.map(o=>{const picked=answers[qi]===o,correct=picked&&o===q.answer,wrong=picked&&o!==q.answer;return <button key={o} disabled={Boolean(answers[qi])} onClick={()=>answer(qi,o)} className={`min-h-12 rounded-2xl border px-4 py-3 text-left font-bold ${correct?'border-lime-500 bg-lime-50':wrong?'border-amber-400 bg-amber-50':'border-slate-200 bg-white'}`}>{o}</button>})}</div>{answers[qi]&&<div className={`mt-2 text-sm font-bold ${answers[qi]===q.answer?'text-lime-700':'text-amber-700'}`}>{answers[qi]===q.answer?'Richtig':`Richtig wäre: ${q.answer}`}</div>}</div>)}</div>
+   <button className="btn-primary mt-5 w-full" disabled={Boolean(onComplete)&&!answeredAll} onClick={()=>onComplete&&answeredAll?onComplete():next()}>{onComplete?'Weiter':'Nächste Hörübung'}</button>
+ </div>
 }
