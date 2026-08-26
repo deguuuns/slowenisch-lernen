@@ -31,7 +31,7 @@ export default function ZeroScrollQaHarness(){
   const kind=params.get('case')||'input-long'
   const dark=params.get('theme')==='dark'
   const progress=useMemo(()=>({...defaultProgress,wordsLearned:releasedVocabulary.map(word=>word.id)}),[])
-  const session=useMemo(()=>createExerciseSession(kind==='error-review'?'error-review':'learning-block',cases[kind]||cases['input-long'],`qa:${kind}`),[kind])
+  const session=useMemo(()=>createExerciseSession('learning-block',cases[kind]||cases['input-long'],`qa:${kind}`),[kind])
 
   useEffect(()=>{
     if(dark)document.documentElement.dataset.theme='dark'
