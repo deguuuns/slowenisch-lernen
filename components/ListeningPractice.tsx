@@ -27,11 +27,11 @@ export default function ListeningPractice({vocabulary,progress,onResult,onComple
  const body=<div className="exercise-shell">
    <div><div className="flex items-center justify-between gap-3 text-[11px] font-bold"><span className="inline-flex items-center gap-1.5 text-lime-700"><Headphones size={13}/>Hören</span><span className="text-slate-400">{questionIndex+1}/{item.prompts.length}</span></div><div className="progress-track mt-1.5"><div className="progress-fill" style={{width:`${Math.round(((questionIndex+(answerValue?1:0))/Math.max(1,item.prompts.length))*100)}%`}}/></div></div>
    {!answerValue?<div className="exercise-content">
-     <div className="text-center"><h2 className="text-xl font-black leading-tight">{item.title}</h2><div className="mx-auto mt-3 inline-flex rounded-2xl bg-slate-50 p-3"><AudioButton text={item.text}/></div></div>
-     {(showText||showTranslation)&&<div className="mt-2 rounded-xl bg-slate-50 p-2.5 text-center"><div className="text-sm font-semibold leading-snug">{showText?item.text:item.translation}</div></div>}
-     <div className="mt-3 text-lg font-black leading-tight">{question.question}</div>
+     <div className="flex items-center justify-center gap-3 text-center"><AudioButton text={item.text} compact/><h2 className="text-lg font-black leading-tight">{item.title}</h2></div>
+     {(showText||showTranslation)&&<div className="mt-2 rounded-xl bg-slate-50 p-2 text-center"><div className="text-sm font-semibold leading-snug">{showText?item.text:item.translation}</div></div>}
+     <div className="mt-2 text-lg font-black leading-tight">{question.question}</div>
      <div className="exercise-choice-grid mt-2">{question.options.map(option=><button key={option} onClick={()=>answer(option)} className="exercise-choice surface-interactive w-full border border-slate-200 bg-white text-left font-bold">{option}</button>)}</div>
-     <div className="mt-2 flex gap-1.5"><button className="btn-quiet flex-1" onClick={()=>{setShowText(value=>!value);setShowTranslation(false)}}>{showText?'Text aus':'Text'}</button><button className="btn-quiet flex-1" onClick={()=>{setShowTranslation(value=>!value);setShowText(false)}}>{showTranslation?'Deutsch aus':'Deutsch'}</button></div>
+     <div className="mt-1.5 flex gap-1.5"><button className="btn-quiet flex-1" onClick={()=>{setShowText(value=>!value);setShowTranslation(false)}}>{showText?'Text aus':'Text'}</button><button className="btn-quiet flex-1" onClick={()=>{setShowTranslation(value=>!value);setShowText(false)}}>{showTranslation?'Deutsch aus':'Deutsch'}</button></div>
    </div>:<div className="exercise-content exercise-feedback" role="status" aria-live="polite">{correct?<CheckCircle2 className="mx-auto text-lime-700" size={38}/>:<XCircle className="mx-auto text-amber-700" size={38}/>}<div className="mt-2 text-2xl font-black">{correct?'Richtig':'Noch nicht'}</div>{!correct&&<div className="mt-3 text-base font-bold">Richtig: {question.answer}</div>}</div>}
    <div className="exercise-actions">{answerValue&&<button className="btn-primary w-full" onClick={advance}>Weiter</button>}</div>
  </div>
