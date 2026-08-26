@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { exercises, vocabulary } from '../data/seed'
+import { exercises, vocabulary } from '../data/curriculum'
 import { curriculumMetadataIssues, enrichExercises } from '../lib/curriculum-metadata'
 import { validateExerciseSet } from '../lib/exercise-integrity'
 
