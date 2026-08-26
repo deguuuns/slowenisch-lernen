@@ -3,7 +3,7 @@ import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { LEARNING_FLOW_CONFIG } from '@/lib/learning-config'
 import { MICRO_LEARNING_CYCLE, phaseForExercise } from '@/lib/learning-cycle'
-import { dedupeExercisesByTarget, withTargetMetadata } from '@/lib/learning-targets'
+import { inferTargetContentKeys, withTargetMetadata } from '@/lib/learning-targets'
 import { Exercise, TargetContentKey, Vocabulary } from '@/types'
 
 export const NEW_WORDS_PER_BLOCK = LEARNING_FLOW_CONFIG.newWordsPerBlock
@@ -101,6 +101,20 @@ export function orderExercisesByLearningCycle(exercises: Exercise[]) {
   })
 }
 
+function dedupeByTargetAndPhase(exercises:Exercise[],limit:number){
+  const used=new Set<string>()
+  const selected:Exercise[]=[]
+  for(const exercise of exercises){
+    const targets=inferTargetContentKeys(exercise)
+    const phase=phaseForExercise(exercise)
+    const signature=targets.length?`${targets.slice().sort().join('|')}::${phase}`:`${exercise.id}::${phase}`
+    if(used.has(signature))continue
+    selected.push(withTargetMetadata(exercise));used.add(signature)
+    if(selected.length>=limit)break
+  }
+  return selected
+}
+
 function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<string>, curated: Exercise[], lessonWords: Vocabulary[], limit: number) {
   const currentIds = new Set(currentWords.map(word => word.id))
   const allAvailable = new Set([...Array.from(priorAvailable), ...Array.from(currentIds)])
@@ -119,10 +133,10 @@ function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<str
     .map(withTargetMetadata)
     .map(exercise => ({ ...exercise, learningPhase:exercise.learningPhase || 'variation' as const }))
 
-  // The introduction screen is the 'understand' phase. Practice then moves forward
-  // through recognition, guided production, active production, variation and transfer.
+  // The introduction screen is the 'understand' phase. The same target may then occur
+  // once per meaningful phase; only duplicate target+phase combinations are removed.
   const ordered = orderExercisesByLearningCycle([...generated, ...contextual, ...knownWarmup])
-  return dedupeExercisesByTarget(ordered, limit)
+  return dedupeByTargetAndPhase(ordered, limit)
 }
 
 export function buildLearningBlocks(lessonId: number, vocabulary: Vocabulary[], rawExercises: Exercise[], introducedWordIds: string[], size: number = NEW_WORDS_PER_BLOCK): LearningBlock[] {
