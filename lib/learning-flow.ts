@@ -2,6 +2,7 @@ import { isVerbFormVocabularyId } from '@/lib/curriculum-access'
 import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { LEARNING_FLOW_CONFIG } from '@/lib/learning-config'
+import { MICRO_LEARNING_CYCLE, phaseForExercise } from '@/lib/learning-cycle'
 import { dedupeExercisesByTarget, withTargetMetadata } from '@/lib/learning-targets'
 import { Exercise, TargetContentKey, Vocabulary } from '@/types'
 
@@ -30,29 +31,12 @@ export function isConjugatedVerbVocabulary(word: Vocabulary) {
 }
 
 export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabulary[]): Exercise[] {
-  // Conjugated forms are first-class verb targets. Generating them again as ordinary
-  // vocabulary would create semantically wrong prompts such as “du bist” -> “si”.
-  // The dedicated Verb Learning Engine owns registered forms and their answer modes.
   if (isConjugatedVerbVocabulary(word)) return []
 
   const target = [`vocab:${word.id}` as TargetContentKey]
-  const generated: Exercise[] = [{
-    id: `gen-produce-${word.id}`,
-    lesson: word.lesson,
-    type: 'translate-de-sl',
-    prompt: `Übersetze: ${word.de}`,
-    answer: word.sl,
-    vocabularyIds: [word.id],
-    grammarRuleIds: [],
-    evaluationMode: 'acceptedVariants',
-    skillTargets: ['production'],
-    difficulty: 'easy',
-    generated: true,
-    responseScope: 'fixed',
-    targetContentKeys: target,
-  }]
-
+  const generated: Exercise[] = []
   const choices = distractors(word, lessonWords)
+
   if (choices.length >= 2) {
     generated.push({
       id: `gen-recognize-${word.id}`,
@@ -69,13 +53,28 @@ export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabul
       generated: true,
       responseScope: 'fixed',
       targetContentKeys: target,
+      learningPhase: 'recognize',
     })
   }
-  return generated
-}
 
-function generatedProduction(word: Vocabulary, lessonWords: Vocabulary[]) {
-  return generatedExercisesForWord(word, lessonWords).find(exercise => exercise.type === 'translate-de-sl')
+  generated.push({
+    id: `gen-produce-${word.id}`,
+    lesson: word.lesson,
+    type: 'translate-de-sl',
+    prompt: `Auf Slowenisch: ${word.de}`,
+    answer: word.sl,
+    vocabularyIds: [word.id],
+    grammarRuleIds: [],
+    evaluationMode: 'acceptedVariants',
+    skillTargets: ['production'],
+    difficulty: 'easy',
+    generated: true,
+    responseScope: 'fixed',
+    targetContentKeys: target,
+    learningPhase: 'active-production',
+  })
+
+  return generated
 }
 
 function usesOnly(exercise: Exercise, ids: Set<string>) {
@@ -87,6 +86,21 @@ function containsAny(exercise: Exercise, ids: Set<string>) {
   return (exercise.vocabularyIds || []).some(id => ids.has(id))
 }
 
+function phaseIndex(exercise: Exercise) {
+  const phase = phaseForExercise(exercise)
+  const index = MICRO_LEARNING_CYCLE.indexOf(phase)
+  return index < 0 ? MICRO_LEARNING_CYCLE.length : index
+}
+
+export function orderExercisesByLearningCycle(exercises: Exercise[]) {
+  return [...exercises].sort((a, b) => {
+    const phaseDifference = phaseIndex(a) - phaseIndex(b)
+    if (phaseDifference) return phaseDifference
+    const difficulty = { intro:0, easy:1, normal:2, challenge:3 }
+    return (difficulty[a.difficulty || 'normal'] ?? 2) - (difficulty[b.difficulty || 'normal'] ?? 2)
+  })
+}
+
 function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<string>, curated: Exercise[], lessonWords: Vocabulary[], limit: number) {
   const currentIds = new Set(currentWords.map(word => word.id))
   const allAvailable = new Set([...Array.from(priorAvailable), ...Array.from(currentIds)])
@@ -96,23 +110,25 @@ function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<str
     .filter(exercise => usesOnly(exercise, allAvailable) && containsAny(exercise, currentIds))
     .map(withTargetMetadata)
 
-  const productive = currentWords
-    .map(word => generatedProduction(word, lessonWords))
-    .filter((exercise): exercise is Exercise => Boolean(exercise))
+  const generated = currentWords.flatMap(word => generatedExercisesForWord(word, lessonWords))
 
   const knownWarmup = curated
     .filter(isStrictlyAssessableExercise)
     .filter(exercise => usesOnly(exercise, priorAvailable) && !containsAny(exercise, currentIds))
     .slice(-1)
     .map(withTargetMetadata)
+    .map(exercise => ({ ...exercise, learningPhase:exercise.learningPhase || 'variation' as const }))
 
-  // One primary targeted question per content key. Variation happens in later sessions,
-  // not several times in the same block.
-  return dedupeExercisesByTarget([...contextual, ...productive, ...knownWarmup], limit)
+  // The introduction screen is the 'understand' phase. Practice then moves forward
+  // through recognition, guided production, active production, variation and transfer.
+  const ordered = orderExercisesByLearningCycle([...generated, ...contextual, ...knownWarmup])
+  return dedupeExercisesByTarget(ordered, limit)
 }
 
 export function buildLearningBlocks(lessonId: number, vocabulary: Vocabulary[], rawExercises: Exercise[], introducedWordIds: string[], size: number = NEW_WORDS_PER_BLOCK): LearningBlock[] {
-  const lessonWords = vocabulary.filter(word => word.lesson === lessonId)
+  const lessonWords = vocabulary
+    .filter(word => word.lesson === lessonId)
+    .sort((a,b)=>(a.priority || 5) - (b.priority || 5) || a.id.localeCompare(b.id))
   const unseen = lessonWords.filter(word => !introducedWordIds.includes(word.id))
   const curated = enrichExercises(rawExercises).filter(exercise => exercise.lesson === lessonId)
   const blocks: LearningBlock[] = []
@@ -126,7 +142,7 @@ export function buildLearningBlocks(lessonId: number, vocabulary: Vocabulary[], 
     blocks.push({
       id: `lesson-${lessonId}-block-${blocks.length + 1}`,
       words,
-      exercises: orderBlockExercises(words, priorAvailable, curated, lessonWords, Math.max(words.length, EXERCISES_PER_BLOCK)),
+      exercises: orderBlockExercises(words, priorAvailable, curated, lessonWords, Math.max(words.length * 2, EXERCISES_PER_BLOCK)),
     })
   }
 
