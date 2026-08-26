@@ -7,8 +7,10 @@ assert.ok(lesson, 'Lektion 7 muss im freigegebenen Curriculum enthalten sein')
 assert.equal(lesson?.title, 'Na poti')
 
 const words = releasedVocabulary.filter(item => item.lesson === 7)
-assert.equal(words.length, 20, 'Lektion 7 muss genau die 20 vorbereiteten Reisewörter freischalten')
-assert.deepEqual(words.map(item => item.id), Array.from({length:20}, (_,index) => `v${141 + index}`))
+const legacyIds = Array.from({length:20}, (_,index) => `v${141 + index}`)
+assert.ok(words.length >= 20, 'Lektion 7 muss mindestens die 20 kuratierten Reisewörter erhalten')
+for (const id of legacyIds) assert.ok(words.some(item=>item.id===id), `Lektion 7 muss Legacy-Wort ${id} für gespeicherten Fortschritt erhalten`)
+assert.ok(words.filter(item=>!legacyIds.includes(item.id)).every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.7 Unterwegs'), 'Neue Wörter in Lektion 7 müssen definierte A1.7-Erweiterungen sein')
 
 const lessonExercises = exercises.filter(item => item.lesson === 7)
 assert.ok(lessonExercises.length >= 10, 'Lektion 7 braucht ausreichend kuratierte Übungen')
