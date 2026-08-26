@@ -38,7 +38,7 @@ function unitFor(word:Vocabulary){
   const unit:Record<VocabularyTopic,string>={
     basics:'A1.1 Grundlagen',people:'A1.2 Personen und Herkunft',family:'A1.3 Familie und Beziehungen',
     'numbers-time':'A1.4 Zeit und Alltag','food-drink':'A1.5 Essen und Trinken',shopping:'A1.6 Einkaufen und Kleidung',
-    travel:'A1.7 Unterwegs',home:'A1.8 Wohnen',work:'A1.4 Zeit und Alltag',weather:'A1.8 Wohnen',health:'A1.8 Wohnen',
+    travel:'A1.7 Unterwegs',home:'A1.8 Wohnen, Wetter und Hilfe',work:'A1.4 Zeit und Alltag',weather:'A1.8 Wohnen, Wetter und Hilfe',health:'A1.8 Wohnen, Wetter und Hilfe',
     clothing:'A1.6 Einkaufen und Kleidung','free-time':'A1.4 Zeit und Alltag','function-words':'A1.1 Grundlagen',other:'A1 Grundwortschatz',
   }
   return unit[topic]
