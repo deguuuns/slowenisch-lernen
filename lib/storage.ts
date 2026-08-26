@@ -1,6 +1,6 @@
 'use client'
 
-import { AttemptSignal, Exercise, LearnerPreferences, MasteryItem, Mistake, ReviewItem, SkillTarget, TransferItem, UserProgress } from '@/types'
+import { AttemptSignal, Exercise, LearnerPreferences, MasteryDimension, MasteryItem, Mistake, ReviewItem, SkillTarget, TransferItem, UserProgress } from '@/types'
 import { verbFormKey } from '@/lib/curriculum-access'
 import { ERROR_RETRY_DELAY_MINUTES, REVIEW_INTERVALS_DAYS } from '@/lib/learning-config'
 import { inferTargetContentKeys, isCanonicalReviewKey } from '@/lib/learning-targets'
@@ -159,13 +159,23 @@ function quality(correct: boolean, responseMs: number, hintsUsed: number, active
   return Math.max(.4, (speed - hintsUsed * .18) * mode)
 }
 
-function updateItem(old: MasteryItem | undefined, keyValue: string, kind: MasteryItem['kind'], correct: boolean, responseMs = 0, hintsUsed = 0, active = false): MasteryItem {
+function dimensionFromSkill(skill:SkillTarget):MasteryDimension {
+  if(skill==='production')return 'production'
+  if(skill==='listening')return 'listening'
+  if(skill==='speaking')return 'speaking'
+  if(skill==='grammar-application')return 'grammar'
+  return 'recognition'
+}
+
+function updateItem(old: MasteryItem | undefined, keyValue: string, kind: MasteryItem['kind'], correct: boolean, responseMs = 0, hintsUsed = 0, active = false, dimension?:MasteryDimension): MasteryItem {
   const attempts = (old?.attempts || 0) + 1
   const hits = (old?.correct || 0) + (correct ? 1 : 0)
   const observed = quality(correct, responseMs, hintsUsed, active)
   const previous = old?.score ?? .25
   const score = Math.max(0, Math.min(1, previous * .72 + observed * .28))
-  return { key:keyValue, kind, score:+score.toFixed(3), attempts, correct:hits, activeCorrect:(old?.activeCorrect || 0) + (correct && active ? 1 : 0), passiveCorrect:(old?.passiveCorrect || 0) + (correct && !active ? 1 : 0), hintsUsed:(old?.hintsUsed || 0) + hintsUsed, slowCorrect:(old?.slowCorrect || 0) + (correct && responseMs > 30_000 ? 1 : 0), lastSeen:Date.now() }
+  const dimensions={...(old?.dimensions||{})}
+  if(dimension){const previousDimension=dimensions[dimension]??.25;dimensions[dimension]=+Math.max(0,Math.min(1,previousDimension*.72+observed*.28)).toFixed(3)}
+  return { key:keyValue, kind, score:+score.toFixed(3), attempts, correct:hits, activeCorrect:(old?.activeCorrect || 0) + (correct && active ? 1 : 0), passiveCorrect:(old?.passiveCorrect || 0) + (correct && !active ? 1 : 0), hintsUsed:(old?.hintsUsed || 0) + hintsUsed, slowCorrect:(old?.slowCorrect || 0) + (correct && responseMs > 30_000 ? 1 : 0), lastSeen:Date.now(), dimensions }
 }
 
 function inferredSkills(exercise: Exercise): SkillTarget[] {
@@ -182,20 +192,23 @@ export function isActiveProduction(exercise: Exercise) {
 
 export function updateMastery(mastery: Record<string, MasteryItem>, exercise: Exercise, correct: boolean, responseMs = 0, hintsUsed = 0) {
   const next = { ...mastery }
+  const skills=inferredSkills(exercise)
   const active = isActiveProduction(exercise)
-  for (const id of exercise.vocabularyIds || []) next[`vocab:${id}`] = updateItem(next[`vocab:${id}`], `vocab:${id}`, 'vocabulary', correct, responseMs, hintsUsed, active)
-  for (const id of exercise.grammarRuleIds || []) next[`grammar:${id}`] = updateItem(next[`grammar:${id}`], `grammar:${id}`, 'grammar', correct, responseMs, hintsUsed, active)
+  const primaryDimension=dimensionFromSkill(skills[0]||'recognition')
+  for (const id of exercise.vocabularyIds || []) next[`vocab:${id}`] = updateItem(next[`vocab:${id}`], `vocab:${id}`, 'vocabulary', correct, responseMs, hintsUsed, active,primaryDimension)
+  for (const id of exercise.grammarRuleIds || []) next[`grammar:${id}`] = updateItem(next[`grammar:${id}`], `grammar:${id}`, 'grammar', correct, responseMs, hintsUsed, active,'grammar')
   for (const requirement of exercise.requiredVerbForms || []) {
     const reviewKey = `verb:${verbFormKey(requirement)}`
-    next[reviewKey] = updateItem(next[reviewKey], reviewKey, 'verb', correct, responseMs, hintsUsed, active)
+    next[reviewKey] = updateItem(next[reviewKey], reviewKey, 'verb', correct, responseMs, hintsUsed, active,primaryDimension)
   }
   const skillKeys = new Set([
-    ...inferredSkills(exercise).map(skill => `skill:${skill}`),
+    ...skills.map(skill => `skill:${skill}`),
     ...explicitSkillTargetKeys(exercise.targetContentKeys),
   ])
   for (const keyValue of Array.from(skillKeys)) {
+    const skillName=keyValue.replace(/^skill:/,'') as SkillTarget
     const activeSkill = keyValue.startsWith('skill:production') || keyValue.startsWith('skill:speaking')
-    next[keyValue] = updateItem(next[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, activeSkill)
+    next[keyValue] = updateItem(next[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, activeSkill,dimensionFromSkill(skillName))
   }
   return next
 }
@@ -203,7 +216,8 @@ export function updateMastery(mastery: Record<string, MasteryItem>, exercise: Ex
 export function updateSkillMastery(mastery: Record<string, MasteryItem>, skill: SkillTarget | string, correct: boolean, responseMs = 0, hintsUsed = 0) {
   const keyValue = `skill:${skill}`
   const active = skill === 'speaking' || skill === 'production' || skill.startsWith('speaking:') || skill.startsWith('production:')
-  return { ...mastery, [keyValue]:updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, active) }
+  const baseSkill=(skill.startsWith('speaking')?'speaking':skill.startsWith('production')?'production':skill.startsWith('listening')?'listening':skill.startsWith('grammar')?'grammar-application':'recognition') as SkillTarget
+  return { ...mastery, [keyValue]:updateItem(mastery[keyValue], keyValue, 'skill', correct, responseMs, hintsUsed, active,dimensionFromSkill(baseSkill)) }
 }
 
 export function recordAttempt(items: AttemptSignal[], signal: AttemptSignal) { return [...items, signal].slice(-150) }
