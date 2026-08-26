@@ -5,9 +5,11 @@ import { useSearchParams } from 'next/navigation'
 import ExerciseDeck from '@/components/ExerciseDeck'
 import ListeningPractice from '@/components/ListeningPractice'
 import SpeechPractice from '@/components/SpeechPractice'
+import VocabWorkspace from '@/components/VocabWorkspace'
 import { releasedVocabulary } from '@/data/curriculum'
 import { createExerciseSession } from '@/lib/exercise-session'
 import { defaultProgress } from '@/lib/storage'
+import { verbCatalog } from '@/lib/verb-catalog'
 import type { Exercise } from '@/types'
 
 const longGerman='Ich habe heute leider keine Zeit, weil ich am Nachmittag arbeiten muss und danach direkt nach Hause fahre.'
@@ -30,7 +32,7 @@ export default function ZeroScrollQaHarness(){
   const params=useSearchParams()
   const kind=params.get('case')||'input-long'
   const dark=params.get('theme')==='dark'
-  const progress=useMemo(()=>({...defaultProgress,wordsLearned:releasedVocabulary.map(word=>word.id)}),[])
+  const progress=useMemo(()=>({...defaultProgress,introducedWords:releasedVocabulary.map(word=>word.id),wordsLearned:releasedVocabulary.map(word=>word.id),introducedVerbForms:verbCatalog.flatMap(verb=>verb.forms.map(form=>`${verb.id}:${form.number}:${form.person}`))}),[])
   const session=useMemo(()=>createExerciseSession('learning-block',cases[kind]||cases['input-long'],`qa:${kind}`),[kind])
 
   useEffect(()=>{
@@ -41,6 +43,7 @@ export default function ZeroScrollQaHarness(){
 
   if(kind==='listening')return <ListeningPractice vocabulary={releasedVocabulary} progress={progress} onResult={()=>{}} focusMode/>
   if(kind==='speaking')return <SpeechPractice prompt="Povej po slovensko: Danes nimam časa, ker moram popoldne delati." expected="Danes nimam časa, ker moram popoldne delati." onResult={()=>{}} focusMode/>
+  if(kind==='vocab-workspace')return <VocabWorkspace vocabulary={releasedVocabulary} progress={progress} onResult={()=>{}}/>
 
   return <ExerciseDeck session={session} onResult={()=>{}} focusMode/>
 }
