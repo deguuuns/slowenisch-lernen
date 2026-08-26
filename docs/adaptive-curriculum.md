@@ -83,6 +83,6 @@ Der aktuelle Teststand wurde vor dem Preview über GitHub Actions mit Typecheck,
 
 Der iPhone-/Lernabstand-Teststand wurde erneut über GitHub Actions validiert und darf als frischer Preview-Trigger verwendet werden.
 
-## Nächste Ausbaustufe
+## Qualitätsroadmap
 
-- Phase 26: UI/UX-Polish auf dem vollständigen Lernflow, mit Fokus auf Mobile, konsistente Dark-Mode-Zustände, verständliche Leerzustände und ruhige Übergänge ohne Änderung der Lernlogik.
+Phase 26 hat den UI/UX-Polish abgeschlossen. Phase 27 führt den abschließenden Qualitäts- und Sprachaudit über den vollständigen freigegebenen Curriculum-Katalog ein. Nach erfolgreicher Phase-27-Validierung ist die vereinbarte Qualitätsroadmap abgeschlossen; weitere Änderungen sollen danach aus konkreten Nutzerbefunden, neuen Curriculum-Zielen oder gezielten Inhaltsausbauten entstehen statt aus einer offenen Feature-Schleife.
