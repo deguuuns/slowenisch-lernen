@@ -20,6 +20,7 @@ async function metrics(page){
     const root=document.querySelector('[data-learning-focus-root]')
     const body=document.body
     const html=document.documentElement
+    const main=document.querySelector('body > main')
     return {
       innerHeight:window.innerHeight,
       visualHeight:window.visualViewport?.height||window.innerHeight,
@@ -27,7 +28,7 @@ async function metrics(page){
       bodyScrollHeight:body.scrollHeight,
       rootScrollHeight:root?.scrollHeight||0,
       rootBottom:root?.getBoundingClientRect().bottom||0,
-      mainDisplay:getComputedStyle(document.querySelector('body > main')||body).display,
+      mainDisplay:main?getComputedStyle(main).display:'missing',
     }
   })
 }
@@ -43,6 +44,11 @@ function assertFits(label,m){
 async function openCase(page,kind,theme='light'){
   await page.goto(`${base}?case=${kind}${theme==='dark'?'&theme=dark':''}`,{waitUntil:'networkidle'})
   await page.waitForSelector('[data-learning-focus-root]')
+}
+
+async function openWorkspace(page){
+  await page.goto(`${base}?case=vocab-workspace`,{waitUntil:'networkidle'})
+  await page.getByRole('button',{name:'Vokabeltest'}).waitFor()
 }
 
 const browser=await chromium.launch({headless:true})
@@ -72,11 +78,22 @@ try{
     await page.getByRole('button',{name:'Prüfen'}).click()
     assertFits(`${viewport.name} error-feedback`,await metrics(page))
     await page.getByRole('button',{name:'Weiter'}).click()
-    const wrongChoice=page.getByRole('button',{name:/dva sestri/i})
-    await wrongChoice.click()
+    await page.getByRole('button',{name:/dva sestri/i}).click()
     assertFits(`${viewport.name} second-error-feedback`,await metrics(page))
     await page.getByRole('button',{name:/Fehler wiederholen|Sitzung abschließen/}).click()
     assertFits(`${viewport.name} remediation`,await metrics(page))
+
+    await openWorkspace(page)
+    await page.getByRole('button',{name:'Vokabeltest'}).click()
+    await page.waitForSelector('[data-learning-focus-root]')
+    assertFits(`${viewport.name} real-vocabulary-test`,await metrics(page))
+    if(viewport.name==='375x667')await page.screenshot({path:path.join(outDir,`${viewport.name}-vocabulary-test.png`),fullPage:true})
+    await page.getByRole('button',{name:'Zurück'}).click()
+    await page.waitForSelector('[data-learning-focus-root]',{state:'detached'})
+    await page.getByRole('button',{name:'Konjugation'}).click()
+    await page.waitForSelector('[data-learning-focus-root]')
+    assertFits(`${viewport.name} real-conjugation`,await metrics(page))
+    if(viewport.name==='375x667')await page.screenshot({path:path.join(outDir,`${viewport.name}-conjugation.png`),fullPage:true})
 
     await openCase(page,'input-long','dark')
     assertFits(`${viewport.name} dark`,await metrics(page))
