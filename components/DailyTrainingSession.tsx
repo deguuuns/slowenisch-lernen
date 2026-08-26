@@ -17,13 +17,16 @@ type ProgressSetter=Dispatch<SetStateAction<UserProgress>>
 type ResultMeta={responseMs:number;hintsUsed:number}
 type Props={progress:UserProgress;setProgress:ProgressSetter;exercises:Exercise[];vocabulary:Vocabulary[];activeLesson:number;onExerciseResult:(exercise:Exercise,correct:boolean,meta:ResultMeta)=>void;onFinish:()=>void}
 
-const speakingPrompts:[string,string][]=[
-  ['Kje si zdaj?','Zdaj sem v Sloveniji.'],
-  ['Od kod si?','Sem iz Nemčije.'],
-  ['Kje živiš?','Živim v Nemčiji.'],
-  ['Kaj piješ?','Pijem vodo.'],
-  ['Kaj potrebuješ?','Potrebujem pomoč.'],
-]
+const speakingPromptsByLesson:Record<number,[string,string]>={
+  1:['Kako si?','Dobro sem, hvala.'],
+  2:['Koliko bratov imaš?','Imam dva brata.'],
+  3:['Kdaj začneš delati?','Začnem ob osmih.'],
+  4:['Kaj piješ?','Pijem vodo.'],
+  5:['Kaj želiš?','Želim kavo.'],
+  6:['Kaj iščeš?','Iščem majico.'],
+  7:['Kje je hotel?','Hotel je tam.'],
+  8:['Kaj potrebuješ?','Potrebujem pomoč.'],
+}
 
 function blockIcon(kind:DailyTrainingBlock['kind']){if(kind==='review')return RotateCcw;if(kind==='listening')return Headphones;if(kind==='speaking')return Mic2;return Sparkles}
 function intersects(exercise:Exercise,targets:Set<string>){return exerciseTargetKeys(exercise).some(key=>targets.has(key))}
@@ -33,13 +36,17 @@ function selectBlockExercises(block:DailyTrainingBlock,progress:UserProgress,raw
   const limit=Math.max(1,Math.min(6,Math.round(block.minutes*.8)))
   let selected:Exercise[]=[]
   if(block.kind==='review'){
-    const now=Date.now(),due=new Set(progress.reviews.filter(item=>item.dueAt<=now).map(item=>item.key))
-    selected=planned.filter(exercise=>intersects(exercise,due))
+    const targets=new Set(block.targetKeys)
+    const due=new Set(progress.reviews.filter(item=>item.dueAt<=Date.now()).map(item=>item.key))
+    selected=planned.filter(exercise=>targets.size?intersects(exercise,targets):intersects(exercise,due))
   }else if(block.kind==='weakness'){
     const targets=new Set(block.targetKeys)
     selected=planned.filter(exercise=>intersects(exercise,targets))
   }
-  if(!selected.length)selected=planned
+  if(!selected.length){
+    const activeLessonDeck=planned.filter(exercise=>exercise.lesson===activeLesson)
+    selected=activeLessonDeck.length?activeLessonDeck:planned
+  }
   return selected.slice(0,limit)
 }
 
@@ -63,7 +70,7 @@ export default function DailyTrainingSession({progress,setProgress,exercises,voc
   if(!plan.blocks.length||finished)return <LearningFocusPortal><div className="exercise-shell"><div/><div className="exercise-feedback"><Check className="mx-auto text-lime-700" size={38}/><div className="eyebrow mt-4">Geschafft</div><h1 className="mt-1 text-2xl font-black">Training abgeschlossen</h1><p className="mt-2 text-sm text-slate-500">Fortschritt gespeichert.</p></div><div><button className="btn-primary w-full" onClick={onFinish}>Fertig</button></div></div></LearningFocusPortal>
 
   const Icon=blockIcon(block.kind)
-  const speakingPrompt=speakingPrompts[blockIndex%speakingPrompts.length]
+  const speakingPrompt=speakingPromptsByLesson[activeLesson]||speakingPromptsByLesson[1]
   const content=<div className="daily-training-screen">
     <div className="daily-training-status">
       <div className="flex items-center gap-2">
