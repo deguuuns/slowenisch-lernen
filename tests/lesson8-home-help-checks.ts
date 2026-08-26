@@ -7,8 +7,10 @@ assert.ok(lesson, 'Lektion 8 muss im freigegebenen Curriculum enthalten sein')
 assert.equal(lesson?.title, 'Doma in pomoč')
 
 const words = releasedVocabulary.filter(item => item.lesson === 8)
-assert.equal(words.length, 20, 'Lektion 8 muss genau die 20 vorbereiteten Wörter v161-v180 freischalten')
-assert.deepEqual(words.map(item => item.id), Array.from({length:20}, (_,index) => `v${161 + index}`))
+const legacyIds = Array.from({length:20}, (_,index) => `v${161 + index}`)
+assert.ok(words.length >= 20, 'Lektion 8 muss mindestens die 20 kuratierten Wörter v161-v180 erhalten')
+for (const id of legacyIds) assert.ok(words.some(item=>item.id===id), `Lektion 8 muss Legacy-Wort ${id} für gespeicherten Fortschritt erhalten`)
+assert.ok(words.filter(item=>!legacyIds.includes(item.id)).every(item=>item.cefrLevel==='A1'&&['A1.8 Wohnen, Wetter und Hilfe'].includes(item.curriculumUnit||'')), 'Neue Wörter in Lektion 8 müssen definierte A1.8-Erweiterungen sein')
 
 const lessonExercises = exercises.filter(item => item.lesson === 8)
 assert.ok(lessonExercises.length >= 10, 'Lektion 8 braucht ausreichend kuratierte Übungen')
@@ -30,6 +32,8 @@ for (const exercise of lessonExercises) {
   }
 }
 
-assert.equal(releasedVocabulary.filter(item => item.id >= 'v181').length, 0, 'Phase 20 darf keinen nicht vorbereiteten Wortschatz freischalten')
+const v2Words=releasedVocabulary.filter(item=>Number(item.id.replace(/^v/,''))>=181)
+assert.ok(v2Words.length>=50,'Curriculum V2 muss die definierte A1-Erweiterung freischalten')
+assert.ok(v2Words.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit),'Jede V2-Erweiterung braucht CEFR- und Curriculum-Metadaten')
 
 console.log(`Lesson 8 home/help checks passed: ${words.length} words, ${lessonExercises.length} exercises, ${lessonSentences.length} sentences.`)
