@@ -75,5 +75,5 @@ export function remediationPlan(category:MistakeCategory|undefined):{focus:strin
 export function microContext(words:Vocabulary[]){
   const byTopic=new Map<string,Vocabulary[]>()
   for(const word of words){const key=word.curriculumUnit||word.topic||word.category;byTopic.set(key,[...(byTopic.get(key)||[]),word])}
-  return [...byTopic.entries()].map(([context,items])=>({context,words:items.sort((a,b)=>(a.priority||5)-(b.priority||5)).slice(0,5)}))
+  return Array.from(byTopic.entries()).map(([context,items]:[string,Vocabulary[]])=>({context,words:items.sort((a:Vocabulary,b:Vocabulary)=>(a.priority||5)-(b.priority||5)).slice(0,5)}))
 }
