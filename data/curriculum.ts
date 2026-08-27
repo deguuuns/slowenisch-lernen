@@ -1,4 +1,5 @@
 import { a1VocabularyExpansion } from '@/data/a1-vocabulary-expansion'
+import { buildVocabularyV2 } from '@/data/a1-vocabulary-v2'
 import { lesson6, lesson6Conversation, lesson6Exercises, lesson6Sentences } from '@/data/lesson-6-shopping'
 import { lesson7, lesson7Conversation, lesson7Exercises, lesson7Sentences } from '@/data/lesson-7-travel'
 import { lesson8, lesson8Conversation, lesson8Exercises, lesson8Sentences } from '@/data/lesson-8-home-help'
@@ -10,7 +11,7 @@ import {
   vocabulary as seedVocabulary,
 } from '@/data/seed'
 
-export const vocabulary = [...seedVocabulary, ...a1VocabularyExpansion]
+export const vocabulary = buildVocabularyV2([...seedVocabulary, ...a1VocabularyExpansion])
 export const lessons = [...seedLessons, lesson6, lesson7, lesson8]
 export const sentences = [...seedSentences, ...lesson6Sentences, ...lesson7Sentences, ...lesson8Sentences]
 export const exercises = [...seedExercises, ...lesson6Exercises, ...lesson7Exercises, ...lesson8Exercises]

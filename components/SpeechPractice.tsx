@@ -1,8 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Keyboard, Mic, MicOff } from 'lucide-react'
+import { CheckCircle2, Keyboard, Mic, MicOff, XCircle } from 'lucide-react'
 import AudioButton from './AudioButton'
+import LearningFocusPortal from './LearningFocusPortal'
 import { evaluateAnswer, EvaluationResult } from '@/lib/answer-evaluation'
 import { buildSpeechFeedback, SpeechFeedback } from '@/lib/speech-feedback'
 
@@ -13,7 +14,7 @@ declare global{interface Window{webkitSpeechRecognition?:new()=>RecognitionInsta
 
 export type SpeechResultMeta={responseMs:number;replays:number;usedSlowAudio:boolean;inputMode:'speech'|'text'}
 
-export default function SpeechPractice({prompt,expected,onResult,onComplete}:{prompt:string;expected:string;onResult?:(correct:boolean,actual:string,meta:SpeechResultMeta)=>void;onComplete?:()=>void}){
+export default function SpeechPractice({prompt,expected,onResult,onComplete,focusMode=true}:{prompt:string;expected:string;onResult?:(correct:boolean,actual:string,meta:SpeechResultMeta)=>void;onComplete?:()=>void;focusMode?:boolean}){
   const [listening,setListening]=useState(false)
   const [answer,setAnswer]=useState('')
   const [checked,setChecked]=useState(false)
@@ -36,26 +37,17 @@ export default function SpeechPractice({prompt,expected,onResult,onComplete}:{pr
     instance.onend=()=>setListening(false);instance.onerror=()=>setListening(false);setListening(true);setInputMode('speech');startedAt.current=Date.now();instance.start()
   }
   function check(){if(!answer.trim())return;const result=evaluateAnswer({input:answer,expected});setEvaluation(result);setChecked(true);setSpeechFeedback(inputMode==='speech'?buildSpeechFeedback({actual:answer,expected,evaluation:result,recognitionConfidence}):null);onResult?.(result.isCorrect,answer,{responseMs:Math.max(250,Date.now()-startedAt.current),replays,usedSlowAudio:usedSlow,inputMode})}
+  function retry(){setChecked(false);setAnswer('');setEvaluation(null);setSpeechFeedback(null);setRecognitionConfidence(undefined);startedAt.current=Date.now()}
 
   const correct=checked&&(evaluation?.isCorrect??false)
-  return <div className="surface p-4 sm:p-5">
-    <div className="eyebrow">Sprechen</div>
-    <div className="mt-3 flex items-start justify-between gap-3"><h2 className="max-w-2xl break-words text-2xl font-black leading-tight sm:text-3xl [overflow-wrap:anywhere]">{prompt}</h2><AudioButton text={prompt} compact onPlay={slow=>{setReplays(value=>value+1);if(slow)setUsedSlow(true)}}/></div>
-
-    <div className="mt-6 text-center">
-      {supported?<><button type="button" onClick={()=>listening?recognition.current?.stop():start()} className={`mx-auto grid h-20 w-20 place-items-center rounded-full transition active:scale-95 ${listening?'bg-red-100 text-red-700 ring-8 ring-red-50':'bg-lime-300 text-slate-950 ring-8 ring-lime-50'}`} aria-label={listening?'Aufnahme stoppen':'Aufnahme starten'}>{listening?<MicOff size={32}/>:<Mic size={32}/>}</button><div className="mt-3 text-sm font-bold">{listening?'Ich höre zu …':answer&&inputMode==='speech'?'Noch einmal sprechen':'Tippe und sprich'}</div><div className="mt-1 text-xs text-slate-500">Slowenisch · Mikrofon</div></>:<div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">Spracherkennung ist in diesem Browser nicht verfügbar. Du kannst die Antwort weiterhin tippen.</div>}
-    </div>
-
-    {answer&&inputMode==='speech'&&<div className="mt-5 rounded-2xl bg-slate-50 p-4"><div className="text-xs font-bold uppercase tracking-wide text-slate-400">Erkannt</div><div className="mt-1 break-words text-lg font-bold">{answer}</div></div>}
-
-    <button type="button" onClick={()=>{setShowTyping(value=>!value);if(!showTyping)setInputMode('text')}} className="btn-secondary mt-5 w-full"><Keyboard size={17}/>{showTyping?'Tippen ausblenden':'Stattdessen tippen'}</button>
-    {(showTyping||!supported)&&<div className="mt-3"><input value={answer} onChange={event=>{setAnswer(event.target.value);setInputMode('text');setRecognitionConfidence(undefined);resetFeedback()}} onKeyDown={event=>{if(event.key==='Enter')check()}} placeholder="Antwort auf Slowenisch …" className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100"/></div>}
-
-    <button onClick={check} disabled={!answer.trim()} className="btn-primary mt-4 w-full">Prüfen</button>
-
-    {checked&&<div className={`mt-4 rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`} role="status" aria-live="polite">
-      {inputMode==='speech'&&speechFeedback?<><div className="font-black">{speechFeedback.title}</div><div className="mt-1 text-sm leading-6">{speechFeedback.detail}</div><div className="mt-3 flex flex-wrap gap-2 text-xs font-bold"><span className="pill">Inhalt: {speechFeedback.contentCorrect?'richtig':'korrigieren'}</span><span className="pill">Erkennung: {speechFeedback.deliveryBand==='strong'?'klar':speechFeedback.deliveryBand==='developing'?'teilweise klar':'unsicher'}</span></div></>:correct?<><div className="font-black">Richtig</div><div className="mt-1 text-sm text-slate-600">Die getippte Form stimmt. Für Aussprachefeedback nutze das Mikrofon.</div></>:<><div className="font-black">{evaluation?.classification==='GRAMMAR_ERROR'?'Grammatik noch unsicher':'Noch nicht'}</div><div className="mt-1 text-sm leading-6">{evaluation?.explanation||`Richtig wäre: ${expected}`}</div></>}
-      {correct&&onComplete&&<button type="button" onClick={onComplete} className="btn-primary mt-4 w-full">Weiter</button>}
-    </div>}
+  const body=<div className="exercise-shell">
+    <div className="flex items-center justify-between gap-3 text-[11px] font-bold"><span className="text-lime-700">Sprechen</span><AudioButton text={prompt} compact onPlay={slow=>{setReplays(value=>value+1);if(slow)setUsedSlow(true)}}/></div>
+    {!checked?<div className="exercise-content">
+      <h2 className={`exercise-prompt text-center ${prompt.length>72?'exercise-prompt-long':''}`}>{prompt}</h2>
+      {!showTyping&&supported?<div className="mt-5 text-center"><button type="button" onClick={()=>listening?recognition.current?.stop():start()} className={`mx-auto grid h-20 w-20 place-items-center rounded-full transition active:scale-95 ${listening?'bg-red-100 text-red-700 ring-8 ring-red-50':'bg-lime-300 text-slate-950 ring-8 ring-lime-50'}`} aria-label={listening?'Aufnahme stoppen':'Aufnahme starten'}>{listening?<MicOff size={32}/>:<Mic size={32}/>}</button><div className="mt-3 text-sm font-bold">{listening?'Ich höre zu …':answer?'Noch einmal sprechen':'Tippe und sprich'}</div>{answer&&<div className="mx-auto mt-2 max-w-sm truncate rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold">{answer}</div>}</div>:<div className="mt-4"><input value={answer} onFocus={()=>document.documentElement.dataset.keyboardFocus='true'} onBlur={()=>delete document.documentElement.dataset.keyboardFocus} onChange={event=>{setAnswer(event.target.value);setInputMode('text');setRecognitionConfidence(undefined);resetFeedback()}} onKeyDown={event=>{if(event.key==='Enter')check()}} placeholder="Antwort auf Slowenisch …" className="exercise-input w-full border border-slate-200 bg-white outline-none focus:border-lime-500 focus:ring-2 focus:ring-lime-100"/></div>}
+      <button type="button" onClick={()=>{setShowTyping(value=>!value);setInputMode(showTyping?'speech':'text')}} className="btn-quiet mx-auto mt-3"><Keyboard size={16}/>{showTyping?'Mit Mikrofon':'Stattdessen tippen'}</button>
+    </div>:<div className="exercise-content exercise-feedback" role="status" aria-live="polite">{correct?<CheckCircle2 className="mx-auto text-lime-700" size={38}/>:<XCircle className="mx-auto text-amber-700" size={38}/>}<div className="mt-2 text-2xl font-black">{correct?(speechFeedback?.title||'Richtig'):(evaluation?.classification==='GRAMMAR_ERROR'?'Grammatik':'Noch nicht')}</div><div className="mx-auto mt-3 max-w-md text-sm font-semibold leading-snug">{inputMode==='speech'&&speechFeedback?speechFeedback.detail:correct?'Die Form stimmt.':evaluation?.explanation||`Richtig wäre: ${expected}`}</div>{!correct&&<div className="mt-2 text-sm text-slate-500">Richtig: <b>{expected}</b></div>}</div>}
+    <div className="exercise-actions">{!checked&&<button onClick={check} disabled={!answer.trim()} className="btn-primary w-full">Prüfen</button>}{checked&&(correct&&onComplete?<button type="button" onClick={onComplete} className="btn-primary w-full">Weiter</button>:<button type="button" onClick={retry} className="btn-primary w-full">Noch einmal</button>)}</div>
   </div>
+  return <LearningFocusPortal enabled={focusMode} label="Sprechübung">{body}</LearningFocusPortal>
 }

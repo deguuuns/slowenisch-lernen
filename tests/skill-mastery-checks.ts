@@ -33,13 +33,24 @@ const listeningExercise: Exercise = {
 const listeningUpdated=updateMastery({},listeningExercise,true,5000,0)
 assert.equal(listeningUpdated['skill:listening'].attempts,1)
 assert.equal(listeningUpdated['skill:listening:dialogue'].attempts,1)
+assert.ok((listeningUpdated['skill:listening'].dimensions?.listening||0)>.25,'Listening attempts need a dedicated listening dimension')
+
+const recognitionExercise:Exercise={id:'recognize-v039',lesson:1,type:'choice',prompt:'Was bedeutet brat?',answer:'Bruder',alternatives:['Vater','Sohn'],vocabularyIds:['v039'],skillTargets:['recognition']}
+const productionExercise:Exercise={id:'produce-v039',lesson:1,type:'free',prompt:'Bruder auf Slowenisch',answer:'brat',vocabularyIds:['v039'],skillTargets:['production']}
+let vocabMastery=updateMastery({},recognitionExercise,true,3000,0)
+assert.ok((vocabMastery['vocab:v039'].dimensions?.recognition||0)>.25)
+assert.equal(vocabMastery['vocab:v039'].dimensions?.production,undefined)
+vocabMastery=updateMastery(vocabMastery,productionExercise,true,4500,0)
+assert.ok((vocabMastery['vocab:v039'].dimensions?.production||0)>.25,'A word must distinguish active production from recognition')
 
 const spoken=updateSkillMastery({},'speaking:spoken-response',true,6000,0)
 assert.ok(spoken['skill:speaking:spoken-response'])
+assert.ok((spoken['skill:speaking:spoken-response'].dimensions?.speaking||0)>.25)
 assert.equal(spoken['skill:production:typed-fallback'],undefined)
 
 const typed=updateSkillMastery({},'production:typed-fallback',true,6000,0)
 assert.ok(typed['skill:production:typed-fallback'])
+assert.ok((typed['skill:production:typed-fallback'].dimensions?.production||0)>.25)
 assert.equal(typed['skill:speaking:spoken-response'],undefined)
 
 console.log('Skill mastery checks passed')

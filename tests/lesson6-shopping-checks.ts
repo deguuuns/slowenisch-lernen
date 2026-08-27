@@ -7,8 +7,11 @@ assert.ok(lesson, 'Lektion 6 muss im freigegebenen Curriculum enthalten sein')
 assert.equal(lesson?.title, 'Nakupovanje')
 
 const words = releasedVocabulary.filter(item => item.lesson === 6)
-assert.equal(words.length, 20, 'Lektion 6 muss genau die 20 vorbereiteten Einkaufswörter freischalten')
-assert.deepEqual(words.map(item => item.id), Array.from({length:20}, (_,index) => `v${121 + index}`))
+const legacyIds = Array.from({length:20}, (_,index) => `v${121 + index}`)
+const v2Words = words.filter(item => /^v\d+$/.test(item.id) && Number(item.id.slice(1)) >= 181 && Number(item.id.slice(1)) <= 230)
+assert.ok(words.length >= 20, 'Lektion 6 muss mindestens die 20 kuratierten Einkaufswörter erhalten')
+for (const id of legacyIds) assert.ok(words.some(item=>item.id===id), `Lektion 6 muss Legacy-Wort ${id} für gespeicherten Fortschritt erhalten`)
+assert.ok(v2Words.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.6 Einkaufen und Kleidung'), 'Neue V2-Wörter in Lektion 6 müssen definierte A1.6-Erweiterungen sein')
 
 const lessonExercises = exercises.filter(item => item.lesson === 6)
 assert.ok(lessonExercises.length >= 10, 'Lektion 6 braucht ausreichend kuratierte Übungen')
