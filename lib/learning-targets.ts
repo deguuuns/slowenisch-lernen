@@ -23,28 +23,25 @@ export function inferSupportingContentKeys(exercise: Exercise): TargetContentKey
 }
 
 export function withTargetMetadata(exercise: Exercise): Exercise {
-  return { ...exercise, targetContentKeys: inferTargetContentKeys(exercise), supportingContentKeys: inferSupportingContentKeys(exercise) }
+  return { ...exercise, targetContentKeys:inferTargetContentKeys(exercise), supportingContentKeys:inferSupportingContentKeys(exercise) }
 }
 
 function normalizeSemanticText(value:string){
   return value.toLocaleLowerCase('sl').normalize('NFKC').replace(/[„“”"'!?.,;:()[\]{}]/g,' ').replace(/\s+/g,' ').trim()
 }
 
-/**
- * Identifies exercises that are effectively the same learning event even when ids or
- * superficial wording differ. Exercise type is intentionally omitted: changing the card
- * chrome must not make the same prompt/answer pair count as a fresh task.
- */
+/** Identical visible task, independent of exercise id/type/target metadata. */
+export function exerciseSurfaceFingerprint(exercise:Exercise){
+  return `${normalizeSemanticText(exercise.prompt)}::${normalizeSemanticText(exercise.answer)}`
+}
+
 export function exerciseSemanticFingerprint(exercise:Exercise){
   const targets=inferTargetContentKeys(exercise).slice().sort().join('|')
   const vocab=(exercise.vocabularyIds||[]).slice().sort().join('|')
   const grammar=(exercise.grammarRuleIds||[]).slice().sort().join('|')
-  const prompt=normalizeSemanticText(exercise.prompt)
-  const answer=normalizeSemanticText(exercise.answer)
-  return [targets,vocab,grammar,prompt,answer].join('::')
+  return [targets,vocab,grammar,exerciseSurfaceFingerprint(exercise)].join('::')
 }
 
-/** Broader fingerprint catches repeated recall of the same atom with slightly different wording. */
 export function exerciseConceptFingerprint(exercise:Exercise){
   const targets=inferTargetContentKeys(exercise).slice().sort().join('|')
   const vocab=(exercise.vocabularyIds||[]).slice().sort().join('|')
@@ -53,16 +50,12 @@ export function exerciseConceptFingerprint(exercise:Exercise){
 }
 
 export function dedupeExercisesSemantically(exercises:Exercise[],limit=Number.POSITIVE_INFINITY,allowCrossPhase=false){
-  const usedExact=new Set<string>()
-  const usedConcept=new Set<string>()
-  const selected:Exercise[]=[]
+  const usedExact=new Set<string>(),usedSurface=new Set<string>(),usedConcept=new Set<string>(),selected:Exercise[]=[]
   for(const exercise of exercises){
-    const exact=exerciseSemanticFingerprint(exercise)
-    const concept=exerciseConceptFingerprint(exercise)
-    if(usedExact.has(exact))continue
+    const exact=exerciseSemanticFingerprint(exercise),surface=exerciseSurfaceFingerprint(exercise),concept=exerciseConceptFingerprint(exercise)
+    if(usedExact.has(exact)||usedSurface.has(surface))continue
     if(!allowCrossPhase&&usedConcept.has(concept))continue
-    selected.push(withTargetMetadata(exercise))
-    usedExact.add(exact);usedConcept.add(concept)
+    selected.push(withTargetMetadata(exercise));usedExact.add(exact);usedSurface.add(surface);usedConcept.add(concept)
     if(selected.length>=limit)break
   }
   return selected
@@ -73,13 +66,11 @@ export function isReviewDue(progress: UserProgress, key: string, now = Date.now(
 export function exerciseHasDueTarget(exercise: Exercise, progress: UserProgress, now = Date.now()) { return inferTargetContentKeys(exercise).some(key => isReviewDue(progress, key, now)) }
 
 export function dedupeExercisesByTarget(exercises: Exercise[], limit = Number.POSITIVE_INFINITY) {
-  const usedTargets = new Set<string>()
-  const selected: Exercise[] = []
+  const usedTargets = new Set<string>(),selected: Exercise[] = []
   for (const exercise of exercises) {
     const targets = inferTargetContentKeys(exercise)
     if (targets.length && targets.some(target => usedTargets.has(target))) continue
-    selected.push(withTargetMetadata(exercise))
-    targets.forEach(target => usedTargets.add(target))
+    selected.push(withTargetMetadata(exercise));targets.forEach(target => usedTargets.add(target))
     if (selected.length >= limit) break
   }
   return selected
