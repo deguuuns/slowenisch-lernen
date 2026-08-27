@@ -3,13 +3,17 @@ import { enrichExercises } from '@/lib/curriculum-metadata'
 import { isStrictlyAssessableExercise } from '@/lib/exercise-integrity'
 import { LEARNING_FLOW_CONFIG } from '@/lib/learning-config'
 import { MICRO_LEARNING_CYCLE, phaseForExercise } from '@/lib/learning-cycle'
-import { inferTargetContentKeys, withTargetMetadata } from '@/lib/learning-targets'
+import { exerciseSemanticFingerprint, inferTargetContentKeys, withTargetMetadata } from '@/lib/learning-targets'
 import { Exercise, TargetContentKey, Vocabulary } from '@/types'
 
 export const NEW_WORDS_PER_BLOCK = LEARNING_FLOW_CONFIG.newWordsPerBlock
 export const EXERCISES_PER_BLOCK = LEARNING_FLOW_CONFIG.exercisesPerBlock
 export const MIN_RECALL_GAP_TASKS = LEARNING_FLOW_CONFIG.minRecallGapTasks
 
+/**
+ * A LearningBlock is an internal release batch, not an isolated lesson or exercise pool.
+ * All batches of a lesson share one semantic task history.
+ */
 export type LearningBlock = {
   id: string
   words: Vocabulary[]
@@ -32,7 +36,6 @@ export function isConjugatedVerbVocabulary(word: Vocabulary) {
 
 export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabulary[]): Exercise[] {
   if (isConjugatedVerbVocabulary(word)) return []
-
   const target = [`vocab:${word.id}` as TargetContentKey]
   const generated: Exercise[] = []
   const choices = distractors(word, lessonWords)
@@ -53,6 +56,7 @@ export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabul
       generated: true,
       responseScope: 'fixed',
       targetContentKeys: target,
+      prerequisites: word.prerequisites || [],
       learningPhase: 'recognize',
     })
   }
@@ -71,6 +75,7 @@ export function generatedExercisesForWord(word: Vocabulary, lessonWords: Vocabul
     generated: true,
     responseScope: 'fixed',
     targetContentKeys: target,
+    prerequisites: word.prerequisites || [],
     learningPhase: 'active-production',
   })
 
@@ -101,31 +106,53 @@ export function orderExercisesByLearningCycle(exercises: Exercise[]) {
   })
 }
 
-function dedupeByTargetAndPhase(exercises:Exercise[],limit:number){
-  const used=new Set<string>()
+function dedupeByTargetAndPhase(exercises:Exercise[],limit:number,usedSemantic:Set<string>){
+  const usedTargetPhase=new Set<string>()
   const selected:Exercise[]=[]
   for(const exercise of exercises){
     const targets=inferTargetContentKeys(exercise)
     const phase=phaseForExercise(exercise)
-    const signature=targets.length?`${targets.slice().sort().join('|')}::${phase}`:`${exercise.id}::${phase}`
-    if(used.has(signature))continue
-    selected.push(withTargetMetadata(exercise));used.add(signature)
+    const targetPhase=targets.length?`${targets.slice().sort().join('|')}::${phase}`:`${exercise.id}::${phase}`
+    const semantic=exerciseSemanticFingerprint(exercise)
+    if(usedTargetPhase.has(targetPhase)||usedSemantic.has(semantic))continue
+    selected.push(withTargetMetadata(exercise))
+    usedTargetPhase.add(targetPhase)
+    usedSemantic.add(semantic)
     if(selected.length>=limit)break
   }
   return selected
 }
 
-function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<string>, curated: Exercise[], lessonWords: Vocabulary[], limit: number) {
+function vocabularyPrerequisites(word:Vocabulary){
+  return (word.prerequisites||[]).filter(key=>key.startsWith('vocab:')).map(key=>key.slice('vocab:'.length))
+}
+
+/** Stable topological order: explicit prerequisites first, then sequence/priority/id. */
+export function orderVocabularyByPrerequisites(words:Vocabulary[],alreadyKnown:string[]=[]){
+  const remaining=[...words].sort((a,b)=>(a.sequence??9999)-(b.sequence??9999)||(a.priority||5)-(b.priority||5)||a.id.localeCompare(b.id))
+  const known=new Set(alreadyKnown)
+  const ordered:Vocabulary[]=[]
+  while(remaining.length){
+    const index=remaining.findIndex(word=>vocabularyPrerequisites(word).every(id=>known.has(id)||!words.some(candidate=>candidate.id===id)))
+    const next=remaining.splice(index>=0?index:0,1)[0]
+    ordered.push(next);known.add(next.id)
+  }
+  return ordered
+}
+
+function orderBatchExercises(currentWords: Vocabulary[], priorAvailable: Set<string>, curated: Exercise[], lessonWords: Vocabulary[], limit: number, usedSemantic:Set<string>) {
   const currentIds = new Set(currentWords.map(word => word.id))
   const allAvailable = new Set([...Array.from(priorAvailable), ...Array.from(currentIds)])
 
   const contextual = curated
     .filter(isStrictlyAssessableExercise)
     .filter(exercise => usesOnly(exercise, allAvailable) && containsAny(exercise, currentIds))
+    .filter(exercise => (exercise.prerequisites||[]).filter(key=>key.startsWith('vocab:')).every(key=>allAvailable.has(key.slice(6))))
     .map(withTargetMetadata)
 
   const generated = currentWords.flatMap(word => generatedExercisesForWord(word, lessonWords))
 
+  // A known-content bridge may be useful, but only once across the whole lesson.
   const knownWarmup = curated
     .filter(isStrictlyAssessableExercise)
     .filter(exercise => usesOnly(exercise, priorAvailable) && !containsAny(exercise, currentIds))
@@ -133,30 +160,29 @@ function orderBlockExercises(currentWords: Vocabulary[], priorAvailable: Set<str
     .map(withTargetMetadata)
     .map(exercise => ({ ...exercise, learningPhase:exercise.learningPhase || 'variation' as const }))
 
-  // The introduction screen is the 'understand' phase. The same target may then occur
-  // once per meaningful phase; only duplicate target+phase combinations are removed.
   const ordered = orderExercisesByLearningCycle([...generated, ...contextual, ...knownWarmup])
-  return dedupeByTargetAndPhase(ordered, limit)
+  return dedupeByTargetAndPhase(ordered, limit, usedSemantic)
 }
 
 export function buildLearningBlocks(lessonId: number, vocabulary: Vocabulary[], rawExercises: Exercise[], introducedWordIds: string[], size: number = NEW_WORDS_PER_BLOCK): LearningBlock[] {
-  const lessonWords = vocabulary
-    .filter(word => word.lesson === lessonId)
-    .sort((a,b)=>(a.priority || 5) - (b.priority || 5) || a.id.localeCompare(b.id))
+  const lessonWords = orderVocabularyByPrerequisites(
+    vocabulary.filter(word => word.lesson === lessonId),
+    introducedWordIds,
+  )
   const unseen = lessonWords.filter(word => !introducedWordIds.includes(word.id))
   const curated = enrichExercises(rawExercises).filter(exercise => exercise.lesson === lessonId)
   const blocks: LearningBlock[] = []
   const available = new Set(introducedWordIds)
+  const usedSemantic = new Set<string>()
 
   for (let start = 0; start < unseen.length; start += size) {
     const words = unseen.slice(start, start + size)
     const priorAvailable = new Set(available)
     words.forEach(word => available.add(word.id))
-
     blocks.push({
-      id: `lesson-${lessonId}-block-${blocks.length + 1}`,
+      id: `lesson-${lessonId}-batch-${blocks.length + 1}`,
       words,
-      exercises: orderBlockExercises(words, priorAvailable, curated, lessonWords, Math.max(words.length * 2, EXERCISES_PER_BLOCK)),
+      exercises: orderBatchExercises(words, priorAvailable, curated, lessonWords, Math.max(words.length * 2, EXERCISES_PER_BLOCK), usedSemantic),
     })
   }
 
