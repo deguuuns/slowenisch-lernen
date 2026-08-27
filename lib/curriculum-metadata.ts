@@ -3,15 +3,12 @@ import { Exercise, SkillTarget } from '@/types'
 
 export type ExerciseCurriculumMeta = Pick<
   Exercise,
-  'vocabularyIds' | 'grammarRuleIds' | 'evaluationMode' | 'acceptedAnswers' | 'difficulty' | 'requiredVerbForms' | 'responseScope'
-> & {
-  lesson?: number
-  skillTargets?: SkillTarget[]
-}
+  'vocabularyIds' | 'grammarRuleIds' | 'evaluationMode' | 'acceptedAnswers' | 'difficulty' | 'requiredVerbForms' | 'responseScope' | 'prerequisites' | 'learningPhase'
+> & { lesson?: number; skillTargets?: SkillTarget[] }
 
 const META: Record<string, ExerciseCurriculumMeta> = {
-  e01:{vocabularyIds:['v001','v012'],grammarRuleIds:['greeting-basic','verb-first-person'],evaluationMode:'acceptedVariants',acceptedAnswers:['Živjo, kako si?'],difficulty:'easy',responseScope:'fixed'},
-  e02:{vocabularyIds:['v011'],grammarRuleIds:['location-static-v-locative','verb-first-person'],evaluationMode:'acceptedVariants',acceptedAnswers:['Jaz sem v Sloveniji.'],difficulty:'easy',responseScope:'fixed'},
+  e01:{vocabularyIds:['v001','v181','v012'],grammarRuleIds:['greeting-basic','verb-first-person'],evaluationMode:'acceptedVariants',acceptedAnswers:['Živjo, kako si?'],difficulty:'normal',responseScope:'fixed',prerequisites:['vocab:v001','vocab:v181','vocab:v012'],learningPhase:'variation'},
+  e02:{vocabularyIds:['v011'],grammarRuleIds:['location-static-v-locative','verb-first-person'],evaluationMode:'acceptedVariants',acceptedAnswers:['Jaz sem v Sloveniji.'],difficulty:'easy',responseScope:'fixed',prerequisites:['vocab:v011','vocab:v193']},
   e03:{lesson:3,vocabularyIds:['v015','v077'],grammarRuleIds:['direction-v-accusative'],evaluationMode:'acceptedVariants',acceptedAnswers:[],difficulty:'normal',responseScope:'fixed'},
   e04:{vocabularyIds:['v028'],grammarRuleIds:['source-iz-genitive'],evaluationMode:'exact',acceptedAnswers:[],difficulty:'easy',responseScope:'fixed'},
   e05:{vocabularyIds:['v026'],grammarRuleIds:['location-static-v-locative'],evaluationMode:'exact',acceptedAnswers:[],difficulty:'easy',responseScope:'fixed'},
@@ -38,7 +35,7 @@ const META: Record<string, ExerciseCurriculumMeta> = {
   e26:{vocabularyIds:['v104','v005'],grammarRuleIds:['politeness-prosim'],evaluationMode:'acceptedVariants',acceptedAnswers:['Prosim, meni.'],difficulty:'easy',responseScope:'fixed'},
   e27:{vocabularyIds:['v105','v005'],grammarRuleIds:['politeness-prosim'],evaluationMode:'acceptedVariants',acceptedAnswers:['Prosim, račun.'],difficulty:'easy',responseScope:'fixed'},
   e28:{vocabularyIds:['v108','v109'],grammarRuleIds:['polite-request-lahko'],evaluationMode:'acceptedVariants',acceptedAnswers:['Lahko prosim ponovite?'],difficulty:'normal',responseScope:'fixed'},
-  e29:{vocabularyIds:['v008','v120'],grammarRuleIds:['verbal-negation'],evaluationMode:'acceptedVariants',acceptedAnswers:[],difficulty:'normal',responseScope:'fixed'},
+  e29:{vocabularyIds:['v008','v120','v234'],grammarRuleIds:['verbal-negation'],evaluationMode:'acceptedVariants',acceptedAnswers:[],difficulty:'normal',responseScope:'fixed',prerequisites:['vocab:v008','vocab:v120','vocab:v234']},
   e30:{vocabularyIds:['v111','v112','v055','v005'],grammarRuleIds:['number-basics','dual-masculine-numeral','politeness-prosim'],evaluationMode:'acceptedVariants',acceptedAnswers:['Prosim, miza za dva.'],difficulty:'challenge',responseScope:'fixed'},
   e31:{vocabularyIds:['v118','v119','v088','v005'],grammarRuleIds:['restaurant-quantity','politeness-prosim'],evaluationMode:'acceptedVariants',acceptedAnswers:['Še eno pivo prosim.'],difficulty:'normal',responseScope:'fixed'},
   e32:{vocabularyIds:['v101','v024'],grammarRuleIds:['direction-v-accusative','accusative-feminine-a-o','verb-first-person'],evaluationMode:'grammar',acceptedAnswers:[],difficulty:'challenge',responseScope:'fixed'},
@@ -63,24 +60,20 @@ export function enrichExercise(exercise: Exercise): Exercise {
     skillTargets: exercise.skillTargets ?? meta?.skillTargets ?? inferSkills(exercise),
     difficulty: exercise.difficulty ?? meta?.difficulty ?? (exercise.type === 'choice' ? 'easy' : 'normal'),
     responseScope: exercise.responseScope ?? meta?.responseScope ?? 'fixed',
+    prerequisites: exercise.prerequisites ?? meta?.prerequisites ?? [],
+    learningPhase: exercise.learningPhase ?? meta?.learningPhase,
   }
-  return {
-    ...base,
-    requiredVerbForms:
-      exercise.requiredVerbForms ?? meta?.requiredVerbForms ?? inferRequiredVerbForms(base),
-  }
+  return { ...base, requiredVerbForms:exercise.requiredVerbForms ?? meta?.requiredVerbForms ?? inferRequiredVerbForms(base) }
 }
 
-export function enrichExercises(items: Exercise[]): Exercise[] {
-  return items.map(enrichExercise)
-}
+export function enrichExercises(items: Exercise[]): Exercise[] { return items.map(enrichExercise) }
 
 export function curriculumMetadataIssues(items: Exercise[]) {
   return enrichExercises(items).flatMap(exercise => {
     const issues: string[] = []
     if (!exercise.vocabularyIds?.length) issues.push(`${exercise.id}: keine vocabularyIds`)
     if ((exercise.type === 'fill' || exercise.type === 'ending') && !exercise.grammarRuleIds?.length) issues.push(`${exercise.id}: Formübung ohne grammarRuleIds`)
-    if (exercise.type === 'free' && exercise.evaluationMode !== 'open' && exercise.evaluationMode !== 'semantic') issues.push(`${exercise.id}: freie Antwort nicht als open/semantic markiert`)
+    if (exercise.type === 'free' && exercise.evaluationMode !== 'open' && exercise.evaluationMode !== 'semantic' && !exercise.wordBank?.length) issues.push(`${exercise.id}: freie Antwort nicht als open/semantic markiert`)
     if (exercise.responseScope === 'personal-open' && exercise.evaluationMode !== 'open' && exercise.evaluationMode !== 'semantic') issues.push(`${exercise.id}: persönliche Antwort nicht als open/semantic markiert`)
     if (!exercise.skillTargets?.length) issues.push(`${exercise.id}: keine skillTargets`)
     if (!exercise.difficulty) issues.push(`${exercise.id}: keine difficulty`)
