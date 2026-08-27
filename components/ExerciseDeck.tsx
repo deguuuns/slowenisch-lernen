@@ -122,21 +122,22 @@ export default function ExerciseDeck({ session, onResult, onComplete, focusMode 
       <h2 className={`exercise-prompt ${promptLong?'exercise-prompt-long':''}`}>{exercise.prompt}</h2>
       {exercise.hint&&<button type="button" onClick={()=>setShowHint(true)} className="btn-quiet mt-1 self-start -ml-2">Hinweis</button>}
 
-      {exercise.type==='choice'?<div className="exercise-choice-grid mt-3">{item.options.map((option,optionIndex)=><button key={option.id} disabled={checked} onClick={()=>submit(option.text)} className="exercise-choice surface-interactive w-full whitespace-normal break-words border border-slate-200 bg-white text-left font-bold [overflow-wrap:anywhere]"><span className="mr-2 inline-grid h-6 w-6 place-items-center rounded-md bg-slate-100 text-[10px] text-slate-500">{String.fromCharCode(65+optionIndex)}</span>{option.text}</button>)}</div>:<div className="mt-3 min-h-0">
+      {exercise.type==='choice'?<div className="exercise-choice-grid mt-3">{item.options.map((option,optionIndex)=>{
+        const selected=value===option.text
+        return <button key={option.id} type="button" disabled={checked} aria-pressed={selected} onClick={()=>setValue(option.text)} className={`exercise-choice surface-interactive w-full whitespace-normal break-words border text-left font-bold [overflow-wrap:anywhere] ${selected?'border-lime-500 bg-lime-50 ring-2 ring-lime-100':'border-slate-200 bg-white'}`}><span className={`mr-2 inline-grid h-6 w-6 place-items-center rounded-md text-[10px] ${selected?'bg-lime-200 text-lime-900':'bg-slate-100 text-slate-500'}`}>{String.fromCharCode(65+optionIndex)}</span>{option.text}</button>
+      })}</div>:<div className="mt-3 min-h-0">
         {exercise.wordBank?.length?<div className="exercise-wordbank mb-2" aria-label="Wortbausteine">{exercise.wordBank.map((word,wordIndex)=><button key={`${word}:${wordIndex}`} type="button" onClick={()=>addWord(word)} className="surface-interactive border border-slate-200 bg-white font-bold">{word}</button>)}</div>:null}
-        <input ref={inputRef} value={value} onFocus={()=>document.documentElement.dataset.keyboardFocus='true'} onBlur={()=>delete document.documentElement.dataset.keyboardFocus} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')submit()}} className="exercise-input w-full border border-slate-200 bg-white text-base outline-none transition focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={exercise.wordBank?.length?'Satz zusammensetzen …':'Deine Antwort …'} aria-label="Deine Antwort" autoComplete="off"/>
-        <div className="mt-1.5 flex items-center gap-1.5">{['č','š','ž'].map(character=><button key={character} type="button" onClick={()=>{setValue(current=>current+character);requestAnimationFrame(()=>inputRef.current?.focus({preventScroll:true}))}} className="grid h-9 min-w-9 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-black">{character.toUpperCase()}</button>)}{exercise.wordBank?.length&&value?<button type="button" onClick={()=>{setValue('');inputRef.current?.focus({preventScroll:true})}} className="btn-quiet ml-auto">Zurücksetzen</button>:null}</div>
+        <input ref={inputRef} value={value} onFocus={()=>document.documentElement.dataset.keyboardFocus='true'} onBlur={()=>delete document.documentElement.dataset.keyboardFocus} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter'&&value.trim())submit()}} className="exercise-input w-full border border-slate-200 bg-white text-base outline-none transition focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={exercise.wordBank?.length?'Satz zusammensetzen …':'Deine Antwort …'} aria-label="Deine Antwort" autoComplete="off"/>
+        {exercise.wordBank?.length&&value?<button type="button" onClick={()=>{setValue('');inputRef.current?.focus({preventScroll:true})}} className="btn-quiet mt-1.5 self-start">Zurücksetzen</button>:null}
       </div>}
+
+      <button onClick={()=>submit()} disabled={!value.trim()} className="btn-primary mt-3 w-full">Prüfen</button>
     </div>:<div className="exercise-content exercise-feedback" role="status" aria-live="polite">
       {correct?<CheckCircle2 className="mx-auto text-lime-700" size={36}/>:<XCircle className="mx-auto text-amber-700" size={36}/>}<div className="mt-2 text-2xl font-black">{correct?(evaluation?.classification==='ACCEPTABLE_VARIANT'?'Auch richtig':'Richtig'):classificationLabel}</div>
       {!correct&&<div className="exercise-feedback-answer mt-3 text-base font-bold leading-snug">{evaluation?.explanation??`Richtig wäre: ${exercise.answer}`}</div>}
       {!correct&&exercise.explanation&&<button type="button" onClick={()=>setShowExplanation(true)} className="btn-quiet mx-auto mt-2">Warum?</button>}
+      <button onClick={next} className="btn-primary mt-3 w-full">{nextLabel}</button>
     </div>}
-
-    <div className="exercise-actions">
-      {!checked&&exercise.type!=='choice'&&<button onClick={()=>submit()} disabled={!value.trim()} className="btn-primary w-full">Prüfen</button>}
-      {checked&&<button onClick={next} className="btn-primary w-full">{nextLabel}</button>}
-    </div>
 
     {showHint&&<div className="exercise-overlay" role="dialog" aria-label="Hinweis"><div className="text-xs font-black uppercase tracking-wider text-lime-700">Hinweis</div><div className="mt-3 text-lg font-bold leading-snug">{exercise.hint}</div><button className="btn-primary mt-5 w-full" onClick={()=>setShowHint(false)}>Zur Aufgabe</button></div>}
     {showExplanation&&<div className="exercise-overlay" role="dialog" aria-label="Erklärung"><div className="text-xs font-black uppercase tracking-wider text-lime-700">Erklärung</div><div className="mt-3 text-sm leading-6 text-slate-600">{exercise.explanation}</div><button className="btn-primary mt-5 w-full" onClick={()=>setShowExplanation(false)}>Verstanden</button></div>}
