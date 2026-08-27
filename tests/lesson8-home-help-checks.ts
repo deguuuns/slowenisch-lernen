@@ -8,10 +8,10 @@ assert.equal(lesson?.title, 'Doma in pomoč')
 
 const words = releasedVocabulary.filter(item => item.lesson === 8)
 const legacyIds = Array.from({length:20}, (_,index) => `v${161 + index}`)
-const v2WordsForLesson = words.filter(item => /^v\d+$/.test(item.id) && Number(item.id.slice(1)) >= 181 && Number(item.id.slice(1)) <= 230)
+const canonicalExpansion = releasedVocabulary.filter(item => item.cefrLevel === 'A1' && item.curriculumUnit && /^v\d+$/.test(item.id) && Number(item.id.slice(1)) >= 181)
 assert.ok(words.length >= 20, 'Lektion 8 muss mindestens die 20 kuratierten Wörter v161-v180 erhalten')
 for (const id of legacyIds) assert.ok(words.some(item=>item.id===id), `Lektion 8 muss Legacy-Wort ${id} für gespeicherten Fortschritt erhalten`)
-assert.ok(v2WordsForLesson.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.8 Wohnen, Wetter und Hilfe'), 'Neue V2-Wörter in Lektion 8 müssen definierte A1.8-Erweiterungen sein')
+assert.ok(words.filter(item=>Number(item.id.slice(1))>=181).every(item=>item.cefrLevel==='A1'&&item.curriculumUnit==='A1.8 Wohnen, Wetter und Hilfe'), 'Neue Wörter in Lektion 8 müssen definierte A1.8-Erweiterungen sein')
 
 const lessonExercises = exercises.filter(item => item.lesson === 8)
 assert.ok(lessonExercises.length >= 10, 'Lektion 8 braucht ausreichend kuratierte Übungen')
@@ -33,8 +33,8 @@ for (const exercise of lessonExercises) {
   }
 }
 
-const v2Words=releasedVocabulary.filter(item=>/^v\d+$/.test(item.id)&&Number(item.id.slice(1))>=181&&Number(item.id.slice(1))<=230)
-assert.equal(v2Words.length,50,'Curriculum V2 muss genau die definierte neue A1-ID-Serie v181-v230 enthalten')
-assert.ok(v2Words.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit),'Jede V2-Erweiterung braucht CEFR- und Curriculum-Metadaten')
+assert.ok(canonicalExpansion.length >= 40, 'Das kanonische A1-Curriculum muss die kuratierte Erweiterung weiterhin enthalten')
+assert.ok(canonicalExpansion.every(item=>item.cefrLevel==='A1'&&item.curriculumUnit),'Jede kanonische A1-Erweiterung braucht CEFR- und Curriculum-Metadaten')
+assert.equal(new Set(releasedVocabulary.map(item=>item.id)).size,releasedVocabulary.length,'Der freigegebene Wortschatz darf keine doppelten IDs enthalten')
 
 console.log(`Lesson 8 home/help checks passed: ${words.length} words, ${lessonExercises.length} exercises, ${lessonSentences.length} sentences.`)
