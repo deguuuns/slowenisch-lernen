@@ -9,7 +9,7 @@ import VocabWorkspace from '@/components/VocabWorkspace'
 import { releasedVocabulary } from '@/data/curriculum'
 import { createExerciseSession } from '@/lib/exercise-session'
 import { defaultProgress } from '@/lib/storage'
-import { verbCatalog } from '@/lib/verb-catalog'
+import { verbCatalog } from '@/lib/content-registry'
 import type { Exercise } from '@/types'
 
 const longGerman='Ich habe heute leider keine Zeit, weil ich am Nachmittag arbeiten muss und danach direkt nach Hause fahre.'
