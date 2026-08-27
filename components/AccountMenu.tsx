@@ -18,7 +18,7 @@ export default function AccountMenu({session,syncState,preferences=defaultPrefer
   const syncProblem=session&&(syncState.includes('offline')||syncState.includes('erforderlich'))
 
   return <div className="relative">
-    <button onClick={()=>setOpen(!open)} className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-700 shadow-sm ring-1 ring-slate-200/70" aria-expanded={open} aria-label="Konto und Einstellungen"><UserRound size={18}/></button>
+    <button onClick={()=>setOpen(!open)} className="flex min-h-10 items-center gap-2 rounded-full bg-white px-3 text-sm font-black text-slate-700 shadow-sm ring-1 ring-slate-200/70" aria-expanded={open} aria-label={session?'Konto und Einstellungen öffnen':'Anmelden oder Konto erstellen'}><UserRound size={17}/><span>{session?'Konto':'Anmelden'}</span></button>
     {open&&<div className="absolute right-0 top-12 z-[70] max-h-[min(40rem,calc(100vh-4.5rem))] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
       <div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-lime-100 text-lime-800"><Settings size={19}/></div><div className="min-w-0"><div className="font-black">Konto & Einstellungen</div><div className="truncate text-xs text-slate-500">{session?.user.email||'Lokal lernen'}</div></div></div>
 
