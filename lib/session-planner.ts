@@ -1,6 +1,6 @@
-import { vocabulary as seedVocabulary } from '@/data/seed'
+import { vocabulary as canonicalVocabulary } from '@/data/vocabulary-catalog'
 import { buildAdaptiveReviewDeck } from '@/lib/adaptive-curriculum'
-import { dedupeExercisesByTarget } from '@/lib/learning-targets'
+import { dedupeExercisesByTarget, dedupeExercisesSemantically } from '@/lib/learning-targets'
 import { buildPracticeDeck, choosePracticeIntent } from '@/lib/practice-engine'
 import { assessSessionLoad, exercisesForMinutes, type SessionLoadLevel } from '@/lib/session-load'
 import { Exercise, UserProgress, Vocabulary } from '@/types'
@@ -20,17 +20,15 @@ export type SessionPlan = {
   exerciseItems: Exercise[]
 }
 
-export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[], _activeLesson: number, vocabulary: Vocabulary[] = seedVocabulary): SessionPlan {
+export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[], _activeLesson: number, vocabulary: Vocabulary[] = canonicalVocabulary): SessionPlan {
   const load = assessSessionLoad(progress)
   const requested = exercisesForMinutes(load.recommendedMinutes)
   const now = Date.now()
-
-  // Preserve generated due-review/transfer exercises, then let the central Practice Engine
-  // fill the remaining slots according to the learner's weakest current need.
   const dueDeck = buildAdaptiveReviewDeck(progress, rawExercises, requested, now, vocabulary)
   const adaptiveDeck = buildPracticeDeck(progress, rawExercises, requested, now)
-  const deck = dedupeExercisesByTarget([...dueDeck, ...adaptiveDeck], requested).slice(0, requested).map(exercise => ({ ...exercise }))
-
+  // A different exercise id or card type does not make an equivalent prompt/answer fresh.
+  const semantic = dedupeExercisesSemantically([...dueDeck, ...adaptiveDeck], requested * 2)
+  const deck = dedupeExercisesByTarget(semantic, requested).slice(0, requested).map(exercise => ({ ...exercise }))
   const intents = deck.map(exercise => choosePracticeIntent(progress, exercise, now))
   const weakGrammar = deck.filter((exercise,index)=>intents[index]==='repair-weakness' && (exercise.grammarRuleIds?.length||exercise.requiredVerbForms?.length)).length
   const weakVocabulary = deck.filter((exercise,index)=>intents[index]==='repair-weakness' && exercise.vocabularyIds?.length).length
@@ -51,6 +49,4 @@ export function buildSessionPlan(progress: UserProgress, rawExercises: Exercise[
   }
 }
 
-export function exercisesForPlan(plan: SessionPlan, _rawExercises?: Exercise[]) {
-  return plan.exerciseItems.map(exercise => ({ ...exercise }))
-}
+export function exercisesForPlan(plan: SessionPlan, _rawExercises?: Exercise[]) { return plan.exerciseItems.map(exercise => ({ ...exercise })) }

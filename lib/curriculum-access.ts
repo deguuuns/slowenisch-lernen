@@ -4,7 +4,7 @@ import {
   verbRequirementForVocabularyId,
 } from '@/lib/content-registry'
 import { VERB_UNLOCK_THRESHOLDS } from '@/lib/learning-config'
-import { Exercise, UserProgress, VerbFormRequirement, Vocabulary } from '@/types'
+import { Exercise, TargetContentKey, UserProgress, VerbFormRequirement, Vocabulary } from '@/types'
 
 export type GrammarRuleDefinition = {
   id: string
@@ -15,7 +15,7 @@ export type GrammarRuleDefinition = {
 }
 
 export const GRAMMAR_RULES: Record<string, GrammarRuleDefinition> = {
-  'greeting-basic': { id:'greeting-basic', title:'Begrüßungen', body:'Begrüßungen lernst du als feste Wendungen. Achte darauf, wer angesprochen wird.', examples:['Živjo!','Dober dan!','Kako si?'] },
+  'greeting-basic': { id:'greeting-basic', title:'Begrüßung zusammensetzen', body:'Lerne zuerst die einzelnen Bausteine. Erst wenn ihre Bedeutung klar ist, werden sie zu einer natürlichen Wendung verbunden.', examples:['živjo = hallo','kako = wie','ti si = du bist','Kako si? = Wie geht es dir?'] },
   'location-static-v-locative': { id:'location-static-v-locative', title:'Wo? – v + Lokativ', body:'Wenn du sagst, wo du bist, steht nach v eine Ortsform.', examples:['Sem v Sloveniji.','Živim v Nemčiji.'] },
   'direction-v-accusative': { id:'direction-v-accusative', title:'Wohin? – v + Akkusativ', body:'Bei einer Richtung verändert sich die Form nach v.', examples:['Grem v službo.','Grem v restavracijo.'], requires:['location-static-v-locative'] },
   'source-iz-genitive': { id:'source-iz-genitive', title:'Woher? – iz', body:'Für Herkunft verwendest du iz mit der passenden Herkunftsform.', examples:['Sem iz Nemčije.'] },
@@ -28,7 +28,7 @@ export const GRAMMAR_RULES: Record<string, GrammarRuleDefinition> = {
   'age-expression': { id:'age-expression', title:'Alter sagen', body:'Das Alter wird mit star/stara + sem ausgedrückt.', examples:['Star sem šest let.'] },
   'time-ob-locative': { id:'time-ob-locative', title:'Uhrzeit mit ob', body:'Für „um ... Uhr“ verwendest du ob mit der passenden Zeitform.', examples:['ob osmih','ob desetih'] },
   'direction-domov': { id:'direction-domov', title:'Nach Hause: domov', body:'Für die Richtung „nach Hause“ benutzt du domov.', examples:['Grem domov.'] },
-  'verb-first-person': { id:'verb-first-person', title:'Verbformen im Präsens', body:'Neue Verben lernst du zuerst im Singular: ich, du, er/sie/es. Erst danach werden weitere Personen freigeschaltet.', examples:['jaz imam · ti imaš · on/ona ima','jaz pijem · ti piješ · on/ona pije'] },
+  'verb-first-person': { id:'verb-first-person', title:'Verbformen im Präsens', body:'Verbformen werden einzeln im kommunikativen Kontext eingeführt. Eine Form muss verstanden sein, bevor komplexere Sätze damit gebaut werden.', examples:['biti → ti si','biti → jaz sem','imeti → jaz imam'] },
   'politeness-prosim': { id:'politeness-prosim', title:'Höflich mit prosim', body:'prosim kann wie „bitte“ verwendet werden.', examples:['Kavo, prosim.','Prosim, počasi.'] },
   'predicate-adjective': { id:'predicate-adjective', title:'Zustand beschreiben', body:'Adjektive können mit sem einen Zustand ausdrücken.', examples:['Lačen sem.','Žejen sem.'] },
   'polite-request-lahko': { id:'polite-request-lahko', title:'Höfliche Bitte mit lahko', body:'Mit lahko kannst du höflich nach einer Möglichkeit fragen.', examples:['Lahko ponovite?'] },
@@ -95,6 +95,20 @@ function normalVerbFormReady(progress: UserProgress, requirement: VerbFormRequir
   )
 }
 
+function prerequisiteReady(
+  prerequisite:TargetContentKey,
+  progress:UserProgress,
+  allowed:{vocabulary:Set<string>;grammar:Set<string>;verb:Set<string>},
+){
+  const [kind,...rest]=prerequisite.split(':')
+  const value=rest.join(':')
+  if(kind==='vocab')return allowed.vocabulary.has(value)
+  if(kind==='grammar')return allowed.grammar.has(value)
+  if(kind==='verb')return allowed.verb.has(value)
+  if(kind==='skill')return Boolean(progress.mastery?.[prerequisite]?.attempts)
+  return false
+}
+
 export function isExerciseEligible(
   exercise: Exercise,
   progress: UserProgress,
@@ -108,6 +122,8 @@ export function isExerciseEligible(
   const rules = new Set([...progress.introducedGrammarRules, ...(options.allowGrammarRuleIds || [])])
   const forms = new Set([...progress.introducedVerbForms, ...(options.allowVerbForms || [])])
 
+  const allowed={vocabulary:words,grammar:rules,verb:forms}
+  if((exercise.prerequisites||[]).some(key=>!prerequisiteReady(key,progress,allowed)))return false
   if ((exercise.vocabularyIds || []).some(id => !words.has(id))) return false
   for (const rule of exercise.grammarRuleIds || []) {
     if (!rules.has(rule) || !grammarPrerequisitesMet(rule, progress, options.allowGrammarRuleIds || [])) return false

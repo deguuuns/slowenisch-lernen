@@ -21,6 +21,7 @@ export type DailyTrainingPlan={
   blocks:DailyTrainingBlock[]
   primaryWeakness?:string
   dueCount:number
+  themeTargetKeys:string[]
 }
 
 function weakTargets(progress:UserProgress){
@@ -43,6 +44,10 @@ export function exerciseTargetKeys(exercise:Exercise):TargetContentKey[]{
   return Array.from(new Set([...explicit,...inferred]))
 }
 
+function activeThemeKeys(exercises:Exercise[],activeLesson:number){
+  return Array.from(new Set(exercises.filter(exercise=>exercise.lesson===activeLesson).flatMap(exercise=>exerciseTargetKeys(exercise))))
+}
+
 export function dailyTrainingBlockDestination(block:DailyTrainingBlock):DailyTrainingDestination{
   if(block.kind==='lesson')return 'lesson'
   if(block.kind==='speaking')return 'speak'
@@ -53,41 +58,46 @@ export function buildDailyTrainingPlan(progress:UserProgress, exercises:Exercise
   const session=buildSessionPlan(progress,exercises,activeLesson)
   const goal=session.goalMinutes
   const target=session.recommendedMinutes
-  const dueCount=progress.reviews.filter(item=>item.dueAt<=now).length
-  const weak=weakTargets(progress)
+  const dueReviews=progress.reviews.filter(item=>item.dueAt<=now)
+  const dueCount=dueReviews.length
+  const themeTargetKeys=activeThemeKeys(exercises,activeLesson)
+  const themeSet=new Set(themeTargetKeys)
+  const weakAll=weakTargets(progress)
+  const themedWeak=weakAll.filter(key=>themeSet.has(key as TargetContentKey))
+  const weak=themedWeak.length?themedWeak:weakAll
+  const themedDue=dueReviews.map(item=>item.key).filter(key=>themeSet.has(key as TargetContentKey))
   const blocks:DailyTrainingBlock[]=[]
   let remaining=target
 
   if(dueCount>0||session.review>0){
     const minutes=Math.min(remaining,clampMinutes(Math.min(5,Math.max(2,session.review||dueCount))))
-    blocks.push({id:'daily-review',kind:'review',title:'Fällige Wiederholungen',reason:`${Math.max(dueCount,session.review)} Lernziele sind fällig.`,minutes,targetKeys:[]})
+    const targets=(themedDue.length?themedDue:dueReviews.map(item=>item.key)).slice(0,6)
+    blocks.push({id:'daily-review',kind:'review',title:'Wiederholen',reason:themedDue.length?'Fällige Inhalte aus deinem aktuellen Lernbereich.':`${Math.max(dueCount,session.review)} Lernziele sind fällig.`,minutes,targetKeys:targets})
     remaining-=minutes
   }
 
   if(weak.length&&remaining>1){
     const focus=weak.slice(0,3)
     const minutes=Math.min(remaining,clampMinutes(target*.3))
-    blocks.push({id:'daily-weakness',kind:'weakness',title:'Schwäche gezielt reparieren',reason:`Fokus: ${focus.map(key=>key.replace(/^\w+:/,'')).join(', ')}`,minutes,targetKeys:focus})
+    blocks.push({id:'daily-weakness',kind:'weakness',title:'Gezielt festigen',reason:themedWeak.length?'Schwächen aus dem aktuellen Lernbereich werden zuerst repariert.':`Fokus: ${focus.map(key=>key.replace(/^\w+:/,'')).join(', ')}`,minutes,targetKeys:focus})
     remaining-=minutes
   }
 
   if(remaining>3){
     const listeningWeak=weak.some(key=>key.includes('listening'))
     const speakingWeak=weak.some(key=>key.includes('speaking')||key.includes('production'))
-    // Neue Inhalte bleiben auch nach den ersten fünf Lektionen Teil des Tagesplans.
-    // Frühere Phasen hatten hier versehentlich ab Lektion 6 immer Sprechen gewählt.
     const kind:DailyTrainingBlockKind=listeningWeak?'listening':speakingWeak?'speaking':'lesson'
     const title=kind==='listening'?'Hörverständnis':kind==='speaking'?'Aktiv sprechen':`Lektion ${activeLesson} fortsetzen`
     const minutes=Math.min(remaining,clampMinutes(target*.35))
-    blocks.push({id:`daily-${kind}`,kind,title,reason:listeningWeak?'Hören ist aktuell ein schwächerer Bereich.':speakingWeak?'Aktive Produktion braucht mehr Sicherheit.':'Neuer Stoff ergänzt die fällige Wiederholung.',minutes,targetKeys:[]})
+    blocks.push({id:`daily-${kind}`,kind,title,reason:listeningWeak?'Hören im aktuellen Lernstand gezielt stärken.':speakingWeak?'Aktive Produktion im aktuellen Lernkontext stärken.':'Neuer Stoff bleibt im selben Lernkontext.',minutes,targetKeys:themeTargetKeys})
     remaining-=minutes
   }
 
   if(remaining>0){
-    blocks.push({id:'daily-finish',kind:'speaking',title:'Kurzer Transfer',reason:'Zum Abschluss bekannte Strukturen aktiv in eigenen Antworten verwenden.',minutes:remaining,targetKeys:[]})
+    blocks.push({id:'daily-finish',kind:'speaking',title:'Kurzer Transfer',reason:'Zum Abschluss denselben Lernkontext aktiv verwenden.',minutes:remaining,targetKeys:themeTargetKeys})
   }
 
-  return {minutes:blocks.reduce((sum,item)=>sum+item.minutes,0),goalMinutes:goal,recommendedMinutes:target,loadLevel:session.loadLevel,loadReason:session.loadReason,blocks,primaryWeakness:weak[0],dueCount}
+  return {minutes:blocks.reduce((sum,item)=>sum+item.minutes,0),goalMinutes:goal,recommendedMinutes:target,loadLevel:session.loadLevel,loadReason:session.loadReason,blocks,primaryWeakness:weak[0],dueCount,themeTargetKeys}
 }
 
 export function dailyTrainingLabel(plan:DailyTrainingPlan){

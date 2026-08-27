@@ -8,24 +8,13 @@ export type CurriculumVocabularyUnit = {
 }
 
 const word = (
-  id:string,
-  sl:string,
-  de:string,
-  partOfSpeech:string,
-  category:string,
-  example:string,
-  exampleDe:string,
-  lesson:number,
-  options:Partial<Pick<Vocabulary,'lemma'|'gender'|'tags'>> = {},
+  id:string, sl:string, de:string, partOfSpeech:string, category:string,
+  example:string, exampleDe:string, lesson:number,
+  options:Partial<Vocabulary> = {},
 ):Vocabulary => ({ id, sl, de, partOfSpeech, category, example, exampleDe, lesson, cefrLevel:'A1', ...options })
 
-/**
- * Phase 16: curated A1 vocabulary prepared for future lesson integration.
- * These entries are curriculum-bound but deliberately not auto-introduced into UserProgress.
- * Stable ids continue after the existing v001-v120 seed catalog.
- */
-export const a1VocabularyExpansion: Vocabulary[] = [
-  // Lesson 6 – Einkaufen
+/** Canonical non-overlapping vocabulary segment for lessons 6-8. */
+export const laterLessonVocabulary: Vocabulary[] = [
   word('v121','trgovina','Geschäft / Laden','Substantiv','Einkaufen','Trgovina je blizu.','Das Geschäft ist in der Nähe.',6,{gender:'feminine',tags:['shopping','place']}),
   word('v122','kupiti','kaufen','Verb','Einkaufen','Želim kupiti kruh.','Ich möchte Brot kaufen.',6,{lemma:'kupiti',tags:['shopping','action']}),
   word('v123','iskati','suchen','Verb','Einkaufen','Iščem majico.','Ich suche ein T-Shirt.',6,{lemma:'iskati',tags:['shopping','action']}),
@@ -46,8 +35,6 @@ export const a1VocabularyExpansion: Vocabulary[] = [
   word('v138','kartica','Karte','Substantiv','Einkaufen','Plačam s kartico.','Ich bezahle mit Karte.',6,{gender:'feminine',tags:['shopping','money']}),
   word('v139','gotovina','Bargeld','Substantiv','Einkaufen','Imam samo gotovino.','Ich habe nur Bargeld.',6,{gender:'feminine',tags:['shopping','money']}),
   word('v140','plačati','bezahlen','Verb','Einkaufen','Kje lahko plačam?','Wo kann ich bezahlen?',6,{lemma:'plačati',tags:['shopping','action']}),
-
-  // Lesson 7 – Unterwegs und Reisen
   word('v141','postaja','Haltestelle / Bahnhof','Substantiv','Unterwegs','Avtobusna postaja je tam.','Die Bushaltestelle ist dort.',7,{gender:'feminine',tags:['travel','place']}),
   word('v142','avtobus','Bus','Substantiv','Unterwegs','Grem z avtobusom.','Ich fahre mit dem Bus.',7,{gender:'masculine',tags:['travel','transport']}),
   word('v143','vlak','Zug','Substantiv','Unterwegs','Vlak pride ob osmih.','Der Zug kommt um acht.',7,{gender:'masculine',tags:['travel','transport']}),
@@ -68,8 +55,6 @@ export const a1VocabularyExpansion: Vocabulary[] = [
   word('v158','prihod','Ankunft','Substantiv','Unterwegs','Prihod je ob osmih.','Die Ankunft ist um acht.',7,{gender:'masculine',tags:['travel','schedule']}),
   word('v159','zemljevid','Karte / Landkarte','Substantiv','Unterwegs','Imate zemljevid mesta?','Haben Sie einen Stadtplan?',7,{gender:'masculine',tags:['travel','direction']}),
   word('v160','pot','Weg / Reise','Substantiv','Unterwegs','Srečno pot!','Gute Reise!',7,{gender:'feminine',tags:['travel','direction']}),
-
-  // Lesson 8 – Zuhause, Wetter und Hilfe
   word('v161','hiša','Haus','Substantiv','Zuhause','Moja hiša je majhna.','Mein Haus ist klein.',8,{gender:'feminine',tags:['home']}),
   word('v162','stanovanje','Wohnung','Substantiv','Zuhause','Živim v stanovanju.','Ich wohne in einer Wohnung.',8,{gender:'neuter',tags:['home']}),
   word('v163','soba','Zimmer','Substantiv','Zuhause','Soba je velika.','Das Zimmer ist groß.',8,{gender:'feminine',tags:['home']}),
@@ -92,16 +77,8 @@ export const a1VocabularyExpansion: Vocabulary[] = [
   word('v180','utrujen','müde','Adjektiv','Gefühle','Zvečer sem utrujen.','Abends bin ich müde.',8,{tags:['daily-life','description']}),
 ]
 
-export const curriculumVocabularyUnits: CurriculumVocabularyUnit[] = [
-  { lesson:6, title:'Nakupovanje', goal:'Preise, Farben, Größen und Bezahlen beim Einkaufen', vocabularyIds:a1VocabularyExpansion.filter(item=>item.lesson===6).map(item=>item.id) },
-  { lesson:7, title:'Na poti', goal:'Verkehrsmittel, Fahrkarten, Wege und Reisezeiten', vocabularyIds:a1VocabularyExpansion.filter(item=>item.lesson===7).map(item=>item.id) },
-  { lesson:8, title:'Doma in pomoč', goal:'Zuhause, einfaches Wetter und grundlegende Hilfe', vocabularyIds:a1VocabularyExpansion.filter(item=>item.lesson===8).map(item=>item.id) },
+export const laterLessonVocabularyUnits: CurriculumVocabularyUnit[] = [
+  { lesson:6, title:'Nakupovanje', goal:'Preise, Farben, Größen und Bezahlen beim Einkaufen', vocabularyIds:laterLessonVocabulary.filter(item=>item.lesson===6).map(item=>item.id) },
+  { lesson:7, title:'Na poti', goal:'Verkehrsmittel, Fahrkarten, Wege und Reisezeiten', vocabularyIds:laterLessonVocabulary.filter(item=>item.lesson===7).map(item=>item.id) },
+  { lesson:8, title:'Doma in pomoč', goal:'Zuhause, einfaches Wetter und grundlegende Hilfe', vocabularyIds:laterLessonVocabulary.filter(item=>item.lesson===8).map(item=>item.id) },
 ]
-
-export function vocabularyExpansionForLesson(lesson:number) {
-  return a1VocabularyExpansion.filter(item=>item.lesson===lesson)
-}
-
-export function curriculumUnitForVocabularyId(id:string) {
-  return curriculumVocabularyUnits.find(unit=>unit.vocabularyIds.includes(id))
-}
