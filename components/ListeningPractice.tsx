@@ -14,10 +14,11 @@ export default function ListeningPractice({vocabulary,progress,onResult,onComple
  const ranked=useMemo(()=>recommendedListeningItems(known,listeningScore),[known,listeningScore])
  const [index,setIndex]=useState(0),[showText,setShowText]=useState(false),[showTranslation,setShowTranslation]=useState(false),[answers,setAnswers]=useState<Record<number,string>>({})
  const startedAt=useRef(Date.now())
+ const answeredRef=useRef(new Set<number>())
  const item:ListeningItem=ranked[index%Math.max(1,ranked.length)]||LISTENING_CURRICULUM[0]
  const answeredAll=item.prompts.length>0&&item.prompts.every((_,qi)=>Boolean(answers[qi]))
- function answer(qi:number,option:string){if(answers[qi])return;const q=item.prompts[qi],correct=option===q.answer;setAnswers(a=>({...a,[qi]:option}));const exercise:Exercise={id:`listening:${item.id}:${qi}`,lesson:1,type:'choice',prompt:q.question,answer:q.answer,evaluationMode:'exact',skillTargets:['listening'],targetContentKeys:item.targetKeys};onResult(exercise,correct,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:(showText?1:0)+(showTranslation?1:0)})}
- function next(){setIndex(i=>(i+1)%Math.max(1,ranked.length));setAnswers({});setShowText(false);setShowTranslation(false);startedAt.current=Date.now();window.scrollTo({top:0,behavior:'smooth'})}
+ function answer(qi:number,option:string){if(answeredRef.current.has(qi))return;answeredRef.current.add(qi);const q=item.prompts[qi],correct=option===q.answer;setAnswers(a=>({...a,[qi]:option}));const exercise:Exercise={id:`listening:${item.id}:${qi}`,lesson:1,type:'choice',prompt:q.question,answer:q.answer,evaluationMode:'exact',skillTargets:['listening'],targetContentKeys:item.targetKeys};onResult(exercise,correct,{responseMs:Math.max(250,Date.now()-startedAt.current),hintsUsed:(showText?1:0)+(showTranslation?1:0)})}
+ function next(){answeredRef.current.clear();setIndex(i=>(i+1)%Math.max(1,ranked.length));setAnswers({});setShowText(false);setShowTranslation(false);startedAt.current=Date.now();window.scrollTo({top:0,behavior:'smooth'})}
  return <div className="surface p-4 sm:p-5">
    <div className="flex items-center gap-2 text-lime-700"><Headphones size={18}/><span className="eyebrow">Hören</span></div>
    <h2 className="mt-2 text-2xl font-black tracking-tight">{item.title}</h2>

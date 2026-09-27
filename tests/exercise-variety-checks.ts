@@ -17,8 +17,9 @@ const base:Exercise[]=[
 const expanded=expandExerciseVariety(base)
 const counts=exerciseVarietyCounts(expanded)
 assert.equal(counts.standard,base.length)
-assert.ok(counts.reorder>=2,'multi-word production exercises should gain reorder variants')
-assert.ok(counts['recognition-choice']>=2,'assessable non-choice exercises should gain recognition variants')
+assert.ok(counts.reorder>=1,'unambiguous complete translations can gain reorder variants')
+assert.equal(expanded.filter(item=>item.variantOfExerciseId==='variety-2').length,0,'fill answers must not become full-sentence word banks')
+assert.equal(counts['recognition-choice'],0,'unrelated answers must never become generated distractors')
 assert.equal(counts['active-recall'],1,'choice exercises should gain active-recall variants')
 
 const reorder=expanded.find(item=>item.presentationVariant==='reorder')
@@ -29,12 +30,6 @@ assert.ok((reorder?.wordBank?.length||0)>=3)
 assert.match(reorder?.prompt||'',/Wörter:/)
 assert.ok(reorder?.skillTargets?.includes('grammar-application'))
 
-const recognition=expanded.find(item=>item.presentationVariant==='recognition-choice')
-assert.ok(recognition)
-assert.equal(recognition?.type,'choice')
-assert.ok((recognition?.alternatives?.length||0)>=2)
-assert.ok(!(recognition?.alternatives||[]).some(value=>value.toLocaleLowerCase('sl')===recognition?.answer.toLocaleLowerCase('sl')))
-
 const recall=expanded.find(item=>item.presentationVariant==='active-recall')
 assert.ok(recall)
 assert.equal(recall?.type,'free')
@@ -43,6 +38,8 @@ assert.equal(recall?.alternatives,undefined)
 
 assert.equal(expanded.filter(item=>item.variantOfExerciseId==='variety-5').length,0,'personal-open exercises must not be auto-varied')
 assert.equal(expanded.filter(item=>item.variantOfExerciseId==='variety-6').length,0,'listening exercises must keep their dedicated format')
+assert.equal(expandExerciseVariety([{...base[0],id:'ambiguous',answer:'Jaz sem jaz.'}]).filter(item=>item.generated).length,0,'repeated word tiles must not create an ambiguous ordering task')
+assert.equal(expandExerciseVariety([{...base[0],id:'variants',acceptedAnswers:['Sem doma.']}]).filter(item=>item.generated).length,0,'alternate correct phrasings must not create a single-answer word bank')
 
 const generated=expanded.filter(item=>item.generated)
 const session=createExerciseSession('review',generated.slice(0,Math.min(6,generated.length)),'phase15-variety')
