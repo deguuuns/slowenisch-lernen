@@ -3,7 +3,8 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Slovensko – Slowenisch lernen',
-  description: 'Aktives Slowenischlernen für deutschsprachige Anfänger'
+  description: 'Aktives Slowenischlernen für deutschsprachige Anfänger',
+  manifest: '/manifest.webmanifest'
 }
 
 export const viewport: Viewport = {

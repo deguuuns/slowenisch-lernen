@@ -45,7 +45,9 @@ function variantBase(exercise:Exercise,presentation:ExercisePresentation,suffix:
 
 function reorderVariant(exercise:Exercise):Exercise|null{
   const answerTokens=tokens(exercise.answer)
-  if(!safeForGeneratedVariant(exercise)||answerTokens.length<3||answerTokens.length>10||exercise.type==='choice')return null
+  // A word bank is only assessable when there is one known word order and every
+  // tile is distinguishable. Open answers and alternate phrasings need curated tasks.
+  if(!safeForGeneratedVariant(exercise)||exercise.type!=='translate-de-sl'||exercise.acceptedAnswers?.length||answerTokens.length<3||answerTokens.length>10||new Set(answerTokens.map(token=>token.toLocaleLowerCase('sl-SI').replace(/[.,!?;:„“"()]/g,''))).size!==answerTokens.length)return null
   const shuffled=deterministicShuffle(answerTokens,`${exercise.id}:reorder`)
   if(shuffled.join(' ')===answerTokens.join(' '))shuffled.reverse()
   const variant=variantBase(exercise,'reorder','reorder')
@@ -71,31 +73,13 @@ function activeRecallVariant(exercise:Exercise):Exercise|null{
   }
 }
 
-function recognitionChoiceVariant(exercise:Exercise,peers:Exercise[]):Exercise|null{
-  if(!safeForGeneratedVariant(exercise)||exercise.type==='choice'||exercise.responseScope==='personal-open')return null
-  const distractors=peers
-    .filter(peer=>peer.id!==exercise.id&&safeForGeneratedVariant(peer)&&peer.lesson<=exercise.lesson&&peer.answer.trim().toLocaleLowerCase('sl')!==exercise.answer.trim().toLocaleLowerCase('sl'))
-    .sort((a,b)=>hash(`${exercise.id}:${a.id}`)-hash(`${exercise.id}:${b.id}`))
-    .map(peer=>peer.answer)
-    .filter((answer,index,all)=>all.findIndex(value=>value.trim().toLocaleLowerCase('sl')===answer.trim().toLocaleLowerCase('sl'))===index)
-    .slice(0,3)
-  if(distractors.length<2)return null
-  const variant=variantBase(exercise,'recognition-choice','recognition')
-  return {
-    ...variant,
-    type:'choice',
-    prompt:`Erkenne die richtige slowenische Antwort: ${exercise.prompt}`,
-    alternatives:distractors,
-    acceptedAnswers:undefined,
-    skillTargets:['recognition'],
-  }
-}
-
 export function expandExerciseVariety(exercises:Exercise[]){
   const output:Exercise[]=[]
   for(const exercise of exercises){
     output.push({...exercise,presentationVariant:exercise.presentationVariant||'standard'})
-    const variants=[reorderVariant(exercise),activeRecallVariant(exercise),recognitionChoiceVariant(exercise,exercises)].filter(Boolean) as Exercise[]
+    // Never manufacture distractors from unrelated exercises. Curated choice
+    // questions in the source content keep their own vetted alternatives.
+    const variants=[reorderVariant(exercise),activeRecallVariant(exercise)].filter(Boolean) as Exercise[]
     output.push(...variants)
   }
   return output

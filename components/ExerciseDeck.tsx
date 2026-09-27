@@ -26,6 +26,8 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
   const resultsRef = useRef<ExerciseSessionResult[]>([])
   const startedAt = useRef(Date.now())
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const submissionLocked = useRef(false)
+  const advanceLocked = useRef(false)
 
   const item = inRetry ? retryQueue[retryIndex] : session.exercises[index]
   const exercise = item?.exercise
@@ -33,11 +35,12 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
   useEffect(() => {
     setIndex(0);setRetryIndex(0);setRetryQueue([]);setInRetry(false);setValue('');setChecked(false);setFinished(false);setShowHint(false);setEvaluation(null);setResults([])
     resultsRef.current=[]
+    submissionLocked.current=false;advanceLocked.current=false
     startedAt.current=Date.now()
   }, [session.sessionId])
 
   useEffect(() => {
-    startedAt.current=Date.now();setValue('');setChecked(false);setShowHint(false);setEvaluation(null)
+    startedAt.current=Date.now();submissionLocked.current=false;advanceLocked.current=false;setValue('');setChecked(false);setShowHint(false);setEvaluation(null)
   }, [item?.id, inRetry])
 
   if (!session.exercises.length) return <div className="surface p-5 text-center text-sm text-slate-500">Für diese Sitzung sind noch keine Übungen vorhanden.</div>
@@ -60,7 +63,8 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
   }
 
   function submit(answer=value){
-    if(!exercise||!answer.trim()||checked)return
+    if(!exercise||!answer.trim()||checked||submissionLocked.current)return
+    submissionLocked.current=true
     const result=evaluate(answer)
     const responseMs=Math.max(250,Date.now()-startedAt.current)
     const hintsUsed=showHint?1:0
@@ -85,7 +89,8 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
   }
 
   function next(){
-    if(!checked)return
+    if(!checked||advanceLocked.current)return
+    advanceLocked.current=true
     if(inRetry){if(retryIndex>=retryQueue.length-1){setInRetry(false);setFinished(true);return}setRetryIndex(current=>current+1);return}
     if(index>=session.exercises.length-1){const issues=validateCompletedSession(session,resultsRef.current);if(issues.length)setResults([...resultsRef.current]);beginRetryOrFinish();return}
     setIndex(current=>current+1)
@@ -110,7 +115,7 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
       <h2 className="break-words text-2xl font-black leading-tight tracking-tight sm:text-3xl [overflow-wrap:anywhere]">{exercise.prompt}</h2>
       {exercise.hint&&!checked&&<button type="button" onClick={()=>setShowHint(true)} className="btn-quiet mt-2 -ml-3 justify-start">{showHint?`Hinweis: ${exercise.hint}`:'Hinweis anzeigen'}</button>}
 
-      {exercise.type==='choice'?<div className="mt-5 grid gap-2.5">{item.options.map((option,optionIndex)=><button key={option.id} disabled={checked} onClick={()=>submit(option.text)} className={`surface-interactive min-h-14 w-full whitespace-normal break-words rounded-2xl border px-4 py-3.5 text-left font-bold [overflow-wrap:anywhere] ${checked&&option.correct?'border-lime-500 bg-lime-50':checked&&value===option.text?'border-amber-400 bg-amber-50':'border-slate-200 bg-white'}`}><span className="mr-3 inline-grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-xs text-slate-500">{String.fromCharCode(65+optionIndex)}</span>{option.text}</button>)}</div>:<div className="mt-5">
+      {exercise.type==='choice'?<div className="mt-5 grid gap-2.5" role="group" aria-label="Antwortmöglichkeiten">{item.options.map((option,optionIndex)=><button key={option.id} type="button" disabled={checked} onClick={()=>submit(option.text)} className={`surface-interactive min-h-14 w-full whitespace-normal break-words rounded-2xl border px-4 py-3.5 text-left font-bold [overflow-wrap:anywhere] ${checked&&option.correct?'border-lime-500 bg-lime-50':checked&&value===option.text?'border-amber-400 bg-amber-50':'border-slate-200 bg-white'}`}><span className="mr-3 inline-grid h-7 w-7 place-items-center rounded-lg bg-slate-100 text-xs text-slate-500">{String.fromCharCode(65+optionIndex)}</span>{option.text}</button>)}</div>:<div className="mt-5">
         {exercise.wordBank?.length?<div className="mb-3 flex flex-wrap gap-2" aria-label="Wortbausteine">{exercise.wordBank.map((word,wordIndex)=><button key={`${word}:${wordIndex}`} type="button" disabled={checked} onClick={()=>addWord(word)} className="surface-interactive min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold">{word}</button>)}</div>:null}
         <input ref={inputRef} value={value} disabled={checked} onChange={event=>setValue(event.target.value)} onKeyDown={event=>{if(event.key==='Enter')submit()}} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base outline-none transition focus:border-lime-500 focus:ring-2 focus:ring-lime-100" placeholder={exercise.wordBank?.length?'Satz zusammensetzen …':'Deine Antwort …'} aria-label="Deine Antwort" autoComplete="off"/>
         <div className="mt-2 flex flex-wrap items-center gap-2">{['č','š','ž'].map(character=><button key={character} type="button" disabled={checked} onClick={()=>{setValue(current=>current+character);requestAnimationFrame(()=>inputRef.current?.focus({preventScroll:true}))}} className="tap-target rounded-xl border border-slate-200 bg-white px-4 py-2 font-black">{character.toUpperCase()}</button>)}{exercise.wordBank?.length&&value&&!checked?<button type="button" onClick={()=>{setValue('');inputRef.current?.focus({preventScroll:true})}} className="btn-quiet">Zurücksetzen</button>:null}</div>
@@ -119,7 +124,7 @@ export default function ExerciseDeck({ session, onResult, onComplete }: {
 
     <div className="exercise-actions">
       {!checked&&exercise.type!=='choice'&&<button onClick={()=>submit()} disabled={!value.trim()} className="btn-primary w-full">Prüfen</button>}
-      {checked&&<div className={`rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`} role="status" aria-live="polite"><div className="flex items-start gap-3">{correct?<CheckCircle2 className="mt-0.5 shrink-0 text-lime-700" size={22}/>:<XCircle className="mt-0.5 shrink-0 text-amber-700" size={22}/>}<div className="min-w-0 flex-1"><div className="font-black">{correct?(evaluation?.classification==='ACCEPTABLE_VARIANT'?'Auch richtig':'Richtig'):classificationLabel}</div>{!correct&&<div className="mt-1 break-words text-sm leading-6 [overflow-wrap:anywhere]">{evaluation?.explanation??`Richtig wäre: ${exercise.answer}`}</div>}{!correct&&exercise.explanation&&evaluation?.classification!=='GRAMMAR_ERROR'&&<details className="mt-2 text-sm"><summary className="cursor-pointer font-bold">Erklärung anzeigen</summary><div className="mt-1 leading-6 text-slate-600">{exercise.explanation}</div></details>}</div></div><button onClick={next} className="btn-primary mt-4 w-full">{nextLabel}</button></div>}
+      {checked&&<div className={`rounded-2xl p-4 ${correct?'bg-lime-50':'bg-amber-50'}`} role="status" aria-live="polite"><div className="flex items-start gap-3">{correct?<CheckCircle2 className="mt-0.5 shrink-0 text-lime-700" size={22}/>:<XCircle className="mt-0.5 shrink-0 text-amber-700" size={22}/>}<div className="min-w-0 flex-1"><div className="font-black">{correct?(evaluation?.classification==='ACCEPTABLE_VARIANT'?'Auch richtig':'Richtig'):classificationLabel}</div>{!correct&&<div className="mt-1 break-words text-sm leading-6 [overflow-wrap:anywhere]">{evaluation?.explanation??`Richtig wäre: ${exercise.answer}`}</div>}<div className="mt-1 break-words text-sm leading-6 [overflow-wrap:anywhere]">{exercise.explanation||`Lösung: ${exercise.answer}`}</div></div></div><button onClick={next} className="btn-primary mt-4 w-full">{nextLabel}</button></div>}
     </div>
   </div>
 }
